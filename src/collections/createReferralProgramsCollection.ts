@@ -143,6 +143,7 @@ export const createReferralProgramsCollection = (
             type: 'relationship',
             relationTo: 'categories', // Assuming categories collection exists
             hasMany: true,
+            index: false,
             admin: {
               description: 'Select categories this rule applies to',
               condition: (data) => data.appliesTo === 'categories',
@@ -153,6 +154,7 @@ export const createReferralProgramsCollection = (
             type: 'relationship',
             relationTo: 'products', // Assuming products collection exists
             hasMany: true,
+            index: false,
             admin: {
               description: 'Select specific products this rule applies to',
               condition: (data) => data.appliesTo === 'products',

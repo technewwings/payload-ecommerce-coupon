@@ -91,6 +91,7 @@ export const createReferralCodesCollection = (
             name: 'referee',
             type: 'relationship',
             relationTo: 'users',
+            index: false,
             admin: {
               description: 'The user who was referred',
             },
@@ -99,6 +100,7 @@ export const createReferralCodesCollection = (
             name: 'order',
             type: 'relationship',
             relationTo: 'orders', // Assuming orders collection exists
+            index: false,
             admin: {
               description: 'The order that qualified for the referral reward',
             },

@@ -122,6 +122,7 @@ export const createCouponsCollection = (
             type: 'relationship',
             relationTo: 'categories', // Assuming categories collection exists
             hasMany: true,
+            index: false,
             admin: {
               description: 'Restrict coupon to specific product categories',
             },
@@ -131,6 +132,7 @@ export const createCouponsCollection = (
             type: 'relationship',
             relationTo: 'products', // Assuming products collection exists
             hasMany: true,
+            index: false,
             admin: {
               description: 'Products that cannot use this coupon',
             },
