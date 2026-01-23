@@ -1,0 +1,71 @@
+{
+  "name": "@wtree/payload-ecommerce-coupon",
+  "version": "0.1.0",
+  "description": "Coupons and referral promotions plugin for @payloadcms/plugin-ecommerce (Payload CMS)",
+  "main": "dist/index.cjs",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "rimraf dist && tsup src/index.ts --format cjs,esm --dts",
+    "dev": "tsup src/index.ts --format cjs,esm --dts --watch",
+    "lint": "eslint src --ext .ts",
+    "lint:fix": "eslint src --ext .ts --fix",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "prepublishOnly": "npm run lint && npm run test && npm run build"
+  },
+  "keywords": [
+    "payload",
+    "payloadcms",
+    "payload-plugin",
+    "ecommerce",
+    "coupon",
+    "referral",
+    "promotion",
+    "discount",
+    "plugin"
+  ],
+  "author": "wtree",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/technewwings/payload-ecommerce-coupon.git"
+  },
+  "bugs": {
+    "url": "https://github.com/technewwings/payload-ecommerce-coupon/issues"
+  },
+  "homepage": "https://github.com/technewwings/payload-ecommerce-coupon#readme",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "peerDependencies": {
+    "payload": "^3.0.0",
+    "@payloadcms/plugin-ecommerce": "^3.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
+    "eslint": "^8.0.0",
+    "eslint-config-prettier": "^9.0.0",
+    "eslint-plugin-prettier": "^5.0.0",
+    "prettier": "^3.0.0",
+    "rimraf": "^5.0.0",
+    "tsup": "^8.0.0",
+    "typescript": "^5.0.0",
+    "vitest": "^1.0.0"
+  }
+}
