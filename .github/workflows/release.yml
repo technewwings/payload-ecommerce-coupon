@@ -4,7 +4,11 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version type (patch, minor, major)'
+        description: 'Version to release (e.g., 1.0.1, 1.1.0, 2.0.0)'
+        required: true
+        type: string
+      release_type:
+        description: 'Type of release'
         required: true
         type: choice
         options:
@@ -15,30 +19,74 @@ on:
 jobs:
   release:
     runs-on: ubuntu-latest
-
+    permissions:
+      contents: write
+      id-token: write
+    
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Use Node.js
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.6
+
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20.x'
-          cache: 'npm'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Install dependencies
-        run: npm ci
+        run: bun install
 
-      - name: Configure git
-        run: |
-          git config --local user.email "action@github.com"
-          git config --local user.name "GitHub Action"
+      - name: Run tests
+        run: bun test
+
+      - name: Build
+        run: bun run build
 
       - name: Bump version
-        run: npm version ${{ github.event.inputs.version }} -m "chore: release v%s"
+        run: |
+          if [ -n "${{ github.event.inputs.version }}" ]; then
+            npm version ${{ github.event.inputs.version }} -m "chore: release v%s"
+          else
+            npm version ${{ github.event.inputs.release_type }} -m "chore: release v%s"
+          fi
 
-      - name: Push tags
-        uses: ad-m/github-push-action@master
+      - name: Push changes and tags
+        run: |
+          git push origin main
+          git push origin --tags
+
+      - name: Get new version
+        id: version
+        run: echo "version=$(node -p \"require('./package.json').version\")" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          branch: main
-          tags: true
+          tag_name: v${{ steps.version.outputs.version }}
+          release_name: v${{ steps.version.outputs.version }}
+          body: |
+            ## Release v${{ steps.version.outputs.version }}
+            
+            See [CHANGELOG.md](https://github.com/technewwings/payload-ecommerce-coupon/blob/main/CHANGELOG.md) for details.
+            
+            ## Installation
+            ```bash
+            npm install @wtree/payload-ecommerce-coupon@${{ steps.version.outputs.version }}
+            ```
+          draft: false
+          prerelease: false
