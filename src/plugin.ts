@@ -90,7 +90,7 @@ export const payloadEcommerceCouponPlugin =
           {
             name: 'appliedReferrals',
             type: 'array',
-            dbName: "carts_applied_refs", 
+            dbName: 'carts_applied_refs',
             admin: { description: 'Referral codes applied to this cart' },
             fields: [
               {
@@ -114,7 +114,7 @@ export const payloadEcommerceCouponPlugin =
           {
             name: 'appliedReferrals',
             type: 'array',
-            dbName: "orders_applied_refs",
+            dbName: 'orders_applied_refs',
             admin: { description: 'Referral codes applied to this order', readOnly: true },
             fields: [
               {
@@ -140,7 +140,7 @@ export const payloadEcommerceCouponPlugin =
           {
             name: 'appliedCoupons',
             type: 'array',
-            dbName: "carts_applied_coupons",
+            dbName: 'carts_applied_coupons',
             admin: { description: 'Coupons applied to this cart' },
             fields: [
               {
@@ -161,7 +161,7 @@ export const payloadEcommerceCouponPlugin =
           {
             name: 'appliedCoupons',
             type: 'array',
-            dbName: "orders_applied_coupons", 
+            dbName: 'orders_applied_coupons',
             admin: { description: 'Coupons applied to this order', readOnly: true },
             fields: [
               {
