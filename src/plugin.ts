@@ -81,7 +81,10 @@ export const payloadEcommerceCouponPlugin =
       }
 
       // Only inject referral integration if the referral collection slug is actually present
-      if (pluginConfig.enableReferrals && allSlugs.has(pluginConfig.collections.referralCodesSlug)) {
+      if (
+        pluginConfig.enableReferrals &&
+        allSlugs.has(pluginConfig.collections.referralCodesSlug)
+      ) {
         // Fields to append to carts (referral mode)
         const cartReferralFields = [
           {
@@ -124,7 +127,10 @@ export const payloadEcommerceCouponPlugin =
         ]
 
         addFieldsToCollection('orders', orderReferralFields)
-      } else if (!pluginConfig.enableReferrals && allSlugs.has(pluginConfig.collections.couponsSlug)) {
+      } else if (
+        !pluginConfig.enableReferrals &&
+        allSlugs.has(pluginConfig.collections.couponsSlug)
+      ) {
         // coupon mode — similar safe injection for appliedCoupons
         const cartCouponFields = [
           {
