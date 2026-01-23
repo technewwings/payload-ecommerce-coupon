@@ -23,21 +23,21 @@ export async function useCouponCode(options: ApplyCouponHook): Promise<ApplyCoup
       body: JSON.stringify({ code, cartID, customerEmail }),
     })
 
-    const data: any = await response.json()
+    const data = (await response.json()) as Record<string, unknown>
 
     if (!response.ok) {
       return {
         success: false,
-        message: data.error || 'Failed to apply coupon',
-        error: data.error,
+        message: (data.error as string) || 'Failed to apply coupon',
+        error: data.error as string,
       }
     }
 
     return {
-      success: data.success,
-      message: data.message,
-      discount: data.discount,
-      coupon: data.coupon,
+      success: data.success as boolean,
+      message: data.message as string,
+      discount: data.discount as number,
+      coupon: data.coupon as Record<string, unknown>,
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Network error'
@@ -70,20 +70,20 @@ export async function validateCouponCode(
       body: JSON.stringify({ code, cartValue }),
     })
 
-    const data: any = await response.json()
+    const data = (await response.json()) as Record<string, unknown>
 
     if (!response.ok) {
       return {
         success: false,
-        message: data.error || 'Invalid coupon',
-        error: data.error,
+        message: (data.error as string) || 'Invalid coupon',
+        error: data.error as string,
       }
     }
 
     return {
-      success: data.success,
-      message: data.message,
-      coupon: data.coupon,
+      success: data.success as boolean,
+      message: data.message as string,
+      coupon: data.coupon as Record<string, unknown>,
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Network error'

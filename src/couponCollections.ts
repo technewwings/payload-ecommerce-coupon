@@ -17,27 +17,6 @@ export const buildCouponCollections = ({
   referralProgramsCollection: CollectionConfig
   referralCodesCollection: CollectionConfig
 } => {
-  const moneyFields: Field[] = [
-    {
-      name: 'currency',
-      type: 'text',
-      required: true,
-      defaultValue: defaultCurrency,
-      admin: {
-        description: 'ISO 4217 currency code, e.g. USD, EUR, INR',
-      },
-    },
-    {
-      name: 'amount',
-      type: 'number',
-      required: true,
-      admin: {
-        description:
-          'Amount in smallest currency unit (e.g. cents for USD, paise for INR) if using fixed discounts',
-      },
-    },
-  ]
-
   const couponsCollection: CollectionConfig = {
     slug: couponsSlug,
     admin: {

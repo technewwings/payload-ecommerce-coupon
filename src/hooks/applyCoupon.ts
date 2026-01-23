@@ -2,17 +2,17 @@ import type { Config } from 'payload'
 
 export type ApplyCouponHooksArgs = {
   config: Config
-  allowStackWithOtherCoupons: boolean
+  _allowStackWithOtherCoupons: boolean
   couponsSlug: string
-  referralProgramsSlug: string
+  _referralProgramsSlug: string
   referralCodesSlug: string
 }
 
 export const applyCouponHooks = ({
   config,
-  allowStackWithOtherCoupons,
+  _allowStackWithOtherCoupons,
   couponsSlug,
-  referralProgramsSlug,
+  _referralProgramsSlug,
   referralCodesSlug,
 }: ApplyCouponHooksArgs): Config => {
   // NOTE: This is a simplified example; in a real implementation you would

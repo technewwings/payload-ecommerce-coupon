@@ -6,10 +6,10 @@ export const payloadEcommerceCouponPlugin =
   (incomingConfig: Config): Config => {
     const {
       enabled = true,
-      defaultCurrency = 'USD',
-      allowStackWithOtherCoupons = false,
-      collections: collectionConfig = {},
-      autoIntegrate = true,
+      _defaultCurrency = 'USD',
+      _allowStackWithOtherCoupons = false,
+      collections: _collectionConfig = {},
+      _autoIntegrate = true,
     } = pluginOptions
 
     if (!enabled) return incomingConfig
