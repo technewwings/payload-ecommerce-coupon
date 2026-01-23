@@ -11,27 +11,36 @@ import { sanitizePluginConfig } from './utilities/sanitizePluginConfig'
 export const payloadEcommerceCouponPlugin =
   (pluginOptions: CouponPluginOptions = {}) =>
   async (incomingConfig: Config): Promise<Config> => {
-    if (!pluginOptions.enabled) return incomingConfig
-
     const pluginConfig = sanitizePluginConfig({ pluginConfig: pluginOptions })
 
-    // Ensure collections exists
+    if (!pluginConfig.enabled) return incomingConfig || {}
+
+    // Handle null or undefined incoming config
+    if (!incomingConfig) {
+      incomingConfig = { collections: [], endpoints: [] } as any
+    }
     if (!incomingConfig.collections) {
       incomingConfig.collections = []
     }
 
-    // Create collections
-    const couponsCollection = createCouponsCollection(pluginConfig)
-    const referralProgramsCollection = createReferralProgramsCollection(pluginConfig)
-    const referralCodesCollection = createReferralCodesCollection(pluginConfig)
+    const collectionsToAdd = []
 
-    // Add collections to config
-    incomingConfig.collections = [
-      ...incomingConfig.collections,
-      couponsCollection,
-      referralProgramsCollection,
-      referralCodesCollection,
-    ]
+    if (pluginConfig.enableReferrals) {
+      // Referral mode: create referral collections only
+      const referralProgramsCollection = createReferralProgramsCollection(pluginConfig)
+      const referralCodesCollection = createReferralCodesCollection(pluginConfig)
+
+      collectionsToAdd.push(referralProgramsCollection, referralCodesCollection)
+    } else {
+      // Coupon mode: create coupon collections only
+      const couponsCollection = createCouponsCollection(pluginConfig)
+      collectionsToAdd.push(couponsCollection)
+    }
+
+    // Add collections to config (avoid duplicates)
+    const existingSlugs = new Set(incomingConfig.collections.map((c: any) => c.slug))
+    const collectionsToAddFiltered = collectionsToAdd.filter((c: any) => !existingSlugs.has(c.slug))
+    incomingConfig.collections = [...incomingConfig.collections, ...collectionsToAddFiltered]
 
     // Add endpoints
     if (!incomingConfig.endpoints) {
@@ -49,80 +58,154 @@ export const payloadEcommerceCouponPlugin =
       incomingConfig.collections = incomingConfig.collections.map((collection) => {
         // Extend carts collection
         if (collection.slug === 'carts') {
-          return {
-            ...collection,
-            fields: [
-              ...(collection.fields || []),
-              {
-                name: 'appliedCoupons',
-                type: 'array',
-                admin: {
-                  description: 'Coupons applied to this cart',
-                },
-                fields: [
-                  {
-                    name: 'coupon',
-                    type: 'relationship',
-                    relationTo: pluginConfig.collections.couponsSlug,
-                    required: true,
+          if (pluginConfig.enableReferrals) {
+            // Referral mode: appliedReferrals
+            return {
+              ...collection,
+              fields: [
+                ...(collection.fields || []),
+                {
+                  name: 'appliedReferrals',
+                  type: 'array',
+                  admin: {
+                    description: 'Referral codes applied to this cart',
                   },
-                  {
-                    name: 'referralCode',
-                    type: 'relationship',
-                    relationTo: pluginConfig.collections.referralCodesSlug,
-                  },
-                  {
-                    name: 'discountAmount',
-                    type: 'number',
-                    required: true,
-                    admin: {
-                      description: `Discount amount in ${pluginConfig.defaultCurrency}`,
+                  fields: [
+                    {
+                      name: 'referralCode',
+                      type: 'relationship',
+                      relationTo: pluginConfig.collections.referralCodesSlug,
+                      required: true,
                     },
+                    {
+                      name: 'partnerCommission',
+                      type: 'number',
+                      required: true,
+                      admin: {
+                        description: `Commission amount for the partner in ${pluginConfig.defaultCurrency}`,
+                      },
+                    },
+                    {
+                      name: 'customerDiscount',
+                      type: 'number',
+                      required: true,
+                      admin: {
+                        description: `Discount amount for the customer in ${pluginConfig.defaultCurrency}`,
+                      },
+                    },
+                    {
+                      name: 'appliedAt',
+                      type: 'date',
+                      defaultValue: () => new Date(),
+                    },
+                  ],
+                },
+              ],
+            }
+          } else {
+            // Coupon mode: appliedCoupons
+            return {
+              ...collection,
+              fields: [
+                ...(collection.fields || []),
+                {
+                  name: 'appliedCoupons',
+                  type: 'array',
+                  admin: {
+                    description: 'Coupons applied to this cart',
                   },
-                  {
-                    name: 'appliedAt',
-                    type: 'date',
-                    defaultValue: () => new Date(),
-                  },
-                ],
-              },
-            ],
+                  fields: [
+                    {
+                      name: 'coupon',
+                      type: 'relationship',
+                      relationTo: pluginConfig.collections.couponsSlug,
+                      required: true,
+                    },
+                    {
+                      name: 'discountAmount',
+                      type: 'number',
+                      required: true,
+                      admin: {
+                        description: `Discount amount in ${pluginConfig.defaultCurrency}`,
+                      },
+                    },
+                    {
+                      name: 'appliedAt',
+                      type: 'date',
+                      defaultValue: () => new Date(),
+                    },
+                  ],
+                },
+              ],
+            }
           }
         }
 
         // Extend orders collection
         if (collection.slug === 'orders') {
-          return {
-            ...collection,
-            fields: [
-              ...(collection.fields || []),
-              {
-                name: 'appliedCoupons',
-                type: 'array',
-                admin: {
-                  description: 'Coupons applied to this order',
-                  readOnly: true,
+          if (pluginConfig.enableReferrals) {
+            // Referral mode: appliedReferrals
+            return {
+              ...collection,
+              fields: [
+                ...(collection.fields || []),
+                {
+                  name: 'appliedReferrals',
+                  type: 'array',
+                  admin: {
+                    description: 'Referral codes applied to this order',
+                    readOnly: true,
+                  },
+                  fields: [
+                    {
+                      name: 'referralCode',
+                      type: 'relationship',
+                      relationTo: pluginConfig.collections.referralCodesSlug,
+                      required: true,
+                    },
+                    {
+                      name: 'partnerCommission',
+                      type: 'number',
+                      required: true,
+                    },
+                    {
+                      name: 'customerDiscount',
+                      type: 'number',
+                      required: true,
+                    },
+                  ],
                 },
-                fields: [
-                  {
-                    name: 'coupon',
-                    type: 'relationship',
-                    relationTo: pluginConfig.collections.couponsSlug,
-                    required: true,
+              ],
+            }
+          } else {
+            // Coupon mode: appliedCoupons
+            return {
+              ...collection,
+              fields: [
+                ...(collection.fields || []),
+                {
+                  name: 'appliedCoupons',
+                  type: 'array',
+                  admin: {
+                    description: 'Coupons applied to this order',
+                    readOnly: true,
                   },
-                  {
-                    name: 'referralCode',
-                    type: 'relationship',
-                    relationTo: pluginConfig.collections.referralCodesSlug,
-                  },
-                  {
-                    name: 'discountAmount',
-                    type: 'number',
-                    required: true,
-                  },
-                ],
-              },
-            ],
+                  fields: [
+                    {
+                      name: 'coupon',
+                      type: 'relationship',
+                      relationTo: pluginConfig.collections.couponsSlug,
+                      required: true,
+                    },
+                    {
+                      name: 'discountAmount',
+                      type: 'number',
+                      required: true,
+                    },
+                  ],
+                },
+              ],
+            }
           }
         }
 

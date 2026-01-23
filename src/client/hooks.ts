@@ -34,16 +34,24 @@ export async function useCouponCode(options: ApplyCouponHook): Promise<ApplyCoup
     }
 
     const couponData = data.coupon as Record<string, unknown> | undefined
+    const referralData = data.referralCode as Record<string, unknown> | undefined
 
     return {
       success: data.success as boolean,
       message: data.message as string,
-      discount: data.discount as number,
+      discount: (data.discount as number) || (data.customerDiscount as number),
+      partnerCommission: data.partnerCommission as number,
+      customerDiscount: data.customerDiscount as number,
       coupon: couponData
         ? {
             code: (couponData.code as string) || '',
             type: (couponData.type as 'percentage' | 'fixed') || 'percentage',
             value: (couponData.value as number) || 0,
+          }
+        : undefined,
+      referralCode: referralData
+        ? {
+            code: (referralData.code as string) || '',
           }
         : undefined,
     }
@@ -62,6 +70,7 @@ export async function useCouponCode(options: ApplyCouponHook): Promise<ApplyCoup
 export async function validateCouponCode(
   code: string,
   cartValue?: number,
+  cartID?: string,
 ): Promise<ApplyCouponResponse> {
   if (!code) {
     return {
@@ -75,7 +84,7 @@ export async function validateCouponCode(
     const response = await fetch('/api/coupons/validate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ code, cartValue }),
+      body: JSON.stringify({ code, cartValue, cartID }),
     })
 
     const data = (await response.json()) as Record<string, unknown>
@@ -89,6 +98,7 @@ export async function validateCouponCode(
     }
 
     const couponData = data.coupon as Record<string, unknown> | undefined
+    const referralData = data.referralCode as Record<string, unknown> | undefined
 
     return {
       success: data.success as boolean,
@@ -100,6 +110,15 @@ export async function validateCouponCode(
             value: (couponData.value as number) || 0,
           }
         : undefined,
+      referralCode: referralData
+        ? {
+            code: (referralData.code as string) || '',
+          }
+        : undefined,
+      discount: data.discount as number,
+      partnerCommission: data.partnerCommission as number,
+      customerDiscount: data.customerDiscount as number,
+      currency: data.currency as string,
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Network error'

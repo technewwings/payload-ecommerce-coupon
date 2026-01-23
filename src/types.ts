@@ -16,22 +16,31 @@ export type CouponPluginAccess = {
   isAdmin?: Access
 }
 
+export type CouponPluginEndpoints = {
+  applyCoupon?: string
+  validateCoupon?: string
+}
+
 export type CouponPluginOptions = {
   enabled?: boolean
+  enableReferrals?: boolean // New: toggle between coupons and referrals
   allowStackWithOtherCoupons?: boolean
   defaultCurrency?: string
   collections?: CouponPluginCollections
+  endpoints?: CouponPluginEndpoints
   autoIntegrate?: boolean
   access?: CouponPluginAccess
 }
 
 export type SanitizedCouponPluginOptions = {
   enabled: boolean
+  enableReferrals: boolean // New: determines if using referral or coupon system
   allowStackWithOtherCoupons: boolean
   defaultCurrency: string
   collections: Required<CouponPluginCollections>
+  endpoints: Required<CouponPluginEndpoints>
   autoIntegrate: boolean
-  access: CouponPluginAccess
+  access: Required<CouponPluginAccess>
 }
 
 export type CouponPluginConfig = {
@@ -53,10 +62,16 @@ export type ApplyCouponResponse = {
   success: boolean
   message: string
   discount?: number
+  partnerCommission?: number
+  customerDiscount?: number
+  currency?: string
   coupon?: {
     code: string
     type: 'percentage' | 'fixed'
     value: number
+  }
+  referralCode?: {
+    code: string
   }
   error?: string
 }
