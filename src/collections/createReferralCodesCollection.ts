@@ -82,6 +82,7 @@ export const createReferralCodesCollection = (
       {
         name: 'successfulReferrals',
         type: 'array',
+        dbName: "referral_codes_successful_refs",
         admin: {
           description: 'List of successful referrals using this code',
           readOnly: true,
