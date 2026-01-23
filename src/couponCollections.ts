@@ -1,4 +1,4 @@
-import type { CollectionConfig, Field } from 'payload'
+import type { CollectionConfig } from 'payload'
 
 export type BuildCollectionsArgs = {
   couponsSlug: string
@@ -11,7 +11,7 @@ export const buildCouponCollections = ({
   couponsSlug,
   referralCodesSlug,
   referralProgramsSlug,
-  defaultCurrency = 'USD',
+  _defaultCurrency = 'USD',
 }: BuildCollectionsArgs): {
   couponsCollection: CollectionConfig
   referralProgramsCollection: CollectionConfig
