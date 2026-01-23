@@ -33,15 +33,19 @@ export async function useCouponCode(options: ApplyCouponHook): Promise<ApplyCoup
       }
     }
 
+    const couponData = data.coupon as Record<string, unknown> | undefined
+
     return {
       success: data.success as boolean,
       message: data.message as string,
       discount: data.discount as number,
-      coupon: {
-        code: (data.code as string) || '',
-        type: (data.type as 'percentage' | 'fixed') || 'percentage',
-        value: (data.value as number) || 0,
-      },
+      coupon: couponData
+        ? {
+            code: (couponData.code as string) || '',
+            type: (couponData.type as 'percentage' | 'fixed') || 'percentage',
+            value: (couponData.value as number) || 0,
+          }
+        : undefined,
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Network error'
@@ -84,14 +88,18 @@ export async function validateCouponCode(
       }
     }
 
+    const couponData = data.coupon as Record<string, unknown> | undefined
+
     return {
       success: data.success as boolean,
       message: data.message as string,
-      coupon: {
-        code: (data.code as string) || '',
-        type: (data.type as 'percentage' | 'fixed') || 'percentage',
-        value: (data.value as number) || 0,
-      },
+      coupon: couponData
+        ? {
+            code: (couponData.code as string) || '',
+            type: (couponData.type as 'percentage' | 'fixed') || 'percentage',
+            value: (couponData.value as number) || 0,
+          }
+        : undefined,
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Network error'
