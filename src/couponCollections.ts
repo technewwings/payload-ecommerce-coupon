@@ -84,15 +84,15 @@ export const buildCouponCollections = ({
         name: 'maxDiscountAmount',
         type: 'number',
         admin: {
-          description:
-            'Maximum discount amount in smallest currency unit. Leave empty for no cap.',
+          description: 'Maximum discount amount in smallest currency unit. Leave empty for no cap.',
         },
       },
       {
         name: 'usageLimit',
         type: 'number',
         admin: {
-          description: 'Total times this coupon can be used across all customers. Empty = unlimited.',
+          description:
+            'Total times this coupon can be used across all customers. Empty = unlimited.',
         },
       },
       {

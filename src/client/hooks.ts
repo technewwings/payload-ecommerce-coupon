@@ -5,9 +5,7 @@ import type { ApplyCouponHook, ApplyCouponResponse } from '../types'
  * @param options - Coupon code, cart ID, and customer email
  * @returns Response with success status, discount amount, and coupon details
  */
-export async function useCouponCode(
-  options: ApplyCouponHook,
-): Promise<ApplyCouponResponse> {
+export async function useCouponCode(options: ApplyCouponHook): Promise<ApplyCouponResponse> {
   const { code, cartID, customerEmail } = options
 
   if (!code) {
