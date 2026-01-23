@@ -245,7 +245,7 @@ export const buildCouponCollections = ({
         type: 'checkbox',
         defaultValue: true,
       },
-    ],,
+    ],
   }
 
   const referralCodesCollection: CollectionConfig = {
