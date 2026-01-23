@@ -51,46 +51,117 @@ export default buildConfig({
       defaultCurrency: 'USD',
       allowStackWithOtherCoupons: false,
       autoIntegrate: true,
+      access: {
+        canUseCoupons: () => true,
+        canUseReferrals: () => true,
+        isAdmin: ({ req }) => Boolean(req.user),
+      },
     }),
   ],
 })
 ```
 
-### 2. Frontend Integration
+### 2. Database Migration
+
+After adding the plugin, run your Payload migration to create the new collections:
+
+```bash
+npm run payload migrate
+```
+
+This will create collections for:
+- **Coupons** – Manage discount codes with flexible conditions
+- **Referral Programs** – Set up partner commission structures
+- **Referral Codes** – Track generated referral links
+
+The plugin automatically integrates with your existing ecommerce collections, adding coupon fields to carts and orders.
+
+### 3. Frontend Integration
 
 ```typescript
 import { useCouponCode } from '@wtree/payload-ecommerce-coupon'
 
-const result = await useCouponCode({
-  code: 'WELCOME10',
-  cartID: 'your-cart-id',
-})
+function CheckoutComponent() {
+  const [couponCode, setCouponCode] = useState('')
+  const [cartId, setCartId] = useState('your-cart-id')
 
-if (result.success) {
-  console.log('Discount:', result.discount)
+  const applyCoupon = async () => {
+    const result = await useCouponCode({
+      code: couponCode,
+      cartID: cartId,
+    })
+
+    if (result.success) {
+      console.log('Discount applied:', result.discount)
+      // Update your cart total
+    } else {
+      console.error('Invalid coupon:', result.error)
+    }
+  }
+
+  return (
+    <div>
+      <input
+        value={couponCode}
+        onChange={(e) => setCouponCode(e.target.value)}
+        placeholder="Enter coupon code"
+      />
+      <button onClick={applyCoupon}>Apply Coupon</button>
+    </div>
+  )
 }
 ```
 
 ## 🌐 REST API Endpoints
 
-### POST /api/ecommerce/coupons/validate
+### POST /api/coupons/validate
 
 Validate a coupon without applying it.
 
 ```bash
-curl -X POST http://localhost:3000/api/ecommerce/coupons/validate \
+curl -X POST http://localhost:3000/api/coupons/validate \
   -H "Content-Type: application/json" \
   -d '{"code": "WELCOME10", "cartValue": 5000}'
 ```
 
-### POST /api/ecommerce/coupons/apply
+**Response:**
+```json
+{
+  "success": true,
+  "coupon": {
+    "code": "WELCOME10",
+    "type": "percentage",
+    "value": 10,
+    "description": "Welcome discount"
+  },
+  "discount": 500,
+  "currency": "USD"
+}
+```
+
+### POST /api/coupons/apply
 
 Apply a coupon to a cart.
 
 ```bash
-curl -X POST http://localhost:3000/api/ecommerce/coupons/apply \
+curl -X POST http://localhost:3000/api/coupons/apply \
   -H "Content-Type: application/json" \
   -d '{"code": "WELCOME10", "cartID": "cart-123", "cartValue": 5000}'
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Coupon applied successfully",
+  "coupon": {
+    "code": "WELCOME10",
+    "type": "percentage",
+    "value": 10
+  },
+  "discount": 500,
+  "currency": "USD"
+}
 ```
 
 ## ⚙️ Configuration
@@ -102,12 +173,54 @@ export type CouponPluginOptions = {
   defaultCurrency?: string             // default: 'USD'
   autoIntegrate?: boolean              // default: true
   collections?: {
-    couponsSlug?: string
-    referralProgramsSlug?: string
-    referralCodesSlug?: string
-    referralPartnersSlug?: string
+    couponsSlug?: string               // default: 'coupons'
+    referralProgramsSlug?: string      // default: 'referral-programs'
+    referralCodesSlug?: string         // default: 'referral-codes'
+    referralPartnersSlug?: string      // default: 'referral-partners'
+  }
+  access?: {
+    canUseCoupons?: Access             // default: () => true
+    canUseReferrals?: Access           // default: () => true
+    isAdmin?: Access                   // default: () => false
   }
 }
+```
+
+### Access Control
+
+The plugin supports fine-grained access control:
+
+```typescript
+payloadEcommerceCoupon({
+  access: {
+    canUseCoupons: ({ req }) => {
+      // Allow all authenticated users to use coupons
+      return Boolean(req.user)
+    },
+    canUseReferrals: ({ req }) => {
+      // Only allow premium users to use referrals
+      return req.user?.role === 'premium'
+    },
+    isAdmin: ({ req }) => {
+      // Only admins can create/edit coupons
+      return req.user?.role === 'admin'
+    },
+  },
+})
+```
+
+### Collection Customization
+
+You can customize collection slugs to avoid conflicts:
+
+```typescript
+payloadEcommerceCoupon({
+  collections: {
+    couponsSlug: 'discount-codes',
+    referralProgramsSlug: 'affiliate-programs',
+    referralCodesSlug: 'promo-codes',
+  },
+})
 ```
 
 ## 🧪 Testing
@@ -125,11 +238,9 @@ npm run test:coverage
 
 ## 📚 Documentation
 
-For detailed usage examples and advanced configurations:
-- [Coupon Management Guide](./docs/coupons.md)
-- [Referral Programs Setup](./docs/referral.md)
-- [API Reference](./docs/api.md)
+For detailed usage examples and advanced configurations, see the sections above and check out:
 - [Compatibility Matrix](./COMPATIBILITY.md)
+- [Contributing Guide](./CONTRIBUTING.md)
 
 ## 🔗 Links
 

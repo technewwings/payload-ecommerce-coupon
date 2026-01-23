@@ -17,7 +17,7 @@ export async function useCouponCode(options: ApplyCouponHook): Promise<ApplyCoup
   }
 
   try {
-    const response = await fetch('/api/ecommerce/coupons/apply', {
+    const response = await fetch('/api/coupons/apply', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ code, cartID, customerEmail }),
@@ -72,7 +72,7 @@ export async function validateCouponCode(
   }
 
   try {
-    const response = await fetch('/api/ecommerce/coupons/validate', {
+    const response = await fetch('/api/coupons/validate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ code, cartValue }),
