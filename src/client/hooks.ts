@@ -37,7 +37,11 @@ export async function useCouponCode(options: ApplyCouponHook): Promise<ApplyCoup
       success: data.success as boolean,
       message: data.message as string,
       discount: data.discount as number,
-      coupon: data.coupon as Record<string, unknown>,
+      coupon: {
+        code: (data.code as string) || '',
+        type: (data.type as 'percentage' | 'fixed') || 'percentage',
+        value: (data.value as number) || 0,
+      },
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Network error'
@@ -83,7 +87,11 @@ export async function validateCouponCode(
     return {
       success: data.success as boolean,
       message: data.message as string,
-      coupon: data.coupon as Record<string, unknown>,
+      coupon: {
+        code: (data.code as string) || '',
+        type: (data.type as 'percentage' | 'fixed') || 'percentage',
+        value: (data.value as number) || 0,
+      },
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Network error'

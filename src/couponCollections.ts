@@ -11,12 +11,15 @@ export const buildCouponCollections = ({
   couponsSlug,
   referralCodesSlug,
   referralProgramsSlug,
-  _defaultCurrency = 'USD',
+  defaultCurrency = 'USD',
 }: BuildCollectionsArgs): {
   couponsCollection: CollectionConfig
   referralProgramsCollection: CollectionConfig
   referralCodesCollection: CollectionConfig
 } => {
+  // Intentionally unused for future extensibility
+  const _defaultCurrency = defaultCurrency
+
   const couponsCollection: CollectionConfig = {
     slug: couponsSlug,
     admin: {
