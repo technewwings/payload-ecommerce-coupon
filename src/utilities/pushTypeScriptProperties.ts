@@ -23,9 +23,7 @@ export const pushTypeScriptProperties = ({
       collections: {
         type: 'object',
         additionalProperties: false,
-        properties: {
-          ...Object.fromEntries(propertiesMap),
-        },
+        properties: Object.fromEntries(propertiesMap),
         required: requiredCollectionProperties,
       },
     },
