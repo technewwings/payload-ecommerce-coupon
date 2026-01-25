@@ -113,144 +113,25 @@ export const createReferralProgramsCollection = (
         ],
       },
       {
-        name: 'commissionRules',
-        type: 'array',
+        name: 'minOrderValue',
+        type: 'number',
         admin: {
-          description: 'Commission rules for different products/categories',
+          description: `Minimum order value required for referral in ${defaultCurrency}`,
         },
-        fields: [
-          {
-            name: 'name',
-            type: 'text',
-            required: true,
-            admin: {
-              description: 'Name for this commission rule (e.g., "Electronics", "All Products")',
-            },
-          },
-          {
-            name: 'appliesTo',
-            type: 'select',
-            required: true,
-            options: [
-              { label: 'All Products', value: 'all' },
-              { label: 'Specific Categories', value: 'categories' },
-              { label: 'Specific Products', value: 'products' },
-            ],
-            defaultValue: 'all',
-          },
-          {
-            name: 'categories',
-            type: 'relationship',
-            relationTo: 'categories', // Assuming categories collection exists
-            hasMany: true,
-            index: false,
-            admin: {
-              description: 'Select categories this rule applies to',
-              condition: (data) => data.appliesTo === 'categories',
-            },
-          },
-          {
-            name: 'products',
-            type: 'relationship',
-            relationTo: 'products', // Assuming products collection exists
-            hasMany: true,
-            index: false,
-            admin: {
-              description: 'Select specific products this rule applies to',
-              condition: (data) => data.appliesTo === 'products',
-            },
-          },
-          {
-            name: 'totalCommission',
-            type: 'group',
-            admin: {
-              description: 'Total commission pool from which partner and customer shares are taken',
-            },
-            fields: [
-              {
-                name: 'type',
-                type: 'select',
-                required: true,
-                options: [
-                  { label: 'Percentage of Product Price', value: 'percentage' },
-                  { label: 'Fixed Amount per Product', value: 'fixed' },
-                ],
-                defaultValue: 'percentage',
-              },
-              {
-                name: 'value',
-                type: 'number',
-                required: true,
-                admin: {
-                  description:
-                    'Commission value. For percentage: 10 = 10% of product price. For fixed: amount per product.',
-                },
-              },
-            ],
-          },
-          {
-            name: 'split',
-            type: 'group',
-            admin: {
-              description: 'How to split the total commission between partner and customer',
-            },
-            fields: [
-              {
-                name: 'partnerPercentage',
-                type: 'number',
-                required: true,
-                min: 0,
-                max: 100,
-                defaultValue: 70,
-                admin: {
-                  description: 'Percentage of total commission that goes to the partner (0-100)',
-                },
-              },
-              {
-                name: 'customerPercentage',
-                type: 'number',
-                required: true,
-                min: 0,
-                max: 100,
-                defaultValue: 30,
-                admin: {
-                  description:
-                    'Percentage of total commission that goes to the customer as discount (0-100)',
-                },
-              },
-            ],
-          },
-        ],
       },
       {
-        name: 'conditions',
-        type: 'group',
+        name: 'maxReferralsPerUser',
+        type: 'number',
         admin: {
-          description: 'Conditions for referral program eligibility',
+          description: 'Maximum number of referrals a user can make. Empty = unlimited.',
         },
-        fields: [
-          {
-            name: 'minOrderValue',
-            type: 'number',
-            admin: {
-              description: `Minimum order value required for referral in ${defaultCurrency}`,
-            },
-          },
-          {
-            name: 'maxReferralsPerUser',
-            type: 'number',
-            admin: {
-              description: 'Maximum number of referrals a user can make. Empty = unlimited.',
-            },
-          },
-          {
-            name: 'referralCodePrefix',
-            type: 'text',
-            admin: {
-              description: 'Prefix for generated referral codes (e.g., "REF" will create REF123)',
-            },
-          },
-        ],
+      },
+      {
+        name: 'referralCodePrefix',
+        type: 'text',
+        admin: {
+          description: 'Prefix for generated referral codes (e.g., "REF" will create REF123)',
+        },
       },
       {
         name: 'activeFrom',

@@ -80,55 +80,22 @@ export const createReferralCodesCollection = (
         },
       },
       {
-        name: 'successfulReferrals',
-        type: 'array',
-        dbName: 'referral_codes_successful_refs',
+        name: 'successfulReferralsCount',
+        type: 'number',
+        defaultValue: 0,
         admin: {
-          description: 'List of successful referrals using this code',
+          description: 'Total count of successful referrals using this code',
           readOnly: true,
         },
-        fields: [
-          {
-            name: 'referee',
-            type: 'relationship',
-            relationTo: 'users',
-            index: false,
-            admin: {
-              description: 'The user who was referred',
-            },
-          },
-          {
-            name: 'order',
-            type: 'relationship',
-            relationTo: 'orders', // Assuming orders collection exists
-            index: false,
-            admin: {
-              description: 'The order that qualified for the referral reward',
-            },
-          },
-          {
-            name: 'rewardAmount',
-            type: 'number',
-            admin: {
-              description: 'The reward amount paid for this referral',
-            },
-          },
-          {
-            name: 'rewardPaid',
-            type: 'checkbox',
-            defaultValue: false,
-            admin: {
-              description: 'Whether the reward has been paid',
-            },
-          },
-          {
-            name: 'createdAt',
-            type: 'date',
-            admin: {
-              readOnly: true,
-            },
-          },
-        ],
+      },
+      {
+        name: 'totalRewardsPaid',
+        type: 'number',
+        defaultValue: 0,
+        admin: {
+          description: 'Total rewards paid out for this referral code',
+          readOnly: true,
+        },
       },
       {
         name: 'metadata',

@@ -97,47 +97,18 @@ export const createCouponsCollection = (
         },
       },
       {
-        name: 'conditions',
-        type: 'group',
+        name: 'minOrderValue',
+        type: 'number',
         admin: {
-          description: 'Optional conditions for coupon usage',
+          description: `Minimum order value required in ${defaultCurrency} (smallest currency units)`,
         },
-        fields: [
-          {
-            name: 'minOrderValue',
-            type: 'number',
-            admin: {
-              description: `Minimum order value required in ${defaultCurrency} (smallest currency units)`,
-            },
-          },
-          {
-            name: 'maxOrderValue',
-            type: 'number',
-            admin: {
-              description: `Maximum order value allowed in ${defaultCurrency} (smallest currency units)`,
-            },
-          },
-          {
-            name: 'allowedCategories',
-            type: 'relationship',
-            relationTo: 'categories', // Assuming categories collection exists
-            hasMany: true,
-            index: false,
-            admin: {
-              description: 'Restrict coupon to specific product categories',
-            },
-          },
-          {
-            name: 'excludedProducts',
-            type: 'relationship',
-            relationTo: 'products', // Assuming products collection exists
-            hasMany: true,
-            index: false,
-            admin: {
-              description: 'Products that cannot use this coupon',
-            },
-          },
-        ],
+      },
+      {
+        name: 'maxOrderValue',
+        type: 'number',
+        admin: {
+          description: `Maximum order value allowed in ${defaultCurrency} (smallest currency units)`,
+        },
       },
       {
         name: 'usageCount',

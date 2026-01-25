@@ -88,22 +88,20 @@ export const payloadEcommerceCouponPlugin =
         // Fields to append to carts (referral mode)
         const cartReferralFields = [
           {
-            name: 'appliedReferrals',
-            type: 'array',
-            dbName: 'carts_applied_refs',
-            admin: { description: 'Referral codes applied to this cart' },
-            fields: [
-              {
-                name: 'referralCode',
-                type: 'relationship',
-                relationTo: pluginConfig.collections.referralCodesSlug,
-                required: true,
-                index: false,
-              },
-              { name: 'partnerCommission', type: 'number', required: true },
-              { name: 'customerDiscount', type: 'number', required: true },
-              { name: 'appliedAt', type: 'date', defaultValue: () => new Date() },
-            ],
+            name: 'appliedReferralCode',
+            type: 'relationship',
+            relationTo: pluginConfig.collections.referralCodesSlug,
+            admin: { description: 'Referral code applied to this cart' },
+          },
+          {
+            name: 'partnerCommission',
+            type: 'number',
+            admin: { description: 'Partner commission amount for this cart' },
+          },
+          {
+            name: 'customerDiscount',
+            type: 'number',
+            admin: { description: 'Customer discount amount for this cart' },
           },
         ]
 
@@ -112,21 +110,20 @@ export const payloadEcommerceCouponPlugin =
         // Fields to append to orders (referral mode)
         const orderReferralFields = [
           {
-            name: 'appliedReferrals',
-            type: 'array',
-            dbName: 'orders_applied_refs',
-            admin: { description: 'Referral codes applied to this order', readOnly: true },
-            fields: [
-              {
-                name: 'referralCode',
-                type: 'relationship',
-                relationTo: pluginConfig.collections.referralCodesSlug,
-                required: true,
-                index: false,
-              },
-              { name: 'partnerCommission', type: 'number', required: true },
-              { name: 'customerDiscount', type: 'number', required: true },
-            ],
+            name: 'appliedReferralCode',
+            type: 'relationship',
+            relationTo: pluginConfig.collections.referralCodesSlug,
+            admin: { description: 'Referral code applied to this order', readOnly: true },
+          },
+          {
+            name: 'partnerCommission',
+            type: 'number',
+            admin: { description: 'Partner commission amount for this order', readOnly: true },
+          },
+          {
+            name: 'customerDiscount',
+            type: 'number',
+            admin: { description: 'Customer discount amount for this order', readOnly: true },
           },
         ]
 
@@ -138,41 +135,30 @@ export const payloadEcommerceCouponPlugin =
         // coupon mode — similar safe injection for appliedCoupons
         const cartCouponFields = [
           {
-            name: 'appliedCoupons',
-            type: 'array',
-            dbName: 'carts_applied_coupons',
-            admin: { description: 'Coupons applied to this cart' },
-            fields: [
-              {
-                name: 'coupon',
-                type: 'relationship',
-                relationTo: pluginConfig.collections.couponsSlug,
-                required: true,
-                index: false,
-              },
-              { name: 'discountAmount', type: 'number', required: true },
-              { name: 'appliedAt', type: 'date', defaultValue: () => new Date() },
-            ],
+            name: 'appliedCoupon',
+            type: 'relationship',
+            relationTo: pluginConfig.collections.couponsSlug,
+            admin: { description: 'Coupon applied to this cart' },
+          },
+          {
+            name: 'discountAmount',
+            type: 'number',
+            admin: { description: 'Discount amount from coupon' },
           },
         ]
         addFieldsToCollection('carts', cartCouponFields)
 
         const orderCouponFields = [
           {
-            name: 'appliedCoupons',
-            type: 'array',
-            dbName: 'orders_applied_coupons',
-            admin: { description: 'Coupons applied to this order', readOnly: true },
-            fields: [
-              {
-                name: 'coupon',
-                type: 'relationship',
-                relationTo: pluginConfig.collections.couponsSlug,
-                required: true,
-                index: false,
-              },
-              { name: 'discountAmount', type: 'number', required: true },
-            ],
+            name: 'appliedCoupon',
+            type: 'relationship',
+            relationTo: pluginConfig.collections.couponsSlug,
+            admin: { description: 'Coupon applied to this order', readOnly: true },
+          },
+          {
+            name: 'discountAmount',
+            type: 'number',
+            admin: { description: 'Discount amount from coupon', readOnly: true },
           },
         ]
         addFieldsToCollection('orders', orderCouponFields)
