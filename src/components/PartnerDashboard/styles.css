@@ -1,0 +1,451 @@
+/* Partner Dashboard Styles */
+.partner-dashboard {
+  padding: 24px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+}
+
+.partner-dashboard__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.partner-dashboard__header h2 {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 600;
+  color: #111827;
+}
+
+.partner-dashboard__program {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.partner-dashboard__program-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: #374151;
+}
+
+.partner-dashboard__program-rate {
+  font-size: 12px;
+  color: #059669;
+  background: #d1fae5;
+  padding: 2px 8px;
+  border-radius: 12px;
+}
+
+.partner-dashboard__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 24px;
+}
+
+/* Loading State */
+.partner-dashboard--loading {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 300px;
+}
+
+.partner-dashboard__loader {
+  text-align: center;
+}
+
+.partner-dashboard__spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid #e5e7eb;
+  border-top-color: #3b82f6;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin: 0 auto 16px;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Error State */
+.partner-dashboard--error .partner-dashboard__error,
+.partner-dashboard--empty .partner-dashboard__empty {
+  text-align: center;
+  padding: 48px 24px;
+  background: #fef2f2;
+  border-radius: 8px;
+  border: 1px solid #fecaca;
+}
+
+.partner-dashboard--empty .partner-dashboard__empty {
+  background: #f9fafb;
+  border-color: #e5e7eb;
+}
+
+.partner-dashboard__error h3,
+.partner-dashboard__empty h3 {
+  margin: 0 0 8px;
+  font-size: 18px;
+  color: #991b1b;
+}
+
+.partner-dashboard__empty h3 {
+  color: #374151;
+}
+
+.partner-dashboard__error p,
+.partner-dashboard__empty p {
+  margin: 0;
+  color: #7f1d1d;
+}
+
+.partner-dashboard__empty p {
+  color: #6b7280;
+}
+
+/* Widget Base Styles */
+.partner-widget {
+  background: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  border: 1px solid #e5e7eb;
+  overflow: hidden;
+}
+
+.partner-widget__title {
+  margin: 0;
+  padding: 16px 20px;
+  font-size: 16px;
+  font-weight: 600;
+  color: #111827;
+  background: #f9fafb;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.partner-widget__content {
+  padding: 20px;
+}
+
+/* Earnings Summary Widget */
+.earnings-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+
+.earnings-card {
+  text-align: center;
+  padding: 16px;
+  border-radius: 8px;
+  background: #f9fafb;
+}
+
+.earnings-card--total {
+  background: #eff6ff;
+}
+
+.earnings-card--pending {
+  background: #fef3c7;
+}
+
+.earnings-card--paid {
+  background: #d1fae5;
+}
+
+.earnings-card__label {
+  display: block;
+  font-size: 12px;
+  color: #6b7280;
+  margin-bottom: 4px;
+}
+
+.earnings-card__value {
+  display: block;
+  font-size: 20px;
+  font-weight: 700;
+  color: #111827;
+}
+
+.earnings-card--total .earnings-card__value {
+  color: #1d4ed8;
+}
+
+.earnings-card--pending .earnings-card__value {
+  color: #d97706;
+}
+
+.earnings-card--paid .earnings-card__value {
+  color: #059669;
+}
+
+/* Performance Widget */
+.performance-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.performance-stat {
+  text-align: center;
+}
+
+.performance-stat__value {
+  display: block;
+  font-size: 28px;
+  font-weight: 700;
+  color: #111827;
+}
+
+.performance-stat__label {
+  display: block;
+  font-size: 12px;
+  color: #6b7280;
+  margin-top: 4px;
+}
+
+.performance-chart {
+  border-top: 1px solid #e5e7eb;
+  padding-top: 16px;
+}
+
+.performance-chart__title {
+  margin: 0 0 16px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #374151;
+}
+
+.performance-chart__bars {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  height: 100px;
+  gap: 8px;
+}
+
+.performance-chart__bar-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  height: 100%;
+}
+
+.performance-chart__bar {
+  width: 100%;
+  max-width: 40px;
+  background: linear-gradient(180deg, #3b82f6 0%, #1d4ed8 100%);
+  border-radius: 4px 4px 0 0;
+  transition: height 0.3s ease;
+  margin-top: auto;
+}
+
+.performance-chart__label {
+  font-size: 10px;
+  color: #6b7280;
+  margin-top: 8px;
+}
+
+/* Recent Referrals Widget */
+.referrals-table {
+  overflow-x: auto;
+}
+
+.referrals-table__header,
+.referrals-table__row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr 1fr 80px;
+  gap: 12px;
+  padding: 12px 0;
+  align-items: center;
+}
+
+.referrals-table__header {
+  font-size: 12px;
+  font-weight: 600;
+  color: #6b7280;
+  text-transform: uppercase;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.referrals-table__row {
+  font-size: 14px;
+  color: #374151;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.referrals-table__row:last-child {
+  border-bottom: none;
+}
+
+.referrals-table__code {
+  font-family: monospace;
+  font-weight: 500;
+  color: #111827;
+}
+
+.referrals-table__status {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 500;
+  text-transform: capitalize;
+}
+
+.referrals-table__status--pending {
+  background: #fef3c7;
+  color: #d97706;
+}
+
+.referrals-table__status--paid {
+  background: #d1fae5;
+  color: #059669;
+}
+
+.referrals-table__status--cancelled {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+/* Referral Codes Widget */
+.codes-list {
+  display: grid;
+  gap: 16px;
+}
+
+.code-card {
+  position: relative;
+  padding: 16px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #ffffff;
+  transition: box-shadow 0.2s ease;
+}
+
+.code-card:hover {
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+}
+
+.code-card--inactive {
+  opacity: 0.6;
+  background: #f9fafb;
+}
+
+.code-card__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.code-card__code {
+  font-family: monospace;
+  font-size: 16px;
+  font-weight: 600;
+  color: #111827;
+  background: #f3f4f6;
+  padding: 4px 12px;
+  border-radius: 4px;
+}
+
+.code-card__copy {
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #3b82f6;
+  background: #eff6ff;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.code-card__copy:hover {
+  background: #dbeafe;
+}
+
+.code-card__stats {
+  display: flex;
+  gap: 24px;
+}
+
+.code-card__stat {
+  display: flex;
+  flex-direction: column;
+}
+
+.code-card__stat-value {
+  font-size: 18px;
+  font-weight: 600;
+  color: #111827;
+}
+
+.code-card__stat-label {
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.code-card__badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  padding: 2px 8px;
+  font-size: 10px;
+  font-weight: 500;
+  border-radius: 12px;
+}
+
+.code-card__badge--inactive {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+/* Responsive Adjustments */
+@media (max-width: 768px) {
+  .partner-dashboard {
+    padding: 16px;
+  }
+
+  .partner-dashboard__header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .partner-dashboard__program {
+    align-items: flex-start;
+  }
+
+  .partner-dashboard__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .earnings-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .performance-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .referrals-table__header,
+  .referrals-table__row {
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .referrals-table__header span:nth-child(n+3),
+  .referrals-table__row span:nth-child(n+3) {
+    display: none;
+  }
+}

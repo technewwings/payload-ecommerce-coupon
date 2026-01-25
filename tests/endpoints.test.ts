@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { applyCouponHandler } from '../src/endpoints/applyCoupon'
 import { validateCouponHandler } from '../src/endpoints/validateCoupon'
+import { sanitizePluginConfig } from '../src/utilities/sanitizePluginConfig'
 
 // Mock Payload
 const mockPayload = {
@@ -12,32 +13,36 @@ const mockPayload = {
 }
 
 describe('Apply Coupon Endpoint', () => {
-  const pluginConfig = {
-    enabled: true,
-    enableReferrals: false,
-    defaultCurrency: 'USD',
-    allowStackWithOtherCoupons: false,
-    collections: {
-      couponsSlug: 'coupons',
-      referralProgramsSlug: 'referral-programs',
-      referralCodesSlug: 'referral-codes',
-      referralPartnersSlug: 'referral-partners',
+  const pluginConfig = sanitizePluginConfig({
+    pluginConfig: {
+      enabled: true,
+      enableReferrals: false,
+      defaultCurrency: 'USD',
+      allowStackWithOtherCoupons: false,
+      collections: {
+        couponsSlug: 'coupons',
+        referralProgramsSlug: 'referral-programs',
+        referralCodesSlug: 'referral-codes',
+        referralPartnersSlug: 'referral-partners',
+      },
+      endpoints: {
+        applyCoupon: '/coupons/apply',
+        validateCoupon: '/coupons/validate',
+      },
+      access: {
+        canUseCoupons: () => true,
+        canUseReferrals: () => false,
+        isAdmin: () => false,
+      },
     },
-    endpoints: {
-      applyCoupon: '/coupons/apply',
-      validateCoupon: '/coupons/validate',
-    },
-    access: {
-      canUseCoupons: () => true,
-      canUseReferrals: () => false,
-      isAdmin: () => false,
-    },
-  }
+  })
 
-  const referralPluginConfig = {
-    ...pluginConfig,
-    enableReferrals: true,
-  }
+  const referralPluginConfig = sanitizePluginConfig({
+    pluginConfig: {
+      ...pluginConfig,
+      enableReferrals: true,
+    },
+  })
 
   beforeEach(() => {
     vi.clearAllMocks()
@@ -310,6 +315,7 @@ describe('Apply Coupon Endpoint', () => {
       expect(mockPayload.find).toHaveBeenCalledWith({
         collection: 'referral-codes',
         limit: 1,
+        depth: 1,
         where: { code: { equals: 'REF123' } },
       })
       expect(response.status).toBe(200)
@@ -417,32 +423,36 @@ describe('Apply Coupon Endpoint', () => {
 })
 
 describe('Validate Coupon Endpoint', () => {
-  const pluginConfig = {
-    enabled: true,
-    enableReferrals: false,
-    defaultCurrency: 'USD',
-    allowStackWithOtherCoupons: false,
-    collections: {
-      couponsSlug: 'coupons',
-      referralProgramsSlug: 'referral-programs',
-      referralCodesSlug: 'referral-codes',
-      referralPartnersSlug: 'referral-partners',
+  const pluginConfig = sanitizePluginConfig({
+    pluginConfig: {
+      enabled: true,
+      enableReferrals: false,
+      defaultCurrency: 'USD',
+      allowStackWithOtherCoupons: false,
+      collections: {
+        couponsSlug: 'coupons',
+        referralProgramsSlug: 'referral-programs',
+        referralCodesSlug: 'referral-codes',
+        referralPartnersSlug: 'referral-partners',
+      },
+      endpoints: {
+        applyCoupon: '/coupons/apply',
+        validateCoupon: '/coupons/validate',
+      },
+      access: {
+        canUseCoupons: () => true,
+        canUseReferrals: () => false,
+        isAdmin: () => false,
+      },
     },
-    endpoints: {
-      applyCoupon: '/coupons/apply',
-      validateCoupon: '/coupons/validate',
-    },
-    access: {
-      canUseCoupons: () => true,
-      canUseReferrals: () => false,
-      isAdmin: () => false,
-    },
-  }
+  })
 
-  const referralPluginConfig = {
-    ...pluginConfig,
-    enableReferrals: true,
-  }
+  const referralPluginConfig = sanitizePluginConfig({
+    pluginConfig: {
+      ...pluginConfig,
+      enableReferrals: true,
+    },
+  })
 
   beforeEach(() => {
     vi.clearAllMocks()

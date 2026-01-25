@@ -136,10 +136,11 @@ describe('Coupon Plugin', () => {
       const plugin = payloadEcommerceCoupon({ enabled: true, enableReferrals: true })
       const testConfig = {} as any
       const result = await plugin(testConfig)
-      expect(result.endpoints).toHaveLength(2)
+      expect(result.endpoints).toHaveLength(3)
       expect(result.endpoints?.map((e: any) => e.path)).toEqual([
         '/coupons/validate',
         '/coupons/apply',
+        '/referrals/partner-stats',
       ])
     })
 
@@ -190,7 +191,7 @@ describe('Coupon Plugin', () => {
       expect(cartsCollection?.fields).toHaveLength(0)
     })
 
-    it('should create appliedCoupons field for coupon mode', async () => {
+    it('should create appliedCoupon field for coupon mode', async () => {
       const plugin = payloadEcommerceCoupon({ autoIntegrate: true })
       const testConfig = {
         collections: [
@@ -199,12 +200,15 @@ describe('Coupon Plugin', () => {
       } as any
       const result = await plugin(testConfig)
       const cartsCollection = result.collections?.find((c: any) => c.slug === 'carts')
-      const appliedCouponsField = cartsCollection?.fields?.find((f: any) => f.name === 'appliedCoupons')
-      expect(appliedCouponsField).toBeDefined()
-      expect(appliedCouponsField?.type).toBe('array')
+      const appliedCouponField = cartsCollection?.fields?.find((f: any) => f.name === 'appliedCoupon')
+      const discountAmountField = cartsCollection?.fields?.find((f: any) => f.name === 'discountAmount')
+      expect(appliedCouponField).toBeDefined()
+      expect(discountAmountField).toBeDefined()
+      expect(appliedCouponField?.type).toBe('relationship')
+      expect(discountAmountField?.type).toBe('number')
     })
 
-    it('should create appliedReferrals field for referral mode', async () => {
+    it('should create appliedReferralCode field for referral mode', async () => {
       const plugin = payloadEcommerceCoupon({ enableReferrals: true, autoIntegrate: true })
       const testConfig = {
         collections: [
@@ -213,9 +217,15 @@ describe('Coupon Plugin', () => {
       } as any
       const result = await plugin(testConfig)
       const cartsCollection = result.collections?.find((c: any) => c.slug === 'carts')
-      const appliedReferralsField = cartsCollection?.fields?.find((f: any) => f.name === 'appliedReferrals')
-      expect(appliedReferralsField).toBeDefined()
-      expect(appliedReferralsField?.type).toBe('array')
+      const appliedReferralCodeField = cartsCollection?.fields?.find((f: any) => f.name === 'appliedReferralCode')
+      const partnerCommissionField = cartsCollection?.fields?.find((f: any) => f.name === 'partnerCommission')
+      const customerDiscountField = cartsCollection?.fields?.find((f: any) => f.name === 'customerDiscount')
+      expect(appliedReferralCodeField).toBeDefined()
+      expect(partnerCommissionField).toBeDefined()
+      expect(customerDiscountField).toBeDefined()
+      expect(appliedReferralCodeField?.type).toBe('relationship')
+      expect(partnerCommissionField?.type).toBe('number')
+      expect(customerDiscountField?.type).toBe('number')
     })
   })
 
@@ -358,7 +368,7 @@ describe('Coupon Plugin', () => {
       const result = await plugin(testConfig)
       expect(result.collections).toHaveLength(3) // users, carts (extended), coupons
       const cartsCollection = result.collections?.find((c: any) => c.slug === 'carts')
-      expect(cartsCollection?.fields).toHaveLength(2) // original items + appliedCoupons
+      expect(cartsCollection?.fields).toHaveLength(3) // original items + appliedCoupon + discountAmount
     })
 
     it('should handle multiple plugins integration', async () => {
@@ -395,7 +405,7 @@ describe('Coupon Plugin', () => {
       } as any
       const result = await plugin(testConfig)
       const cartsCollection = result.collections?.find((c: any) => c.slug === 'carts')
-      expect(cartsCollection?.fields).toHaveLength(2) // existing + appliedCoupons
+      expect(cartsCollection?.fields).toHaveLength(3) // existing + appliedCoupon + discountAmount
       expect(cartsCollection?.hooks?.beforeChange).toHaveLength(1)
       expect(cartsCollection?.access?.read).toBeDefined()
     })

@@ -62,6 +62,11 @@ export const sanitizePluginConfig = ({
         pluginConfig.endpoints.validateCoupon.trim().length > 0
           ? pluginConfig.endpoints.validateCoupon
           : '/coupons/validate',
+      partnerStats:
+        typeof pluginConfig?.endpoints?.partnerStats === 'string' &&
+        pluginConfig.endpoints.partnerStats.trim().length > 0
+          ? pluginConfig.endpoints.partnerStats
+          : '/referrals/partner-stats',
     },
     autoIntegrate: pluginConfig?.autoIntegrate !== false,
     access: {
@@ -77,6 +82,34 @@ export const sanitizePluginConfig = ({
         typeof pluginConfig?.access?.isAdmin === 'function'
           ? pluginConfig.access.isAdmin
           : () => false,
+      isPartner:
+        typeof pluginConfig?.access?.isPartner === 'function'
+          ? pluginConfig.access.isPartner
+          : ({ req }) => {
+              // Default: check if user has partner role
+              const user = req?.user as { role?: string; roles?: string[] } | undefined
+              if (!user) return false
+              if (user.role === 'partner') return true
+              if (Array.isArray(user.roles) && user.roles.includes('partner')) return true
+              return false
+            },
+    },
+    referralConfig: {
+      allowBothSystems: pluginConfig?.referralConfig?.allowBothSystems ?? false,
+      singleCodePerCart: pluginConfig?.referralConfig?.singleCodePerCart ?? true,
+      defaultPartnerSplit: pluginConfig?.referralConfig?.defaultPartnerSplit ?? 70,
+      defaultCustomerSplit: pluginConfig?.referralConfig?.defaultCustomerSplit ?? 30,
+    },
+    adminGroups: {
+      couponsGroup: pluginConfig?.adminGroups?.couponsGroup ?? 'Coupons',
+      referralsGroup: pluginConfig?.adminGroups?.referralsGroup ?? 'Referrals',
+    },
+    partnerDashboard: {
+      enabled: pluginConfig?.partnerDashboard?.enabled ?? true,
+      showEarningsSummary: pluginConfig?.partnerDashboard?.showEarningsSummary ?? true,
+      showReferralPerformance: pluginConfig?.partnerDashboard?.showReferralPerformance ?? true,
+      showRecentReferrals: pluginConfig?.partnerDashboard?.showRecentReferrals ?? true,
+      showCommissionBreakdown: pluginConfig?.partnerDashboard?.showCommissionBreakdown ?? true,
     },
   }
 }

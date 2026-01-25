@@ -5,14 +5,14 @@ import type { SanitizedCouponPluginOptions } from '../types'
 export const createCouponsCollection = (
   pluginConfig: SanitizedCouponPluginOptions,
 ): CollectionConfig => {
-  const { collections, access, defaultCurrency } = pluginConfig
+  const { collections, access, defaultCurrency, adminGroups } = pluginConfig
 
   return {
     slug: collections.couponsSlug,
     admin: {
       useAsTitle: 'code',
       defaultColumns: ['code', 'type', 'value', 'activeFrom', 'activeUntil'],
-      group: 'Ecommerce',
+      group: adminGroups.couponsGroup,
     },
     access: {
       read: access.canUseCoupons || (() => true),

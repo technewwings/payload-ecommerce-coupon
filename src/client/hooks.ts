@@ -1,4 +1,4 @@
-import type { ApplyCouponHook, ApplyCouponResponse } from '../types'
+import type { ApplyCouponHook, ApplyCouponResponse, PartnerDashboardData } from '../types'
 
 /**
  * Apply a coupon code to a cart
@@ -123,5 +123,47 @@ export async function validateCouponCode(
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Network error'
     return { success: false, message, error: message }
+  }
+}
+
+export type PartnerStatsResponse = {
+  success: boolean
+  data?: PartnerDashboardData
+  currency?: string
+  error?: string
+}
+
+/**
+ * Fetch partner dashboard statistics
+ * @param apiEndpoint - Optional custom API endpoint (default: /api/referrals/partner-stats)
+ * @returns Response with partner stats, referral codes, and program info
+ */
+export async function usePartnerStats(
+  apiEndpoint: string = '/api/referrals/partner-stats',
+): Promise<PartnerStatsResponse> {
+  try {
+    const response = await fetch(apiEndpoint, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+    })
+
+    const data = (await response.json()) as Record<string, unknown>
+
+    if (!response.ok) {
+      return {
+        success: false,
+        error: (data.error as string) || 'Failed to fetch partner stats',
+      }
+    }
+
+    return {
+      success: data.success as boolean,
+      data: data.data as PartnerDashboardData,
+      currency: data.currency as string,
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Network error'
+    return { success: false, error: message }
   }
 }

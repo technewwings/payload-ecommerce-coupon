@@ -4,6 +4,7 @@ import { createCouponsCollection } from './collections/createCouponsCollection'
 import { createReferralCodesCollection } from './collections/createReferralCodesCollection'
 import { createReferralProgramsCollection } from './collections/createReferralProgramsCollection'
 import { applyCouponEndpoint } from './endpoints/applyCoupon'
+import { partnerStatsEndpoint } from './endpoints/partnerStats'
 import { validateCouponEndpoint } from './endpoints/validateCoupon'
 import type { CouponPluginOptions } from './types'
 import { sanitizePluginConfig } from './utilities/sanitizePluginConfig'
@@ -25,15 +26,47 @@ export const payloadEcommerceCouponPlugin =
 
     const collectionsToAdd = []
 
+    // When enableReferrals is true, both coupon and referral collections are created
+    // The referralConfig.allowBothSystems determines if both can be used simultaneously
     if (pluginConfig.enableReferrals) {
-      // Referral mode: create referral collections only
-      const referralProgramsCollection = createReferralProgramsCollection(pluginConfig)
-      const referralCodesCollection = createReferralCodesCollection(pluginConfig)
+      // Referral mode: create referral collections
+      let referralProgramsCollection = createReferralProgramsCollection(pluginConfig)
+      let referralCodesCollection = createReferralCodesCollection(pluginConfig)
+
+      // Apply collection overrides if provided
+      if (pluginOptions.collections?.referralProgramsCollectionOverride) {
+        referralProgramsCollection =
+          await pluginOptions.collections.referralProgramsCollectionOverride({
+            defaultCollection: referralProgramsCollection,
+          })
+      }
+
+      if (pluginOptions.collections?.referralCodesCollectionOverride) {
+        referralCodesCollection = await pluginOptions.collections.referralCodesCollectionOverride({
+          defaultCollection: referralCodesCollection,
+        })
+      }
 
       collectionsToAdd.push(referralProgramsCollection, referralCodesCollection)
+
+      // If allowBothSystems is true, also create coupon collection
+      if (pluginConfig.referralConfig.allowBothSystems) {
+        let couponsCollection = createCouponsCollection(pluginConfig)
+        if (pluginOptions.collections?.couponsCollectionOverride) {
+          couponsCollection = await pluginOptions.collections.couponsCollectionOverride({
+            defaultCollection: couponsCollection,
+          })
+        }
+        collectionsToAdd.push(couponsCollection)
+      }
     } else {
       // Coupon mode: create coupon collections only
-      const couponsCollection = createCouponsCollection(pluginConfig)
+      let couponsCollection = createCouponsCollection(pluginConfig)
+      if (pluginOptions.collections?.couponsCollectionOverride) {
+        couponsCollection = await pluginOptions.collections.couponsCollectionOverride({
+          defaultCollection: couponsCollection,
+        })
+      }
       collectionsToAdd.push(couponsCollection)
     }
 
@@ -52,6 +85,11 @@ export const payloadEcommerceCouponPlugin =
       validateCouponEndpoint({ pluginConfig }),
       applyCouponEndpoint({ pluginConfig }),
     ]
+
+    // Add partner stats endpoint if referrals are enabled
+    if (pluginConfig.enableReferrals) {
+      incomingConfig.endpoints.push(partnerStatsEndpoint({ pluginConfig }))
+    }
 
     // Safe autoIntegrate implementation — ensure referral collection exists before injecting relationships
     if (pluginConfig.autoIntegrate) {
@@ -105,6 +143,24 @@ export const payloadEcommerceCouponPlugin =
           },
         ]
 
+        // If both systems allowed, also add coupon field
+        if (
+          pluginConfig.referralConfig.allowBothSystems &&
+          allSlugs.has(pluginConfig.collections.couponsSlug)
+        ) {
+          cartReferralFields.push({
+            name: 'appliedCoupon',
+            type: 'relationship',
+            relationTo: pluginConfig.collections.couponsSlug,
+            admin: { description: 'Coupon applied to this cart' },
+          })
+          cartReferralFields.push({
+            name: 'discountAmount',
+            type: 'number',
+            admin: { description: 'Discount amount from coupon' },
+          })
+        }
+
         addFieldsToCollection('carts', cartReferralFields)
 
         // Fields to append to orders (referral mode)
@@ -126,6 +182,24 @@ export const payloadEcommerceCouponPlugin =
             admin: { description: 'Customer discount amount for this order', readOnly: true },
           },
         ]
+
+        // If both systems allowed, also add coupon field to orders
+        if (
+          pluginConfig.referralConfig.allowBothSystems &&
+          allSlugs.has(pluginConfig.collections.couponsSlug)
+        ) {
+          orderReferralFields.push({
+            name: 'appliedCoupon',
+            type: 'relationship',
+            relationTo: pluginConfig.collections.couponsSlug,
+            admin: { description: 'Coupon applied to this order', readOnly: true },
+          })
+          orderReferralFields.push({
+            name: 'discountAmount',
+            type: 'number',
+            admin: { description: 'Discount amount from coupon', readOnly: true },
+          })
+        }
 
         addFieldsToCollection('orders', orderReferralFields)
       } else if (
