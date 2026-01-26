@@ -1,23 +1,26 @@
-import { payloadEcommerceCouponPlugin } from './plugin'
 import { createCouponsCollection } from './collections/createCouponsCollection'
 import { createReferralCodesCollection } from './collections/createReferralCodesCollection'
 import { createReferralProgramsCollection } from './collections/createReferralProgramsCollection'
+import { payloadEcommerceCouponPlugin } from './plugin'
 
-export { payloadEcommerceCouponPlugin as payloadEcommerceCoupon }
-export { useCouponCode, validateCouponCode, usePartnerStats } from './client/hooks'
-export { createCouponsCollection }
-export { createReferralCodesCollection }
-export { createReferralProgramsCollection }
+export { useCouponCode, usePartnerStats, validateCouponCode } from './client/hooks'
+export {
+  createCouponsCollection,
+  createReferralCodesCollection,
+  createReferralProgramsCollection,
+  payloadEcommerceCouponPlugin as payloadEcommerceCoupon
+}
 
 export type {
-  CouponPluginOptions,
-  CouponPluginCollections,
-  CouponPluginAccess,
-  ApplyCouponResponse,
-  ApplyCouponHook,
-  PartnerStats,
-  PartnerDashboardData,
-  ReferralProgramConfig,
   AdminGroupConfig,
+  ApplyCouponHook,
+  ApplyCouponResponse,
+  CouponPluginAccess,
+  CouponPluginCollections,
+  CouponPluginOptions,
   PartnerDashboardConfig,
+  PartnerDashboardData,
+  PartnerStats,
+  ReferralProgramConfig
 } from './types'
+
