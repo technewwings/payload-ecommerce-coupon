@@ -15,22 +15,23 @@ Production-ready coupon and referral system plugin for **Payload CMS** with seam
 
 ### **Coupon Mode Features**
 - ✅ **Flexible Discounts** – Percentage or fixed amount discounts
-- ✅ **Usage Controls** – Per-customer limits, expiration dates, usage counts
-- ✅ **Conditions** – Minimum/maximum order values, product restrictions
+- ✅ **Usage Controls** – Usage limits; usage is counted when an **order is placed** (not on apply)
+- ✅ **Conditions** – Minimum/maximum order values (top-level fields), product restrictions
 - ✅ **Auto-Application** – Seamless cart integration
 
 ### **Referral Mode Features**
-- ✅ **Commission Rules** – Per-product/category commission rates
-- ✅ **Split Configuration** – Configurable partner/customer share ratios
-- ✅ **Partner Tracking** – Commission earnings and referral performance
+- ✅ **Commission Rules** – **Required**: at least one rule per program; per-product/category commission rates
+- ✅ **Referrer/Referee Split** – **Partner (referrer)** receives **commission**; **customer (referee)** receives **discount**; configurable share ratios
+- ✅ **Partner Tracking** – Commission earnings and referral performance (credited when order is placed)
 - ✅ **Auto-Generated Codes** – Unique referral codes for each partner
 - ✅ **Partner Dashboard** – Ready-to-use React components for partner stats
 - ✅ **Single Code Per Cart** – Enforce one code (coupon or referral) per order
 
 ### **Core Features**
-- ✅ **REST API** – Validate, apply, and track codes
-- ✅ **Frontend Hooks** – `useCouponCode()`, `usePartnerStats()` for React/Next.js
+- ✅ **REST API** – Validate, apply, and record usage when order is placed
+- ✅ **Frontend Hooks** – `useCouponCode()`, `usePartnerStats()`, `validateCouponCode()` for React/Next.js
 - ✅ **Auto-Integration** – Extends carts/orders automatically
+- ✅ **Usage on Order** – Coupon/referral usage and partner earnings are recorded when an order is placed (not when code is applied)
 - ✅ **Type-Safe** – Full TypeScript support
 - ✅ **Access Control** – Role-based permissions with partner role support
 - ✅ **Custom Admin Groups** – Separate "Coupons" and "Referrals" categories
@@ -156,7 +157,33 @@ export const Users: CollectionConfig = {
 }
 ```
 
-### 4. Frontend Integration
+### 4. Record Usage When Order Is Placed
+
+Coupon and referral **usage is not counted when a code is applied** to the cart. It is counted only when an **order is placed successfully** (e.g. paid). You must call the plugin when converting cart to order:
+
+**Option A – Call the API** (e.g. from your Orders collection `afterChange` hook when `paymentStatus === 'paid'`):
+
+```bash
+POST /api/coupons/record-order-usage
+Content-Type: application/json
+{ "orderId": "your-order-id" }
+```
+
+**Option B – Use the server utility** (in your Payload config or Orders hook):
+
+```typescript
+import { recordCouponUsageForOrder } from '@wtree/payload-ecommerce-coupon'
+
+// In your Orders collection afterChange hook, when order is paid/completed:
+if (doc.paymentStatus === 'paid' && (doc.appliedCoupon || doc.appliedReferralCode)) {
+  await recordCouponUsageForOrder(payload, doc, pluginConfig)
+}
+```
+
+- **Coupon:** increments the coupon’s `usageCount`.
+- **Referral:** increments the referral code’s `usageCount` and `successfulReferralsCount`, and adds `order.partnerCommission` to the referral code’s `totalEarnings` and `pendingEarnings` (referrer gets commission; referee discount is already on the order).
+
+### 5. Frontend Integration
 
 #### Apply Coupon/Referral Code
 
@@ -201,23 +228,12 @@ function CheckoutComponent() {
 
 #### Partner Dashboard
 
+Use the `usePartnerStats` hook to build a custom dashboard, or use the pre-built dashboard components when available from the package. See [Partner Dashboard docs](./docs/partner-dashboard.md).
+
 ```typescript
-import { PartnerDashboard, usePartnerStats } from '@wtree/payload-ecommerce-coupon'
+import { usePartnerStats } from '@wtree/payload-ecommerce-coupon'
 
-// Option 1: Use the pre-built dashboard component
-function PartnerPage() {
-  return (
-    <PartnerDashboard
-      showEarningsSummary={true}
-      showReferralPerformance={true}
-      showRecentReferrals={true}
-      showReferralCodes={true}
-      apiEndpoint="/api/referrals/partner-stats"
-    />
-  )
-}
-
-// Option 2: Build custom dashboard with the hook
+// Build custom dashboard with the hook
 function CustomPartnerDashboard() {
   const [data, setData] = useState(null)
   
@@ -285,10 +301,9 @@ Best when you need both traditional coupons AND partner referrals, but want to e
    - **Name**: "Partner Affiliate Program"
    - **Description**: "Earn commissions by referring customers"
    - **Is Active**: Enable/disable program
-   - **Referrer Reward**: Commission for the partner (e.g., 10% of order)
-   - **Referee Reward**: Discount for the customer (e.g., 5% off)
+   - **Commission Rules**: **Required** – at least one rule per program (product/category-specific or "all products"). Each rule defines total commission and split between partner and customer.
 
-3. **Configure Commission Rules** (Optional - for product-specific rates):
+3. **Configure Commission Rules** (required – at least one):
    ```json
    {
      "name": "Electronics Category",
@@ -304,25 +319,19 @@ Best when you need both traditional coupons AND partner referrals, but want to e
      }
    }
    ```
+   - **Referrer (partner)** receives the **commission** share (`partnerPercentage`).
+   - **Referee (customer)** receives the **discount** share (`customerPercentage`).
 
-### **Commission Calculation Examples**
+### **Commission and Discount (Referrer / Referee)**
 
-#### **Example 1: Simple Percentage Split**
-- **Order Total**: $100
-- **Referrer Reward**: 10% (percentage)
-- **Referee Reward**: 5% (percentage)
-- **Result**: Partner earns $10, Customer saves $5
+- **Referrer (partner)** receives **commission** – credited to the referral code’s `totalEarnings` and `pendingEarnings` when the order is placed (via record-order-usage).
+- **Referee (customer)** receives a **discount** – applied to the order; stored on cart/order as `customerDiscount`.
 
-#### **Example 2: Commission Rules with Split**
+#### **Example: Commission Rules with Split**
 - **Order Total**: $100 (Electronics category)
 - **Total Commission**: 15% = $15
-- **Partner Share**: 70% of $15 = $10.50
-- **Customer Discount**: 30% of $15 = $4.50
-
-#### **Example 3: Fixed Commission**
-- **Referrer Reward**: $20 (fixed)
-- **Referee Reward**: $10 (fixed)
-- **Result**: Partner earns $20, Customer saves $10 (regardless of order value)
+- **Partner Share**: 70% of $15 = $10.50 (commission to referrer)
+- **Customer Discount**: 30% of $15 = $4.50 (discount to referee)
 
 ### **Managing Partners**
 
@@ -345,13 +354,26 @@ curl -X POST http://localhost:3000/api/coupons/validate \
 ```
 
 #### POST /api/coupons/apply
-Apply a code to a cart.
+Apply a code to a cart. **Does not** increment usage; usage is recorded when you call the record-order-usage endpoint for a placed order.
 
 ```bash
 curl -X POST http://localhost:3000/api/coupons/apply \
   -H "Content-Type: application/json" \
   -d '{"code": "WELCOME10", "cartID": "cart-123"}'
 ```
+
+#### POST /api/coupons/record-order-usage
+Record coupon and referral usage for a successfully placed order. Call this once per order when the order is paid/completed (e.g. from your Orders `afterChange` hook).
+
+**Request body:** `{ "orderId": "string" }`
+
+```bash
+curl -X POST http://localhost:3000/api/coupons/record-order-usage \
+  -H "Content-Type: application/json" \
+  -d '{"orderId": "order-123"}'
+```
+
+**Response:** `{ "success": true, "recordedCoupon": boolean, "recordedReferral": boolean }`
 
 ### **Partner Stats Endpoint**
 
@@ -420,6 +442,7 @@ export type CouponPluginOptions = {
     applyCoupon?: string               // Default: '/coupons/apply'
     validateCoupon?: string            // Default: '/coupons/validate'
     partnerStats?: string              // Default: '/referrals/partner-stats'
+    recordOrderUsage?: string          // Default: '/coupons/record-order-usage'
   }
   
   access?: {
@@ -560,14 +583,12 @@ import {
   validateCouponCode,
   usePartnerStats,
   
-  // Dashboard components
-  PartnerDashboard,
-  EarningsSummary,
-  ReferralPerformance,
-  RecentReferrals,
-  ReferralCodes,
+  // Server-only: record usage when order is placed
+  recordCouponUsageForOrder,
 } from '@wtree/payload-ecommerce-coupon'
 ```
+
+Dashboard components (`PartnerDashboard`, `EarningsSummary`, `ReferralPerformance`, `RecentReferrals`, `ReferralCodes`) are available from the package source; see [Partner Dashboard docs](./docs/partner-dashboard.md) for usage.
 
 ### **Collection Creation Functions**
 
@@ -588,54 +609,14 @@ export default buildConfig({
     }),
   ],
   collections: [
-    // You can also create and customize collections directly
-    createCouponsCollection({
-      enabled: true,
-      defaultCurrency: 'USD',
-    }),
+    // The plugin adds collections automatically; use overrides in plugin config to customize
   ],
 })
 ```
 
-## 🎨 Partner Dashboard Components
+## 🎨 Partner Dashboard
 
-The plugin provides ready-to-use React components for building partner dashboards:
-
-```typescript
-import {
-  PartnerDashboard,      // Complete dashboard
-  EarningsSummary,       // Earnings widget
-  ReferralPerformance,   // Performance metrics
-  RecentReferrals,       // Recent referrals table
-  ReferralCodes,         // Referral codes list
-} from '@wtree/payload-ecommerce-coupon'
-
-// Use individual components
-function CustomDashboard({ stats, currency }) {
-  return (
-    <div>
-      <EarningsSummary stats={stats} currency={currency} />
-      <ReferralPerformance stats={stats} />
-    </div>
-  )
-}
-```
-
-### **Styling**
-
-Import the default styles or customize:
-
-```css
-/* Import default styles */
-@import '@wtree/payload-ecommerce-coupon/styles.css';
-
-/* Or customize with CSS variables */
-.partner-dashboard {
-  --primary-color: #3b82f6;
-  --success-color: #059669;
-  --warning-color: #d97706;
-}
-```
+The plugin provides hooks and (when using the source) React components for partner dashboards. Use `usePartnerStats()` to fetch stats; for pre-built dashboard components and styling, see [Partner Dashboard documentation](./docs/partner-dashboard.md).
 
 ## 🔧 Troubleshooting
 
@@ -649,8 +630,12 @@ This occurs when `singleCodePerCart: true` and a code is already applied.
 - Ensure the user has `role: 'partner'` or `roles: ['partner']`
 - Check the `isPartner` access control function
 
+#### **Usage count or partner earnings not updating**
+- Usage is **not** incremented when a code is applied to the cart. Call **record-order-usage** (or `recordCouponUsageForOrder`) when an order is placed/paid. See [Record usage when order is placed](#4-record-usage-when-order-is-placed).
+
 #### **Commission not calculating correctly**
-- Verify commission rules are properly configured
+- At least **one commission rule is required** per referral program
+- Verify commission rules (product/category/all) are configured
 - Check that products have correct category assignments
 - Ensure cart has valid `subtotal` or `total` field
 
