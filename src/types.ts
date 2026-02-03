@@ -22,6 +22,7 @@ export type CouponPluginEndpoints = {
   applyCoupon?: string
   validateCoupon?: string
   partnerStats?: string
+  recordOrderUsage?: string
 }
 
 export type ReferralProgramConfig = {

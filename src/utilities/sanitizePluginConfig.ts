@@ -67,6 +67,11 @@ export const sanitizePluginConfig = ({
         pluginConfig.endpoints.partnerStats.trim().length > 0
           ? pluginConfig.endpoints.partnerStats
           : '/referrals/partner-stats',
+      recordOrderUsage:
+        typeof pluginConfig?.endpoints?.recordOrderUsage === 'string' &&
+        pluginConfig.endpoints.recordOrderUsage.trim().length > 0
+          ? pluginConfig.endpoints.recordOrderUsage
+          : '/coupons/record-order-usage',
     },
     autoIntegrate: pluginConfig?.autoIntegrate !== false,
     access: {

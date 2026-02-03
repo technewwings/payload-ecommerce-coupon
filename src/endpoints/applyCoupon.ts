@@ -194,22 +194,13 @@ async function handleCouponCode({
     }
   }
 
-  // Apply coupon to cart
+  // Apply coupon to cart (usage is counted when order is placed via recordCouponUsageForOrder)
   await payload.update({
     collection: 'carts',
     id: cartID,
     data: {
       appliedCoupon: coupon.id,
       discountAmount: discount,
-    },
-  })
-
-  // Increment coupon usage count
-  await payload.update({
-    collection: pluginConfig.collections.couponsSlug,
-    id: coupon.id,
-    data: {
-      usageCount: (coupon.usageCount || 0) + 1,
     },
   })
 
@@ -335,7 +326,7 @@ async function handleReferralCode({
     payload,
   })
 
-  // Apply referral to cart
+  // Apply referral to cart (usage and partner earnings are recorded when order is placed via recordCouponUsageForOrder)
   await payload.update({
     collection: 'carts',
     id: cartID,
@@ -343,15 +334,6 @@ async function handleReferralCode({
       appliedReferralCode: referralCode.id,
       partnerCommission: Math.round(partnerCommission * 100) / 100,
       customerDiscount: Math.round(customerDiscount * 100) / 100,
-    },
-  })
-
-  // Increment referral code usage count
-  await payload.update({
-    collection: pluginConfig.collections.referralCodesSlug,
-    id: referralCode.id,
-    data: {
-      usageCount: (referralCode.usageCount || 0) + 1,
     },
   })
 

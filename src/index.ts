@@ -8,7 +8,7 @@ export {
   createCouponsCollection,
   createReferralCodesCollection,
   createReferralProgramsCollection,
-  payloadEcommerceCouponPlugin as payloadEcommerceCoupon
+  payloadEcommerceCouponPlugin as payloadEcommerceCoupon,
 }
 
 export type {
@@ -21,6 +21,5 @@ export type {
   PartnerDashboardConfig,
   PartnerDashboardData,
   PartnerStats,
-  ReferralProgramConfig
+  ReferralProgramConfig,
 } from './types'
-

@@ -51,13 +51,18 @@ export const PartnerDashboard: React.FC<PartnerDashboardProps> = ({
           throw new Error('Failed to fetch partner data')
         }
 
-        const result = await response.json()
+        const result = (await response.json()) as {
+          success: boolean
+          data?: PartnerDashboardData
+          currency?: string
+          error?: string
+        }
 
         if (result.success) {
-          setData(result.data)
-          setCurrency(result.currency || 'USD')
+          setData(result.data ?? null)
+          setCurrency(result.currency ?? 'USD')
         } else {
-          setError(result.error || 'Failed to load dashboard data')
+          setError(result.error ?? 'Failed to load dashboard data')
         }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'An error occurred')

@@ -9,7 +9,16 @@ export const createReferralProgramsCollection = (
 
   const beforeChange: any = [
     ({ data }: any) => {
-      // Validate commission split for referral program
+      // Commission rules are mandatory: at least one rule required
+      if (
+        !data.commissionRules ||
+        !Array.isArray(data.commissionRules) ||
+        data.commissionRules.length === 0
+      ) {
+        throw new Error('At least one commission rule is required for the referral program')
+      }
+
+      // Validate referrer/referee reward split when both are percentage (used as fallback when no rule matches)
       if (data.referrerReward?.type === 'percentage' && data.refereeReward?.type === 'percentage') {
         const total = (data.referrerReward.value || 0) + (data.refereeReward.value || 0)
         if (total > 100) {
@@ -18,16 +27,14 @@ export const createReferralProgramsCollection = (
       }
 
       // Validate commission split for commission rules
-      if (data.commissionRules && Array.isArray(data.commissionRules)) {
-        data.commissionRules.forEach((rule: any, index: number) => {
-          if (rule.split) {
-            const total = (rule.split.partnerPercentage || 0) + (rule.split.customerPercentage || 0)
-            if (total > 100) {
-              throw new Error(`Commission split for rule ${index + 1} cannot exceed 100%`)
-            }
+      data.commissionRules.forEach((rule: any, index: number) => {
+        if (rule.split) {
+          const total = (rule.split.partnerPercentage || 0) + (rule.split.customerPercentage || 0)
+          if (total > 100) {
+            throw new Error(`Commission split for rule ${index + 1} cannot exceed 100%`)
           }
-        })
-      }
+        }
+      })
 
       return data
     },
@@ -146,8 +153,11 @@ export const createReferralProgramsCollection = (
       {
         name: 'commissionRules',
         type: 'array',
+        required: true,
+        minRows: 1,
         admin: {
-          description: 'Define commission rules for different products or categories',
+          description:
+            'Define commission rules for different products or categories. At least one rule is required.',
         },
         fields: [
           {
