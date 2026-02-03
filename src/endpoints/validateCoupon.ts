@@ -200,7 +200,7 @@ async function validateReferralCode({
       collection: 'carts',
       id: cartID,
     })
-    const cartTotal = cart ? (cart.subtotal || cart.total || 0) : 0
+    const cartTotal = cart ? cart.subtotal || cart.total || 0 : 0
     const items = cart?.items || []
 
     for (const item of items) {
