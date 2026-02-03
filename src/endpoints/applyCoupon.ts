@@ -349,7 +349,7 @@ async function handleReferralCode({
   })
 }
 
-// Calculate commission and discount based on program configuration
+// Calculate commission and discount from program commission rules (each rule has referrerReward + refereeReward)
 function calculateCommissionAndDiscount({
   cart,
   program,
@@ -363,111 +363,76 @@ function calculateCommissionAndDiscount({
 }): { partnerCommission: number; customerDiscount: number } {
   const cartTotal = cart.subtotal || cart.total || 0
   const cartItems = cart.items || []
+  const rules = program.commissionRules || []
 
-  // If there are commission rules, use item-level calculation
-  if (program.commissionRules && program.commissionRules.length > 0) {
-    let totalPartnerCommission = 0
-    let totalCustomerDiscount = 0
-
-    for (const item of cartItems) {
-      const itemPrice = item.price || item.unitPrice || 0
-      const quantity = item.quantity || 1
-      const itemTotal = itemPrice * quantity
-
-      // Find applicable commission rule
-      const applicableRule = findApplicableCommissionRule(program.commissionRules, item)
-
-      if (applicableRule) {
-        // Calculate total commission for this item
-        let itemCommission = 0
-        if (applicableRule.totalCommission?.type === 'percentage') {
-          itemCommission = (itemTotal * applicableRule.totalCommission.value) / 100
-        } else if (applicableRule.totalCommission?.type === 'fixed') {
-          itemCommission = applicableRule.totalCommission.value * quantity
-        }
-
-        // Split between partner and customer
-        const partnerPercentage = applicableRule.split?.partnerPercentage || 70
-        const customerPercentage = applicableRule.split?.customerPercentage || 30
-
-        totalPartnerCommission += (itemCommission * partnerPercentage) / 100
-        totalCustomerDiscount += (itemCommission * customerPercentage) / 100
-      }
-    }
-
-    return {
-      partnerCommission: totalPartnerCommission,
-      customerDiscount: totalCustomerDiscount,
-    }
+  if (rules.length === 0) {
+    return { partnerCommission: 0, customerDiscount: 0 }
   }
 
-  // Use default program rewards (referrerReward and refereeReward)
-  let partnerCommission = 0
-  let customerDiscount = 0
+  let totalPartnerCommission = 0
+  let totalCustomerDiscount = 0
 
-  // Calculate partner commission (referrer reward)
-  if (program.referrerReward) {
-    if (program.referrerReward.type === 'percentage') {
-      partnerCommission = (cartTotal * program.referrerReward.value) / 100
-      // Apply max cap if set
-      if (
-        program.referrerReward.maxReward &&
-        partnerCommission > program.referrerReward.maxReward
-      ) {
-        partnerCommission = program.referrerReward.maxReward
-      }
-    } else if (program.referrerReward.type === 'fixed') {
-      partnerCommission = program.referrerReward.value
+  for (const item of cartItems) {
+    const rule = findApplicableCommissionRule(rules, item)
+    if (!rule?.referrerReward || !rule?.refereeReward) continue
+
+    const itemPrice = item.price ?? item.unitPrice ?? 0
+    const quantity = item.quantity ?? 1
+    const itemTotal = itemPrice * quantity
+
+    // Partner commission from this rule's referrerReward
+    let itemPartner = 0
+    if (rule.referrerReward.type === 'percentage') {
+      itemPartner = (itemTotal * rule.referrerReward.value) / 100
+    } else {
+      itemPartner = rule.referrerReward.value * quantity
     }
-  }
-
-  // Calculate customer discount (referee reward)
-  if (program.refereeReward) {
-    if (program.refereeReward.type === 'percentage') {
-      customerDiscount = (cartTotal * program.refereeReward.value) / 100
-      // Apply max cap if set
-      if (program.refereeReward.maxReward && customerDiscount > program.refereeReward.maxReward) {
-        customerDiscount = program.refereeReward.maxReward
-      }
-    } else if (program.refereeReward.type === 'fixed') {
-      customerDiscount = program.refereeReward.value
+    if (rule.referrerReward.maxReward != null && itemPartner > rule.referrerReward.maxReward) {
+      itemPartner = rule.referrerReward.maxReward
     }
+    totalPartnerCommission += itemPartner
+
+    // Customer discount from this rule's refereeReward
+    let itemCustomer = 0
+    if (rule.refereeReward.type === 'percentage') {
+      itemCustomer = (itemTotal * rule.refereeReward.value) / 100
+    } else {
+      itemCustomer = rule.refereeReward.value * quantity
+    }
+    if (rule.refereeReward.maxReward != null && itemCustomer > rule.refereeReward.maxReward) {
+      itemCustomer = rule.refereeReward.maxReward
+    }
+    totalCustomerDiscount += itemCustomer
   }
 
-  // Ensure customer discount doesn't exceed cart total
-  if (customerDiscount > cartTotal) {
-    customerDiscount = cartTotal
+  if (totalCustomerDiscount > cartTotal) {
+    totalCustomerDiscount = cartTotal
   }
 
-  return { partnerCommission, customerDiscount }
+  return { partnerCommission: totalPartnerCommission, customerDiscount: totalCustomerDiscount }
 }
 
-// Helper function to find applicable commission rule
 function findApplicableCommissionRule(rules: any[], item: any) {
   const productId = typeof item.product === 'string' ? item.product : item.product?.id
-  const categoryId = item.category || item.product?.category
+  const categoryId = item.category ?? item.product?.category
 
-  // First try specific product rules
   const productRule = rules.find(
-    (rule) =>
-      rule.appliesTo === 'products' &&
-      rule.products?.some((p: any) => (typeof p === 'string' ? p : p?.id) === productId),
+    (r) =>
+      r.appliesTo === 'products' &&
+      r.products?.some((p: any) => (typeof p === 'string' ? p : p?.id) === productId),
   )
   if (productRule) return productRule
 
-  // Then try category rules
   if (categoryId) {
     const categoryRule = rules.find(
-      (rule) =>
-        rule.appliesTo === 'categories' &&
-        rule.categories?.some((c: any) => (typeof c === 'string' ? c : c?.id) === categoryId),
+      (r) =>
+        r.appliesTo === 'categories' &&
+        r.categories?.some((c: any) => (typeof c === 'string' ? c : c?.id) === categoryId),
     )
     if (categoryRule) return categoryRule
   }
 
-  // Finally try "all products" rule
-  const allRule = rules.find((rule) => rule.appliesTo === 'all')
-  return allRule
+  return rules.find((r) => r.appliesTo === 'all') ?? null
 }
 
 export const applyCouponEndpoint = ({ pluginConfig }: Args): Endpoint => ({

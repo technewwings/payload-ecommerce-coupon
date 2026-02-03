@@ -129,11 +129,12 @@ export const partnerStatsHandler =
 
             if (programData) {
               const typedProgram = programData as any
+              const firstRule = typedProgram.commissionRules?.[0]
               program = {
                 name: typedProgram.name,
                 description: typedProgram.description,
-                commissionRate: typedProgram.referrerReward?.value || 0,
-                customerDiscount: typedProgram.refereeReward?.value || 0,
+                commissionRate: firstRule?.referrerReward?.value ?? 0,
+                customerDiscount: firstRule?.refereeReward?.value ?? 0,
               }
             }
           } catch {

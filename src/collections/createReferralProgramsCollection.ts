@@ -7,35 +7,36 @@ export const createReferralProgramsCollection = (
 ): CollectionConfig => {
   const { collections, access, defaultCurrency, adminGroups, referralConfig } = pluginConfig
 
-  const beforeChange: any = [
-    ({ data }: any) => {
-      // Commission rules are mandatory: at least one rule required
+  const beforeChange: NonNullable<CollectionConfig['hooks']>['beforeChange'] = [
+    ({ data }: { data: Record<string, unknown> }) => {
+      // Commission rules are required; each rule must have referrerReward and refereeReward
       if (
         !data.commissionRules ||
         !Array.isArray(data.commissionRules) ||
         data.commissionRules.length === 0
       ) {
-        throw new Error('At least one commission rule is required for the referral program')
+        throw new Error('At least one commission rule is required')
       }
-
-      // Validate referrer/referee reward split when both are percentage (used as fallback when no rule matches)
-      if (data.referrerReward?.type === 'percentage' && data.refereeReward?.type === 'percentage') {
-        const total = (data.referrerReward.value || 0) + (data.refereeReward.value || 0)
-        if (total > 100) {
-          throw new Error('Total commission split between partner and customer cannot exceed 100%')
+      data.commissionRules.forEach((rule: Record<string, unknown>, index: number) => {
+        const r = rule as {
+          referrerReward?: { type?: string; value?: number }
+          refereeReward?: { type?: string; value?: number }
         }
-      }
-
-      // Validate commission split for commission rules
-      data.commissionRules.forEach((rule: any, index: number) => {
-        if (rule.split) {
-          const total = (rule.split.partnerPercentage || 0) + (rule.split.customerPercentage || 0)
+        if (!r.referrerReward || r.referrerReward.value == null) {
+          throw new Error(`Commission rule ${index + 1}: Referrer Reward is required`)
+        }
+        if (!r.refereeReward || r.refereeReward.value == null) {
+          throw new Error(`Commission rule ${index + 1}: Referee Reward is required`)
+        }
+        if (r.referrerReward?.type === 'percentage' && r.refereeReward?.type === 'percentage') {
+          const total = (r.referrerReward.value || 0) + (r.refereeReward.value || 0)
           if (total > 100) {
-            throw new Error(`Commission split for rule ${index + 1} cannot exceed 100%`)
+            throw new Error(
+              `Commission rule ${index + 1}: Referrer + Referee percentage cannot exceed 100%`,
+            )
           }
         }
       })
-
       return data
     },
   ]
@@ -44,7 +45,7 @@ export const createReferralProgramsCollection = (
     slug: collections.referralProgramsSlug,
     admin: {
       useAsTitle: 'name',
-      defaultColumns: ['name', 'referrerReward', 'refereeReward', 'isActive'],
+      defaultColumns: ['name', 'commissionRules', 'isActive'],
       group: adminGroups.referralsGroup,
     },
     access: {
@@ -81,92 +82,20 @@ export const createReferralProgramsCollection = (
         },
       },
       {
-        name: 'referrerReward',
-        type: 'group',
-        admin: {
-          description: 'Reward given to the partner who refers others',
-        },
-        fields: [
-          {
-            name: 'type',
-            type: 'select',
-            required: true,
-            options: [
-              { label: 'Fixed Amount', value: 'fixed' },
-              { label: 'Percentage of Order', value: 'percentage' },
-            ],
-            defaultValue: 'percentage',
-          },
-          {
-            name: 'value',
-            type: 'number',
-            required: true,
-            defaultValue: referralConfig.defaultPartnerSplit,
-            admin: {
-              description: `Reward value. For percentage, 10 = 10% of order value. For fixed, amount in ${defaultCurrency}`,
-            },
-          },
-          {
-            name: 'maxReward',
-            type: 'number',
-            admin: {
-              description: `Maximum reward amount in ${defaultCurrency}. Leave empty for no cap.`,
-            },
-          },
-        ],
-      },
-      {
-        name: 'refereeReward',
-        type: 'group',
-        admin: {
-          description: 'Discount given to the customer who was referred',
-        },
-        fields: [
-          {
-            name: 'type',
-            type: 'select',
-            required: true,
-            options: [
-              { label: 'Fixed Amount', value: 'fixed' },
-              { label: 'Percentage Discount', value: 'percentage' },
-            ],
-            defaultValue: 'percentage',
-          },
-          {
-            name: 'value',
-            type: 'number',
-            required: true,
-            defaultValue: referralConfig.defaultCustomerSplit,
-            admin: {
-              description: `Reward value. For percentage, 10 = 10% discount. For fixed, discount amount in ${defaultCurrency}`,
-            },
-          },
-          {
-            name: 'maxReward',
-            type: 'number',
-            admin: {
-              description: `Maximum reward amount in ${defaultCurrency}. Leave empty for no cap.`,
-            },
-          },
-        ],
-      },
-      {
         name: 'commissionRules',
         type: 'array',
         required: true,
         minRows: 1,
         admin: {
           description:
-            'Define commission rules for different products or categories. At least one rule is required.',
+            'Commission rules: each rule defines who it applies to and Referrer Reward + Referee Reward inside the rule.',
         },
         fields: [
           {
             name: 'name',
             type: 'text',
             required: true,
-            admin: {
-              description: 'Name of this commission rule',
-            },
+            admin: { description: 'Name of this rule' },
           },
           {
             name: 'appliesTo',
@@ -185,8 +114,9 @@ export const createReferralProgramsCollection = (
             relationTo: 'categories',
             hasMany: true,
             admin: {
-              condition: (data, siblingData) => siblingData?.appliesTo === 'categories',
-              description: 'Select categories this rule applies to',
+              condition: (_: unknown, siblingData: { appliesTo?: string }) =>
+                siblingData?.appliesTo === 'categories',
+              description: 'Categories this rule applies to',
             },
           },
           {
@@ -195,21 +125,24 @@ export const createReferralProgramsCollection = (
             relationTo: 'products',
             hasMany: true,
             admin: {
-              condition: (data, siblingData) => siblingData?.appliesTo === 'products',
-              description: 'Select products this rule applies to',
+              condition: (_: unknown, siblingData: { appliesTo?: string }) =>
+                siblingData?.appliesTo === 'products',
+              description: 'Products this rule applies to',
             },
           },
           {
-            name: 'totalCommission',
+            name: 'referrerReward',
             type: 'group',
+            required: true,
+            admin: { description: 'Reward given to the partner who refers others' },
             fields: [
               {
                 name: 'type',
                 type: 'select',
                 required: true,
                 options: [
-                  { label: 'Percentage', value: 'percentage' },
                   { label: 'Fixed Amount', value: 'fixed' },
+                  { label: 'Percentage of Order', value: 'percentage' },
                 ],
                 defaultValue: 'percentage',
               },
@@ -217,39 +150,50 @@ export const createReferralProgramsCollection = (
                 name: 'value',
                 type: 'number',
                 required: true,
+                defaultValue: referralConfig.defaultPartnerSplit,
                 admin: {
-                  description: 'Total commission value to be split between partner and customer',
+                  description: `For percentage: 10 = 10% of order value. For fixed: amount in ${defaultCurrency}`,
+                },
+              },
+              {
+                name: 'maxReward',
+                type: 'number',
+                admin: {
+                  description: `Max reward in ${defaultCurrency}. Leave empty for no cap.`,
                 },
               },
             ],
           },
           {
-            name: 'split',
+            name: 'refereeReward',
             type: 'group',
-            admin: {
-              description: 'How to split the total commission between partner and customer',
-            },
+            required: true,
+            admin: { description: 'Discount given to the customer who was referred' },
             fields: [
               {
-                name: 'partnerPercentage',
-                type: 'number',
+                name: 'type',
+                type: 'select',
                 required: true,
-                defaultValue: referralConfig.defaultPartnerSplit,
-                min: 0,
-                max: 100,
-                admin: {
-                  description: 'Percentage of commission that goes to the partner',
-                },
+                options: [
+                  { label: 'Fixed Amount', value: 'fixed' },
+                  { label: 'Percentage Discount', value: 'percentage' },
+                ],
+                defaultValue: 'percentage',
               },
               {
-                name: 'customerPercentage',
+                name: 'value',
                 type: 'number',
                 required: true,
                 defaultValue: referralConfig.defaultCustomerSplit,
-                min: 0,
-                max: 100,
                 admin: {
-                  description: 'Percentage of commission that goes to the customer as discount',
+                  description: `For percentage: 10 = 10% discount. For fixed: amount in ${defaultCurrency}`,
+                },
+              },
+              {
+                name: 'maxReward',
+                type: 'number',
+                admin: {
+                  description: `Max discount in ${defaultCurrency}. Leave empty for no cap.`,
                 },
               },
             ],

@@ -20,8 +20,8 @@ Production-ready coupon and referral system plugin for **Payload CMS** with seam
 - ✅ **Auto-Application** – Seamless cart integration
 
 ### **Referral Mode Features**
-- ✅ **Commission Rules** – **Required**: at least one rule per program; per-product/category commission rates
-- ✅ **Referrer/Referee Split** – **Partner (referrer)** receives **commission**; **customer (referee)** receives **discount**; configurable share ratios
+- ✅ **Commission Rules** – **Required.** At least one rule per program. Each rule has **Referrer Reward** (partner commission) and **Referee Reward** (customer discount) inside it, plus appliesTo (all products / categories / products).
+- ✅ **Referrer/Referee inside each rule** – Partner gets commission, customer gets discount; type (percentage/fixed), value, and optional max cap per rule.
 - ✅ **Partner Tracking** – Commission earnings and referral performance (credited when order is placed)
 - ✅ **Auto-Generated Codes** – Unique referral codes for each partner
 - ✅ **Partner Dashboard** – Ready-to-use React components for partner stats
@@ -297,30 +297,13 @@ Best when you need both traditional coupons AND partner referrals, but want to e
 ### **Setting Up Referral Mode**
 
 1. **Navigate to Admin Panel** → Go to "Referral Programs" (under "Referrals" group)
-2. **Create Referral Program**:
-   - **Name**: "Partner Affiliate Program"
-   - **Description**: "Earn commissions by referring customers"
-   - **Is Active**: Enable/disable program
-   - **Commission Rules**: **Required** – at least one rule per program (product/category-specific or "all products"). Each rule defines total commission and split between partner and customer.
+2. **Create Referral Program** with **Commission Rules** (required – at least one). Each rule has:
+   - **Name**: e.g. "Default" or "Electronics"
+   - **Applies To**: All Products, Specific Categories, or Specific Products
+   - **Referrer Reward** (inside the rule): Commission for the partner. Type: Percentage of Order or Fixed Amount. Value: e.g. 65 = 65% of order value. Optional Max Reward.
+   - **Referee Reward** (inside the rule): Discount for the customer. Type: Percentage Discount or Fixed Amount. Value: e.g. 30 = 30% off. Optional Max Reward.
 
-3. **Configure Commission Rules** (required – at least one):
-   ```json
-   {
-     "name": "Electronics Category",
-     "appliesTo": "categories",
-     "categories": ["electronics"],
-     "totalCommission": {
-       "type": "percentage",
-       "value": 15
-     },
-     "split": {
-       "partnerPercentage": 70,
-       "customerPercentage": 30
-     }
-   }
-   ```
-   - **Referrer (partner)** receives the **commission** share (`partnerPercentage`).
-   - **Referee (customer)** receives the **discount** share (`customerPercentage`).
+   There are no outer Referrer Reward / Referee Reward fields – only **Commission Rules**, and each rule contains its own Referrer Reward and Referee Reward.
 
 ### **Commission and Discount (Referrer / Referee)**
 
@@ -634,10 +617,8 @@ This occurs when `singleCodePerCart: true` and a code is already applied.
 - Usage is **not** incremented when a code is applied to the cart. Call **record-order-usage** (or `recordCouponUsageForOrder`) when an order is placed/paid. See [Record usage when order is placed](#4-record-usage-when-order-is-placed).
 
 #### **Commission not calculating correctly**
-- At least **one commission rule is required** per referral program
-- Verify commission rules (product/category/all) are configured
-- Check that products have correct category assignments
-- Ensure cart has valid `subtotal` or `total` field
+- Ensure at least one **Commission Rule** exists and each rule has **Referrer Reward** and **Referee Reward** set
+- Verify cart has valid `subtotal` or `total` and items match rule’s appliesTo (all / categories / products)
 
 ## 📋 Future Features (Roadmap)
 
