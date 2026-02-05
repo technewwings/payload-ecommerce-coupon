@@ -1,6 +1,7 @@
 import type { Endpoint, PayloadHandler } from 'payload'
 
 import type { SanitizedCouponPluginOptions } from '../types'
+import { roundTo2 } from '../utilities/roundTo2'
 
 type Args = {
   pluginConfig: SanitizedCouponPluginOptions
@@ -10,7 +11,7 @@ export const validateCouponHandler =
   ({ pluginConfig }: Args): PayloadHandler =>
   async (req) => {
     const { payload } = req
-    const { code, cartValue, cartID } = req.data || {}
+    const { code, cartValue, cartID, customerEmail } = req.data || {}
 
     if (!code) {
       return Response.json(
@@ -28,7 +29,13 @@ export const validateCouponHandler =
         return await validateReferralCode({ payload, code, cartID, pluginConfig })
       } else {
         // Coupon mode: validate coupons
-        return await validateCouponCode({ payload, code, cartValue, pluginConfig })
+        return await validateCouponCode({
+          payload,
+          code,
+          cartValue,
+          customerEmail,
+          pluginConfig,
+        })
       }
     } catch (error) {
       console.error('Code validation error:', error)
@@ -41,11 +48,13 @@ async function validateCouponCode({
   payload,
   code,
   cartValue,
+  customerEmail,
   pluginConfig,
 }: {
   payload: any
   code: string
   cartValue?: number
+  customerEmail?: string
   pluginConfig: SanitizedCouponPluginOptions
 }) {
   // Find the coupon
@@ -81,15 +90,45 @@ async function validateCouponCode({
     return Response.json({ success: false, error: 'Coupon usage limit exceeded' }, { status: 400 })
   }
 
-  // Check conditions
-  if (cartValue !== undefined && couponData.conditions) {
-    const { minOrderValue, maxOrderValue } = couponData.conditions
+  // Optional: per-customer limit (when customer identifier provided)
+  if (
+    couponData.perCustomerLimit != null &&
+    couponData.perCustomerLimit > 0 &&
+    typeof customerEmail === 'string' &&
+    customerEmail.trim().length > 0
+  ) {
+    const email = customerEmail.trim()
+    const { ordersSlug, orderCustomerEmailField, orderPaymentStatusField, orderPaidStatusValue } =
+      pluginConfig.orderIntegration
+    const ordersQuery = await payload.find({
+      collection: ordersSlug,
+      where: {
+        and: [
+          { appliedCoupon: { equals: couponData.id } },
+          { [orderCustomerEmailField]: { equals: email } },
+          { [orderPaymentStatusField]: { equals: orderPaidStatusValue } },
+        ],
+      },
+      limit: 0,
+    })
+    if (ordersQuery.totalDocs >= couponData.perCustomerLimit) {
+      return Response.json(
+        { success: false, error: 'You have reached the maximum uses for this coupon.' },
+        { status: 400 },
+      )
+    }
+  }
+
+  // Check minimum/maximum order value (top-level fields, same as apply endpoint)
+  if (cartValue !== undefined) {
+    const minOrderValue = couponData.minOrderValue
+    const maxOrderValue = couponData.maxOrderValue
 
     if (minOrderValue && cartValue < minOrderValue) {
       return Response.json(
         {
           success: false,
-          error: `Minimum order value of ${minOrderValue} required`,
+          error: `Minimum order value of ${minOrderValue} ${pluginConfig.defaultCurrency} required`,
         },
         { status: 400 },
       )
@@ -99,23 +138,24 @@ async function validateCouponCode({
       return Response.json(
         {
           success: false,
-          error: `Maximum order value of ${maxOrderValue} exceeded`,
+          error: `Maximum order value of ${maxOrderValue} ${pluginConfig.defaultCurrency} exceeded`,
         },
         { status: 400 },
       )
     }
   }
 
-  // Calculate discount preview
+  // Calculate discount preview (2 decimal standard)
   let discount = 0
   if (cartValue !== undefined) {
     if (couponData.type === 'percentage') {
-      discount = Math.round((cartValue * couponData.value) / 100)
-      if (couponData.maxDiscountAmount && discount > couponData.maxDiscountAmount) {
-        discount = couponData.maxDiscountAmount
+      discount = roundTo2((cartValue * couponData.value) / 100)
+      if (couponData.maxDiscountAmount != null && discount > couponData.maxDiscountAmount) {
+        discount = roundTo2(couponData.maxDiscountAmount)
       }
     } else if (couponData.type === 'fixed') {
-      discount = couponData.value
+      discount = roundTo2(couponData.value)
+      if (discount > cartValue) discount = roundTo2(cartValue)
     }
   }
 
@@ -237,14 +277,17 @@ async function validateReferralCode({
     if (totalCustomerDiscount > cartTotal) totalCustomerDiscount = cartTotal
   }
 
+  const roundedPartnerCommission = roundTo2(totalPartnerCommission)
+  const roundedCustomerDiscount = roundTo2(totalCustomerDiscount)
+
   return Response.json({
     success: true,
     referralCode: {
       code: referralData.code,
-      description: `Get ${totalCustomerDiscount.toFixed(2)} discount with this referral code`,
+      description: `Get ${roundedCustomerDiscount.toFixed(2)} discount with this referral code`,
     },
-    partnerCommission: totalPartnerCommission,
-    customerDiscount: totalCustomerDiscount,
+    partnerCommission: roundedPartnerCommission,
+    customerDiscount: roundedCustomerDiscount,
     currency: pluginConfig.defaultCurrency,
   })
 }

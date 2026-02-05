@@ -43,6 +43,18 @@ export type AdminGroupConfig = {
   referralsGroup?: string
 }
 
+/** Config for per-customer coupon limit (query paid orders by customer) */
+export type OrderIntegrationConfig = {
+  /** Orders collection slug */
+  ordersSlug?: string
+  /** Order field that stores customer email */
+  orderCustomerEmailField?: string
+  /** Order field that indicates payment status */
+  orderPaymentStatusField?: string
+  /** Value that means order is paid (counted for per-customer limit) */
+  orderPaidStatusValue?: string
+}
+
 export type PartnerDashboardConfig = {
   /** Enable partner dashboard widgets */
   enabled?: boolean
@@ -78,6 +90,8 @@ export type CouponPluginOptions = {
   adminGroups?: AdminGroupConfig
   /** Partner dashboard configuration */
   partnerDashboard?: PartnerDashboardConfig
+  /** Order integration for per-customer coupon limit */
+  orderIntegration?: OrderIntegrationConfig
 }
 
 export type SanitizedCouponPluginOptions = {
@@ -92,6 +106,7 @@ export type SanitizedCouponPluginOptions = {
   referralConfig: Required<ReferralProgramConfig>
   adminGroups: Required<AdminGroupConfig>
   partnerDashboard: Required<PartnerDashboardConfig>
+  orderIntegration: Required<OrderIntegrationConfig>
 }
 
 export type CouponPluginConfig = {

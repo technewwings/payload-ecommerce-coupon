@@ -116,5 +116,26 @@ export const sanitizePluginConfig = ({
       showRecentReferrals: pluginConfig?.partnerDashboard?.showRecentReferrals ?? true,
       showCommissionBreakdown: pluginConfig?.partnerDashboard?.showCommissionBreakdown ?? true,
     },
+    orderIntegration: {
+      ordersSlug:
+        typeof pluginConfig?.orderIntegration?.ordersSlug === 'string' &&
+        pluginConfig.orderIntegration.ordersSlug.trim().length > 0
+          ? pluginConfig.orderIntegration.ordersSlug
+          : 'orders',
+      orderCustomerEmailField:
+        typeof pluginConfig?.orderIntegration?.orderCustomerEmailField === 'string' &&
+        pluginConfig.orderIntegration.orderCustomerEmailField.trim().length > 0
+          ? pluginConfig.orderIntegration.orderCustomerEmailField
+          : 'customerEmail',
+      orderPaymentStatusField:
+        typeof pluginConfig?.orderIntegration?.orderPaymentStatusField === 'string' &&
+        pluginConfig.orderIntegration.orderPaymentStatusField.trim().length > 0
+          ? pluginConfig.orderIntegration.orderPaymentStatusField
+          : 'paymentStatus',
+      orderPaidStatusValue:
+        typeof pluginConfig?.orderIntegration?.orderPaidStatusValue === 'string'
+          ? pluginConfig.orderIntegration.orderPaidStatusValue
+          : 'paid',
+    },
   }
 }

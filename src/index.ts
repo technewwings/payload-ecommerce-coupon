@@ -10,6 +10,8 @@ export {
   createReferralProgramsCollection,
   payloadEcommerceCouponPlugin as payloadEcommerceCoupon,
 }
+export { getCartTotalWithDiscounts } from './utilities/getCartTotalWithDiscounts'
+export { recordCouponUsageForOrder } from './utilities/recordCouponUsageForOrder'
 
 export type {
   AdminGroupConfig,
@@ -18,8 +20,10 @@ export type {
   CouponPluginAccess,
   CouponPluginCollections,
   CouponPluginOptions,
+  OrderIntegrationConfig,
   PartnerDashboardConfig,
   PartnerDashboardData,
   PartnerStats,
   ReferralProgramConfig,
 } from './types'
+export type { CartLike } from './utilities/getCartTotalWithDiscounts'

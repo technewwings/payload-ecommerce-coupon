@@ -14,10 +14,11 @@ Production-ready coupon and referral system plugin for **Payload CMS** with seam
 - **Hybrid Mode** (`enableReferrals: true` + `referralConfig.allowBothSystems: true`) – Both systems active
 
 ### **Coupon Mode Features**
-- ✅ **Flexible Discounts** – Percentage or fixed amount discounts
-- ✅ **Usage Controls** – Usage limits; usage is counted when an **order is placed** (not on apply)
+- ✅ **Flexible Discounts** – Percentage or fixed amount discounts (all amounts rounded to 2 decimals)
+- ✅ **Usage Controls** – Global usage limit; usage is counted when an **order is placed** (not on apply)
+- ✅ **Per-customer limit** – Optional limit per customer (requires `customerEmail` when applying)
 - ✅ **Conditions** – Minimum/maximum order values (top-level fields), product restrictions
-- ✅ **Auto-Application** – Seamless cart integration
+- ✅ **Auto-Application** – Seamless cart integration; cart total is reduced when a code is applied
 
 ### **Referral Mode Features**
 - ✅ **Commission Rules** – **Required.** At least one rule per program. Each rule has **Referrer Reward** (partner commission) and **Referee Reward** (customer discount) inside it, plus appliesTo (all products / categories / products).
@@ -32,6 +33,7 @@ Production-ready coupon and referral system plugin for **Payload CMS** with seam
 - ✅ **Frontend Hooks** – `useCouponCode()`, `usePartnerStats()`, `validateCouponCode()` for React/Next.js
 - ✅ **Auto-Integration** – Extends carts/orders automatically
 - ✅ **Usage on Order** – Coupon/referral usage and partner earnings are recorded when an order is placed (not when code is applied)
+- ✅ **Cart total helper** – `getCartTotalWithDiscounts(cart)` for host app cart hooks so totals respect discounts
 - ✅ **Type-Safe** – Full TypeScript support
 - ✅ **Access Control** – Role-based permissions with partner role support
 - ✅ **Custom Admin Groups** – Separate "Coupons" and "Referrals" categories
@@ -100,6 +102,14 @@ export default buildConfig({
         isAdmin: ({ req }) => req.user?.role === 'admin',
         isPartner: ({ req }) => req.user?.role === 'partner',
       },
+
+      // Optional: for per-customer coupon limit (defaults shown)
+      // orderIntegration: {
+      //   ordersSlug: 'orders',
+      //   orderCustomerEmailField: 'customerEmail',
+      //   orderPaymentStatusField: 'paymentStatus',
+      //   orderPaidStatusValue: 'paid',
+      // },
     }),
   ],
 })
@@ -183,6 +193,32 @@ if (doc.paymentStatus === 'paid' && (doc.appliedCoupon || doc.appliedReferralCod
 - **Coupon:** increments the coupon’s `usageCount`.
 - **Referral:** increments the referral code’s `usageCount` and `successfulReferralsCount`, and adds `order.partnerCommission` to the referral code’s `totalEarnings` and `pendingEarnings` (referrer gets commission; referee discount is already on the order).
 
+### 4.5 Coupon usage rules and cart total
+
+**Usage rule**
+- A customer can use a coupon until the coupon’s **global usage limit** or **expiry date** (usage is counted when the order is placed, not when the code is applied).
+- **Optional per-customer limit:** If you set **Per customer limit** on a coupon, the customer must provide their email when applying (e.g. `customerEmail` in the apply request). The coupon is rejected once they have that many **paid** orders with that coupon. You can pass `customerEmail` when validating so the UI can show “limit reached” before apply.
+
+**Monetary values**
+- All discount, commission, and total values are rounded to **2 decimal places**.
+
+**Cart total in your app**
+- The plugin writes the reduced `total` when a code is applied. If your host app recalculates the cart total (e.g. in a `beforeChange` hook when items change), use the formula **total = subtotal − discountAmount − customerDiscount** so the discount is not overwritten. Use the provided helper in your Carts collection:
+
+```typescript
+import { getCartTotalWithDiscounts } from '@wtree/payload-ecommerce-coupon'
+
+// In your Carts collection beforeChange hook, after setting items/subtotal:
+data.total = getCartTotalWithDiscounts(data)
+```
+
+- **Optional config** for per-customer limit: `orderIntegration` with `ordersSlug`, `orderCustomerEmailField`, `orderPaymentStatusField`, `orderPaidStatusValue` (defaults: `'orders'`, `'customerEmail'`, `'paymentStatus'`, `'paid'`).
+
+**Server utilities (for host app)**
+
+- `getCartTotalWithDiscounts(cart)` – Returns `roundTo2(subtotal - discountAmount - customerDiscount)`. Use in your Carts `beforeChange` (or wherever you compute total) so the displayed total always reflects coupon/referral discounts.
+- `recordCouponUsageForOrder(payload, order, pluginConfig)` – Call when an order is paid to increment coupon/referral usage and credit partner earnings (see step 4 above).
+
 ### 5. Frontend Integration
 
 #### Apply Coupon/Referral Code
@@ -198,6 +234,8 @@ function CheckoutComponent() {
     const result = await useCouponCode({
       code,
       cartID: cartId,
+      // When a coupon has per-customer limit, pass customerEmail so the limit can be enforced
+      // customerEmail: customerEmailFromAuthOrForm,
     })
 
     if (result.success) {
@@ -328,21 +366,27 @@ Best when you need both traditional coupons AND partner referrals, but want to e
 ### **Coupon/Referral Endpoints**
 
 #### POST /api/coupons/validate
-Validate a code without applying it.
+Validate a code without applying it. Optionally pass `customerEmail` to check per-customer limit for coupons that have one.
 
 ```bash
 curl -X POST http://localhost:3000/api/coupons/validate \
   -H "Content-Type: application/json" \
   -d '{"code": "WELCOME10", "cartValue": 5000}'
+
+# With per-customer limit check:
+# -d '{"code": "WELCOME10", "cartValue": 5000, "customerEmail": "user@example.com"}'
 ```
 
 #### POST /api/coupons/apply
-Apply a code to a cart. **Does not** increment usage; usage is recorded when you call the record-order-usage endpoint for a placed order.
+Apply a code to a cart. **Does not** increment usage; usage is recorded when you call the record-order-usage endpoint for a placed order. For coupons with **per-customer limit**, include `customerEmail` so the limit can be enforced.
 
 ```bash
 curl -X POST http://localhost:3000/api/coupons/apply \
   -H "Content-Type: application/json" \
   -d '{"code": "WELCOME10", "cartID": "cart-123"}'
+
+# With per-customer limit (required when coupon has per-customer limit):
+# -d '{"code": "WELCOME10", "cartID": "cart-123", "customerEmail": "user@example.com"}'
 ```
 
 #### POST /api/coupons/record-order-usage
@@ -453,6 +497,14 @@ export type CouponPluginOptions = {
     showReferralPerformance?: boolean  // Show performance widget (default: true)
     showRecentReferrals?: boolean      // Show recent referrals (default: true)
     showCommissionBreakdown?: boolean  // Show breakdown (default: true)
+  }
+
+  /** Optional: for per-customer coupon limit (query paid orders by customer) */
+  orderIntegration?: {
+    ordersSlug?: string                // Default: 'orders'
+    orderCustomerEmailField?: string   // Default: 'customerEmail'
+    orderPaymentStatusField?: string  // Default: 'paymentStatus'
+    orderPaidStatusValue?: string     // Default: 'paid'
   }
 }
 ```

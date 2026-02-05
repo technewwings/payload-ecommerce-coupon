@@ -1,6 +1,7 @@
 import type { Endpoint, PayloadHandler } from 'payload'
 
 import type { SanitizedCouponPluginOptions } from '../types'
+import { roundTo2 } from '../utilities/roundTo2'
 
 type Args = {
   pluginConfig: SanitizedCouponPluginOptions
@@ -101,7 +102,7 @@ async function handleCouponCode({
   code,
   cartID,
   cart,
-  customerEmail: _customerEmail,
+  customerEmail,
   pluginConfig,
 }: {
   payload: any
@@ -144,6 +145,36 @@ async function handleCouponCode({
     return Response.json({ success: false, error: 'Coupon usage limit exceeded' }, { status: 400 })
   }
 
+  // Per-customer limit: require customer email and count paid orders with this coupon for this customer
+  if (coupon.perCustomerLimit != null && coupon.perCustomerLimit > 0) {
+    const email = typeof customerEmail === 'string' ? customerEmail.trim() : ''
+    if (!email) {
+      return Response.json(
+        { success: false, error: 'Customer email is required for this coupon.' },
+        { status: 400 },
+      )
+    }
+    const { ordersSlug, orderCustomerEmailField, orderPaymentStatusField, orderPaidStatusValue } =
+      pluginConfig.orderIntegration
+    const ordersQuery = await payload.find({
+      collection: ordersSlug,
+      where: {
+        and: [
+          { appliedCoupon: { equals: coupon.id } },
+          { [orderCustomerEmailField]: { equals: email } },
+          { [orderPaymentStatusField]: { equals: orderPaidStatusValue } },
+        ],
+      },
+      limit: 0,
+    })
+    if (ordersQuery.totalDocs >= coupon.perCustomerLimit) {
+      return Response.json(
+        { success: false, error: 'You have reached the maximum uses for this coupon.' },
+        { status: 400 },
+      )
+    }
+  }
+
   // Check if coupon already applied to this cart
   if (cart.appliedCoupon === coupon.id) {
     return Response.json(
@@ -181,18 +212,21 @@ async function handleCouponCode({
 
   if (coupon.type === 'percentage') {
     // Calculate percentage discount
-    discount = Math.round((cartTotal * coupon.value) / 100)
+    discount = roundTo2((cartTotal * coupon.value) / 100)
     // Apply max discount cap if set
-    if (coupon.maxDiscountAmount && discount > coupon.maxDiscountAmount) {
-      discount = coupon.maxDiscountAmount
+    if (coupon.maxDiscountAmount != null && discount > coupon.maxDiscountAmount) {
+      discount = roundTo2(coupon.maxDiscountAmount)
     }
   } else if (coupon.type === 'fixed') {
-    discount = coupon.value
+    discount = roundTo2(coupon.value)
     // Ensure discount doesn't exceed cart total
     if (discount > cartTotal) {
-      discount = cartTotal
+      discount = roundTo2(cartTotal)
     }
   }
+
+  const discountAmount = roundTo2(discount)
+  const total = roundTo2(Math.max(0, cartTotal - discountAmount))
 
   // Apply coupon to cart (usage is counted when order is placed via recordCouponUsageForOrder)
   await payload.update({
@@ -200,7 +234,8 @@ async function handleCouponCode({
     id: cartID,
     data: {
       appliedCoupon: coupon.id,
-      discountAmount: discount,
+      discountAmount,
+      total,
     },
   })
 
@@ -212,7 +247,7 @@ async function handleCouponCode({
       type: coupon.type,
       value: coupon.value,
     },
-    discount,
+    discount: discountAmount,
     currency: pluginConfig.defaultCurrency,
   })
 }
@@ -326,14 +361,19 @@ async function handleReferralCode({
     payload,
   })
 
+  const roundedPartnerCommission = roundTo2(partnerCommission)
+  const roundedCustomerDiscount = roundTo2(customerDiscount)
+  const total = roundTo2(Math.max(0, cartTotal - roundedCustomerDiscount))
+
   // Apply referral to cart (usage and partner earnings are recorded when order is placed via recordCouponUsageForOrder)
   await payload.update({
     collection: 'carts',
     id: cartID,
     data: {
       appliedReferralCode: referralCode.id,
-      partnerCommission: Math.round(partnerCommission * 100) / 100,
-      customerDiscount: Math.round(customerDiscount * 100) / 100,
+      partnerCommission: roundedPartnerCommission,
+      customerDiscount: roundedCustomerDiscount,
+      total,
     },
   })
 
@@ -343,8 +383,8 @@ async function handleReferralCode({
     referralCode: {
       code: referralCode.code,
     },
-    partnerCommission: Math.round(partnerCommission * 100) / 100,
-    customerDiscount: Math.round(customerDiscount * 100) / 100,
+    partnerCommission: roundedPartnerCommission,
+    customerDiscount: roundedCustomerDiscount,
     currency: pluginConfig.defaultCurrency,
   })
 }
