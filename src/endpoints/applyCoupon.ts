@@ -420,12 +420,23 @@ function calculateCommissionAndDiscount({
     const quantity = item.quantity ?? 1
     const itemTotal = itemPrice * quantity
 
+    console.log('Calculating Item:', {
+      id: item.id,
+      itemPrice,
+      quantity,
+      itemTotal,
+      ruleBasis: rule.basis,
+    })
+
     let itemPartner = 0
     let itemCustomer = 0
 
     // Shared Basis Calculation
     if (rule.basis === 'shared') {
-      if (!rule.totalCommission || rule.referrerSplit == null || rule.refereeSplit == null) continue
+      if (!rule.totalCommission || rule.referrerSplit == null || rule.refereeSplit == null) {
+        console.error('Missing shared commission fields', rule)
+        continue
+      }
 
       let totalPot = 0
       if (rule.totalCommission.type === 'percentage') {
@@ -434,12 +445,25 @@ function calculateCommissionAndDiscount({
         totalPot = rule.totalCommission.value * quantity
       }
 
+      console.log('Shared Commission Pot:', {
+        type: rule.totalCommission.type,
+        value: rule.totalCommission.value,
+        totalPot,
+      })
+
       if (rule.totalCommission.maxAmount != null && totalPot > rule.totalCommission.maxAmount) {
         totalPot = rule.totalCommission.maxAmount
+        console.log('Total pot capped at:', totalPot)
       }
 
       itemPartner = (totalPot * rule.referrerSplit) / 100
       itemCustomer = (totalPot * rule.refereeSplit) / 100
+      console.log('Shared Splits:', {
+        referrerSplit: rule.referrerSplit,
+        refereeSplit: rule.refereeSplit,
+        itemPartner,
+        itemCustomer,
+      })
     }
     // Direct Basis Calculation (Legacy)
     else {
