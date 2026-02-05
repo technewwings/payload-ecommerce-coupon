@@ -9,78 +9,65 @@ type Args = {
 
 export const applyCouponHandler =
   ({ pluginConfig }: Args): PayloadHandler =>
-    async (req) => {
-      const { payload } = req
-      const { code, cartID, customerEmail } = req.data || {}
+  async (req) => {
+    const { payload } = req
+    const { code, cartID, customerEmail } = req.data || {}
 
-      if (!code || !cartID) {
-        return Response.json(
-          {
-            success: false,
-            error: `${pluginConfig.enableReferrals ? 'Referral code' : 'Coupon code'} and cart ID are required`,
-          },
-          { status: 400 },
-        )
+    if (!code || !cartID) {
+      return Response.json(
+        {
+          success: false,
+          error: `${pluginConfig.enableReferrals ? 'Referral code' : 'Coupon code'} and cart ID are required`,
+        },
+        { status: 400 },
+      )
+    }
+
+    try {
+      // Find the cart first to check for existing codes
+      const cartQuery = await payload.findByID({
+        collection: 'carts',
+        id: cartID,
+      })
+
+      if (!cartQuery) {
+        return Response.json({ success: false, error: 'Cart not found' }, { status: 404 })
       }
 
-      try {
-        // Find the cart first to check for existing codes
-        const cartQuery = await payload.findByID({
-          collection: 'carts',
-          id: cartID,
+      // Check if single code per cart is enforced
+      if (pluginConfig.referralConfig.singleCodePerCart) {
+        const hasExistingCoupon = cartQuery.appliedCoupon
+        const hasExistingReferral = cartQuery.appliedReferralCode
+
+        if (hasExistingCoupon || hasExistingReferral) {
+          return Response.json(
+            {
+              success: false,
+              error:
+                'A code has already been applied to this cart. Only one code can be used per order.',
+            },
+            { status: 400 },
+          )
+        }
+      }
+
+      if (pluginConfig.enableReferrals) {
+        // Try referral code first
+        const referralResult = await handleReferralCode({
+          payload,
+          code,
+          cartID,
+          cart: cartQuery,
+          customerEmail,
+          pluginConfig,
         })
 
-        if (!cartQuery) {
-          return Response.json({ success: false, error: 'Cart not found' }, { status: 404 })
-        }
-
-        // Check if single code per cart is enforced
-        if (pluginConfig.referralConfig.singleCodePerCart) {
-          const hasExistingCoupon = cartQuery.appliedCoupon
-          const hasExistingReferral = cartQuery.appliedReferralCode
-
-          if (hasExistingCoupon || hasExistingReferral) {
-            return Response.json(
-              {
-                success: false,
-                error:
-                  'A code has already been applied to this cart. Only one code can be used per order.',
-              },
-              { status: 400 },
-            )
-          }
-        }
-
-        if (pluginConfig.enableReferrals) {
-          // Try referral code first
-          const referralResult = await handleReferralCode({
-            payload,
-            code,
-            cartID,
-            cart: cartQuery,
-            customerEmail,
-            pluginConfig,
-          })
-
-          // If referral code not found and both systems allowed, try coupon
-          if (
-            !referralResult.ok &&
-            referralResult.status === 404 &&
-            pluginConfig.referralConfig.allowBothSystems
-          ) {
-            return await handleCouponCode({
-              payload,
-              code,
-              cartID,
-              cart: cartQuery,
-              customerEmail,
-              pluginConfig,
-            })
-          }
-
-          return referralResult
-        } else {
-          // Coupon mode: handle coupons
+        // If referral code not found and both systems allowed, try coupon
+        if (
+          !referralResult.ok &&
+          referralResult.status === 404 &&
+          pluginConfig.referralConfig.allowBothSystems
+        ) {
           return await handleCouponCode({
             payload,
             code,
@@ -90,11 +77,24 @@ export const applyCouponHandler =
             pluginConfig,
           })
         }
-      } catch (error) {
-        console.error('Code application error:', error)
-        return Response.json({ success: false, error: 'Internal server error' }, { status: 500 })
+
+        return referralResult
+      } else {
+        // Coupon mode: handle coupons
+        return await handleCouponCode({
+          payload,
+          code,
+          cartID,
+          cart: cartQuery,
+          customerEmail,
+          pluginConfig,
+        })
       }
+    } catch (error) {
+      console.error('Code application error:', error)
+      return Response.json({ success: false, error: 'Internal server error' }, { status: 500 })
     }
+  }
 
 // Handle coupon application
 async function handleCouponCode({

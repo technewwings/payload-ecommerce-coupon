@@ -30,13 +30,19 @@ export const createReferralProgramsCollection = (
         // Shared Basis Validation
         if (r.basis === 'shared') {
           if (!r.totalCommission || r.totalCommission.value == null) {
-            throw new Error(`Commission rule ${index + 1}: Total Commission is required for Shared Basis`)
+            throw new Error(
+              `Commission rule ${index + 1}: Total Commission is required for Shared Basis`,
+            )
           }
           if (r.referrerSplit == null) {
-            throw new Error(`Commission rule ${index + 1}: Referrer Split is required for Shared Basis`)
+            throw new Error(
+              `Commission rule ${index + 1}: Referrer Split is required for Shared Basis`,
+            )
           }
           if (r.refereeSplit == null) {
-            throw new Error(`Commission rule ${index + 1}: Referee Split is required for Shared Basis`)
+            throw new Error(
+              `Commission rule ${index + 1}: Referee Split is required for Shared Basis`,
+            )
           }
           if ((r.referrerSplit || 0) + (r.refereeSplit || 0) > 100) {
             throw new Error(
