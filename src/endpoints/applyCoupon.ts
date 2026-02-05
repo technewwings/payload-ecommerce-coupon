@@ -9,65 +9,78 @@ type Args = {
 
 export const applyCouponHandler =
   ({ pluginConfig }: Args): PayloadHandler =>
-  async (req) => {
-    const { payload } = req
-    const { code, cartID, customerEmail } = req.data || {}
+    async (req) => {
+      const { payload } = req
+      const { code, cartID, customerEmail } = req.data || {}
 
-    if (!code || !cartID) {
-      return Response.json(
-        {
-          success: false,
-          error: `${pluginConfig.enableReferrals ? 'Referral code' : 'Coupon code'} and cart ID are required`,
-        },
-        { status: 400 },
-      )
-    }
-
-    try {
-      // Find the cart first to check for existing codes
-      const cartQuery = await payload.findByID({
-        collection: 'carts',
-        id: cartID,
-      })
-
-      if (!cartQuery) {
-        return Response.json({ success: false, error: 'Cart not found' }, { status: 404 })
+      if (!code || !cartID) {
+        return Response.json(
+          {
+            success: false,
+            error: `${pluginConfig.enableReferrals ? 'Referral code' : 'Coupon code'} and cart ID are required`,
+          },
+          { status: 400 },
+        )
       }
 
-      // Check if single code per cart is enforced
-      if (pluginConfig.referralConfig.singleCodePerCart) {
-        const hasExistingCoupon = cartQuery.appliedCoupon
-        const hasExistingReferral = cartQuery.appliedReferralCode
-
-        if (hasExistingCoupon || hasExistingReferral) {
-          return Response.json(
-            {
-              success: false,
-              error:
-                'A code has already been applied to this cart. Only one code can be used per order.',
-            },
-            { status: 400 },
-          )
-        }
-      }
-
-      if (pluginConfig.enableReferrals) {
-        // Try referral code first
-        const referralResult = await handleReferralCode({
-          payload,
-          code,
-          cartID,
-          cart: cartQuery,
-          customerEmail,
-          pluginConfig,
+      try {
+        // Find the cart first to check for existing codes
+        const cartQuery = await payload.findByID({
+          collection: 'carts',
+          id: cartID,
         })
 
-        // If referral code not found and both systems allowed, try coupon
-        if (
-          !referralResult.ok &&
-          referralResult.status === 404 &&
-          pluginConfig.referralConfig.allowBothSystems
-        ) {
+        if (!cartQuery) {
+          return Response.json({ success: false, error: 'Cart not found' }, { status: 404 })
+        }
+
+        // Check if single code per cart is enforced
+        if (pluginConfig.referralConfig.singleCodePerCart) {
+          const hasExistingCoupon = cartQuery.appliedCoupon
+          const hasExistingReferral = cartQuery.appliedReferralCode
+
+          if (hasExistingCoupon || hasExistingReferral) {
+            return Response.json(
+              {
+                success: false,
+                error:
+                  'A code has already been applied to this cart. Only one code can be used per order.',
+              },
+              { status: 400 },
+            )
+          }
+        }
+
+        if (pluginConfig.enableReferrals) {
+          // Try referral code first
+          const referralResult = await handleReferralCode({
+            payload,
+            code,
+            cartID,
+            cart: cartQuery,
+            customerEmail,
+            pluginConfig,
+          })
+
+          // If referral code not found and both systems allowed, try coupon
+          if (
+            !referralResult.ok &&
+            referralResult.status === 404 &&
+            pluginConfig.referralConfig.allowBothSystems
+          ) {
+            return await handleCouponCode({
+              payload,
+              code,
+              cartID,
+              cart: cartQuery,
+              customerEmail,
+              pluginConfig,
+            })
+          }
+
+          return referralResult
+        } else {
+          // Coupon mode: handle coupons
           return await handleCouponCode({
             payload,
             code,
@@ -77,24 +90,11 @@ export const applyCouponHandler =
             pluginConfig,
           })
         }
-
-        return referralResult
-      } else {
-        // Coupon mode: handle coupons
-        return await handleCouponCode({
-          payload,
-          code,
-          cartID,
-          cart: cartQuery,
-          customerEmail,
-          pluginConfig,
-        })
+      } catch (error) {
+        console.error('Code application error:', error)
+        return Response.json({ success: false, error: 'Internal server error' }, { status: 500 })
       }
-    } catch (error) {
-      console.error('Code application error:', error)
-      return Response.json({ success: false, error: 'Internal server error' }, { status: 500 })
     }
-  }
 
 // Handle coupon application
 async function handleCouponCode({
@@ -414,34 +414,59 @@ function calculateCommissionAndDiscount({
 
   for (const item of cartItems) {
     const rule = findApplicableCommissionRule(rules, item)
-    if (!rule?.referrerReward || !rule?.refereeReward) continue
+    if (!rule) continue
 
     const itemPrice = item.price ?? item.unitPrice ?? 0
     const quantity = item.quantity ?? 1
     const itemTotal = itemPrice * quantity
 
-    // Partner commission from this rule's referrerReward
     let itemPartner = 0
-    if (rule.referrerReward.type === 'percentage') {
-      itemPartner = (itemTotal * rule.referrerReward.value) / 100
-    } else {
-      itemPartner = rule.referrerReward.value * quantity
-    }
-    if (rule.referrerReward.maxReward != null && itemPartner > rule.referrerReward.maxReward) {
-      itemPartner = rule.referrerReward.maxReward
-    }
-    totalPartnerCommission += itemPartner
-
-    // Customer discount from this rule's refereeReward
     let itemCustomer = 0
-    if (rule.refereeReward.type === 'percentage') {
-      itemCustomer = (itemTotal * rule.refereeReward.value) / 100
-    } else {
-      itemCustomer = rule.refereeReward.value * quantity
+
+    // Shared Basis Calculation
+    if (rule.basis === 'shared') {
+      if (!rule.totalCommission || rule.referrerSplit == null || rule.refereeSplit == null) continue
+
+      let totalPot = 0
+      if (rule.totalCommission.type === 'percentage') {
+        totalPot = (itemTotal * rule.totalCommission.value) / 100
+      } else {
+        totalPot = rule.totalCommission.value * quantity
+      }
+
+      if (rule.totalCommission.maxAmount != null && totalPot > rule.totalCommission.maxAmount) {
+        totalPot = rule.totalCommission.maxAmount
+      }
+
+      itemPartner = (totalPot * rule.referrerSplit) / 100
+      itemCustomer = (totalPot * rule.refereeSplit) / 100
     }
-    if (rule.refereeReward.maxReward != null && itemCustomer > rule.refereeReward.maxReward) {
-      itemCustomer = rule.refereeReward.maxReward
+    // Direct Basis Calculation (Legacy)
+    else {
+      if (!rule.referrerReward || !rule.refereeReward) continue
+
+      // Partner commission from this rule's referrerReward
+      if (rule.referrerReward.type === 'percentage') {
+        itemPartner = (itemTotal * rule.referrerReward.value) / 100
+      } else {
+        itemPartner = rule.referrerReward.value * quantity
+      }
+      if (rule.referrerReward.maxReward != null && itemPartner > rule.referrerReward.maxReward) {
+        itemPartner = rule.referrerReward.maxReward
+      }
+
+      // Customer discount from this rule's refereeReward
+      if (rule.refereeReward.type === 'percentage') {
+        itemCustomer = (itemTotal * rule.refereeReward.value) / 100
+      } else {
+        itemCustomer = rule.refereeReward.value * quantity
+      }
+      if (rule.refereeReward.maxReward != null && itemCustomer > rule.refereeReward.maxReward) {
+        itemCustomer = rule.refereeReward.maxReward
+      }
     }
+
+    totalPartnerCommission += itemPartner
     totalCustomerDiscount += itemCustomer
   }
 
