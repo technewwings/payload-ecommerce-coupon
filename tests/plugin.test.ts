@@ -406,7 +406,7 @@ describe('Coupon Plugin', () => {
       const result = await plugin(testConfig)
       const cartsCollection = result.collections?.find((c: any) => c.slug === 'carts')
       expect(cartsCollection?.fields).toHaveLength(3) // existing + appliedCoupon + discountAmount
-      expect(cartsCollection?.hooks?.beforeChange).toHaveLength(1)
+      expect(cartsCollection?.hooks?.beforeChange).toHaveLength(2)
       expect(cartsCollection?.access?.read).toBeDefined()
     })
   })

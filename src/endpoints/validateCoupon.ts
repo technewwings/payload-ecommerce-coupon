@@ -9,39 +9,39 @@ type Args = {
 
 export const validateCouponHandler =
   ({ pluginConfig }: Args): PayloadHandler =>
-    async (req) => {
-      const { payload } = req
-      const { code, cartValue, cartID, customerEmail } = req.data || {}
+  async (req) => {
+    const { payload } = req
+    const { code, cartValue, cartID, customerEmail } = req.data || {}
 
-      if (!code) {
-        return Response.json(
-          {
-            success: false,
-            error: 'Code is required',
-          },
-          { status: 400 },
-        )
-      }
-
-      try {
-        if (pluginConfig.enableReferrals) {
-          // Referral mode: validate referral codes
-          return await validateReferralCode({ payload, code, cartID, pluginConfig })
-        } else {
-          // Coupon mode: validate coupons
-          return await validateCouponCode({
-            payload,
-            code,
-            cartValue,
-            customerEmail,
-            pluginConfig,
-          })
-        }
-      } catch (error) {
-        console.error('Code validation error:', error)
-        return Response.json({ success: false, error: 'Internal server error' }, { status: 500 })
-      }
+    if (!code) {
+      return Response.json(
+        {
+          success: false,
+          error: 'Code is required',
+        },
+        { status: 400 },
+      )
     }
+
+    try {
+      if (pluginConfig.enableReferrals) {
+        // Referral mode: validate referral codes
+        return await validateReferralCode({ payload, code, cartID, pluginConfig })
+      } else {
+        // Coupon mode: validate coupons
+        return await validateCouponCode({
+          payload,
+          code,
+          cartValue,
+          customerEmail,
+          pluginConfig,
+        })
+      }
+    } catch (error) {
+      console.error('Code validation error:', error)
+      return Response.json({ success: false, error: 'Internal server error' }, { status: 500 })
+    }
+  }
 
 // Validate coupon code (existing logic)
 async function validateCouponCode({
@@ -293,7 +293,7 @@ async function validateReferralCode({
       const quantity = item.quantity ?? 1
       const itemTotal = itemPrice * quantity
 
-      let itemPartner = 0
+      let itemPartner
       if (rule.referrerReward.type === 'percentage') {
         itemPartner = (itemTotal * rule.referrerReward.value) / 100
       } else {
@@ -304,7 +304,7 @@ async function validateReferralCode({
       }
       totalPartnerCommission += itemPartner
 
-      let itemCustomer = 0
+      let itemCustomer
       if (rule.refereeReward.type === 'percentage') {
         itemCustomer = (itemTotal * rule.refereeReward.value) / 100
       } else {

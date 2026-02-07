@@ -1,11 +1,5 @@
 import { roundTo2 } from './roundTo2'
 
-// Debug logging helper (can be expanded or replaced with passed logger)
-const logDebug = (msg: string, ...args: any[]) => {
-  // Uncomment for debugging hooks
-  // console.log(msg, ...args)
-}
-
 export function calculateCouponDiscount({ coupon, cartTotal }: { coupon: any; cartTotal: number }) {
   let discount = 0
 
@@ -61,8 +55,8 @@ export function calculateCommissionAndDiscount({
     const quantity = item.quantity ?? 1
     const itemTotal = itemPrice * quantity
 
-    let itemPartner = 0
-    let itemCustomer = 0
+    let itemPartner
+    let itemCustomer
 
     // Shared Basis Calculation
     if (rule.basis === 'shared') {
@@ -70,7 +64,7 @@ export function calculateCommissionAndDiscount({
         continue
       }
 
-      let totalPot = 0
+      let totalPot
       if (rule.totalCommission.type === 'percentage') {
         totalPot = (itemTotal * rule.totalCommission.value) / 100
       } else {
