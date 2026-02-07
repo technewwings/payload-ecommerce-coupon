@@ -27,9 +27,7 @@
     "test:coverage": "bun test --coverage",
     "lint": "eslint src --ext .ts",
     "lint:fix": "eslint src --ext .ts --fix",
-    "prepublishOnly": "bun run test && bun run build",
-    "format": "oxc format src tests --write --ignore-path .gitignore",
-    "format:check": "oxc format src tests --check --ignore-path .gitignore"
+    "prepublishOnly": "bun run test && bun run build"
   },
   "keywords": [
     "payload",

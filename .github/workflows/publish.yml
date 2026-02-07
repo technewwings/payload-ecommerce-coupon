@@ -33,9 +33,6 @@ jobs:
       - name: Run linter
         run: bun run lint
 
-      - name: Check code formatting
-        run: bun run format:check
-
       - name: Run unit tests
         run: bun test
 
