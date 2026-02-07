@@ -1,5 +1,9 @@
 import type { Endpoint, PayloadHandler } from 'payload'
 import type { SanitizedCouponPluginOptions } from '../types'
+import {
+  calculateCommissionAndDiscount,
+  calculateCouponDiscount,
+} from '../utilities/calculateValues'
 import { roundTo2 } from '../utilities/roundTo2'
 
 // Debug Capture
@@ -126,13 +130,34 @@ async function handleCouponCode({
   pluginConfig: SanitizedCouponPluginOptions
 }) {
   // Find the coupon
-  const couponQuery = await payload.find({
+  // Find the coupon (Case insensitive check: Exact -> Lower -> Upper)
+  let couponQuery = await payload.find({
     collection: pluginConfig.collections.couponsSlug,
     where: {
       code: { equals: code },
     },
     limit: 1,
   })
+
+  if (!couponQuery.docs.length) {
+    couponQuery = await payload.find({
+      collection: pluginConfig.collections.couponsSlug,
+      where: {
+        code: { equals: code.toLowerCase() },
+      },
+      limit: 1,
+    })
+  }
+
+  if (!couponQuery.docs.length) {
+    couponQuery = await payload.find({
+      collection: pluginConfig.collections.couponsSlug,
+      where: {
+        code: { equals: code.toUpperCase() },
+      },
+      limit: 1,
+    })
+  }
 
   if (!couponQuery.docs.length) {
     return Response.json({ success: false, error: 'Invalid coupon code' }, { status: 404 })
@@ -221,24 +246,7 @@ async function handleCouponCode({
     )
   }
 
-  let discount = 0
-
-  if (coupon.type === 'percentage') {
-    // Calculate percentage discount
-    discount = roundTo2((cartTotal * coupon.value) / 100)
-    // Apply max discount cap if set
-    if (coupon.maxDiscountAmount != null && discount > coupon.maxDiscountAmount) {
-      discount = roundTo2(coupon.maxDiscountAmount)
-    }
-  } else if (coupon.type === 'fixed') {
-    discount = roundTo2(coupon.value)
-    // Ensure discount doesn't exceed cart total
-    if (discount > cartTotal) {
-      discount = roundTo2(cartTotal)
-    }
-  }
-
-  const discountAmount = roundTo2(discount)
+  const discountAmount = calculateCouponDiscount({ coupon, cartTotal })
   const total = roundTo2(Math.max(0, cartTotal - discountAmount))
 
   // Apply coupon to cart (usage is counted when order is placed via recordCouponUsageForOrder)
@@ -283,14 +291,37 @@ async function handleReferralCode({
   pluginConfig: SanitizedCouponPluginOptions
 }) {
   // Find the referral code
-  const referralQuery = await payload.find({
+  // Find the referral code (Case insensitive check: Exact -> Lower -> Upper)
+  let referralQuery = await payload.find({
     collection: pluginConfig.collections.referralCodesSlug,
     where: {
       code: { equals: code },
     },
     limit: 1,
-    depth: 1, // Include program data
+    depth: 1,
   })
+
+  if (!referralQuery.docs.length) {
+    referralQuery = await payload.find({
+      collection: pluginConfig.collections.referralCodesSlug,
+      where: {
+        code: { equals: code.toLowerCase() },
+      },
+      limit: 1,
+      depth: 1,
+    })
+  }
+
+  if (!referralQuery.docs.length) {
+    referralQuery = await payload.find({
+      collection: pluginConfig.collections.referralCodesSlug,
+      where: {
+        code: { equals: code.toUpperCase() },
+      },
+      limit: 1,
+      depth: 1,
+    })
+  }
 
   if (!referralQuery.docs.length) {
     return Response.json({ success: false, error: 'Invalid referral code' }, { status: 404 })
@@ -367,19 +398,18 @@ async function handleReferralCode({
     )
   }
 
-  // Calculate based on commission rules or default program rewards
+  // Calculate based on commission rules
   const { partnerCommission, customerDiscount } = calculateCommissionAndDiscount({
-    cart,
+    cartItems: cart.items || [],
     program,
-    pluginConfig,
-    payload,
   })
 
+  // Round commission and discount
   const roundedPartnerCommission = roundTo2(partnerCommission)
   const roundedCustomerDiscount = roundTo2(customerDiscount)
   const total = roundTo2(Math.max(0, cartTotal - roundedCustomerDiscount))
 
-  // Apply referral to cart (usage and partner earnings are recorded when order is placed via recordCouponUsageForOrder)
+  // Apply referral to cart
   await payload.update({
     collection: 'carts',
     id: cartID,
@@ -402,161 +432,6 @@ async function handleReferralCode({
     currency: pluginConfig.defaultCurrency,
     debug: globalDebugLogs,
   })
-}
-
-// Calculate commission and discount from program commission rules (each rule has referrerReward + refereeReward)
-function calculateCommissionAndDiscount({
-  cart,
-  program,
-  pluginConfig: _pluginConfig,
-  payload: _payload,
-}: {
-  cart: any
-  program: any
-  pluginConfig: SanitizedCouponPluginOptions
-  payload: any
-}): { partnerCommission: number; customerDiscount: number } {
-  const cartTotal = cart.subtotal || cart.total || 0
-  const cartItems = cart.items || []
-  const rules = program.commissionRules || []
-
-  if (rules.length === 0) {
-    return { partnerCommission: 0, customerDiscount: 0 }
-  }
-
-  let totalPartnerCommission = 0
-  let totalCustomerDiscount = 0
-
-  for (const item of cartItems) {
-    const rule = findApplicableCommissionRule(rules, item)
-    if (!rule) continue
-
-    const product = typeof item.product === 'object' ? item.product : {}
-    const variant = typeof item.variant === 'object' ? item.variant : {}
-
-    const itemPrice =
-      item.price ??
-      item.unitPrice ??
-      product.price ??
-      product.priceInAED ??
-      variant.price ??
-      variant.priceInAED ??
-      0
-
-    const quantity = item.quantity ?? 1
-    const itemTotal = itemPrice * quantity
-
-    logDebug(
-      'DEBUG: Calculating Item:',
-      JSON.stringify({
-        id: item.id,
-        itemPrice,
-        quantity,
-        itemTotal,
-        ruleBasis: rule.basis,
-      }),
-    )
-
-    let itemPartner = 0
-    let itemCustomer = 0
-
-    // Shared Basis Calculation
-    if (rule.basis === 'shared') {
-      if (!rule.totalCommission || rule.referrerSplit == null || rule.refereeSplit == null) {
-        logDebug('DEBUG: Missing shared commission fields', rule)
-        continue
-      }
-
-      let totalPot = 0
-      if (rule.totalCommission.type === 'percentage') {
-        totalPot = (itemTotal * rule.totalCommission.value) / 100
-      } else {
-        totalPot = rule.totalCommission.value * quantity
-      }
-
-      logDebug(
-        'DEBUG: Shared Commission Pot:',
-        JSON.stringify({
-          type: rule.totalCommission.type,
-          value: rule.totalCommission.value,
-          totalPot,
-        }),
-      )
-
-      if (rule.totalCommission.maxAmount != null && totalPot > rule.totalCommission.maxAmount) {
-        totalPot = rule.totalCommission.maxAmount
-        logDebug(`DEBUG: Total pot capped at: ${totalPot}`)
-      }
-
-      itemPartner = (totalPot * rule.referrerSplit) / 100
-      itemCustomer = (totalPot * rule.refereeSplit) / 100
-      logDebug(
-        'DEBUG: Shared Splits:',
-        JSON.stringify({
-          referrerSplit: rule.referrerSplit,
-          refereeSplit: rule.refereeSplit,
-          itemPartner,
-          itemCustomer,
-        }),
-      )
-    }
-    // Direct Basis Calculation (Legacy)
-    else {
-      if (!rule.referrerReward || !rule.refereeReward) continue
-
-      // Partner commission from this rule's referrerReward
-      if (rule.referrerReward.type === 'percentage') {
-        itemPartner = (itemTotal * rule.referrerReward.value) / 100
-      } else {
-        itemPartner = rule.referrerReward.value * quantity
-      }
-      if (rule.referrerReward.maxReward != null && itemPartner > rule.referrerReward.maxReward) {
-        itemPartner = rule.referrerReward.maxReward
-      }
-
-      // Customer discount from this rule's refereeReward
-      if (rule.refereeReward.type === 'percentage') {
-        itemCustomer = (itemTotal * rule.refereeReward.value) / 100
-      } else {
-        itemCustomer = rule.refereeReward.value * quantity
-      }
-      if (rule.refereeReward.maxReward != null && itemCustomer > rule.refereeReward.maxReward) {
-        itemCustomer = rule.refereeReward.maxReward
-      }
-    }
-
-    totalPartnerCommission += itemPartner
-    totalCustomerDiscount += itemCustomer
-  }
-
-  if (totalCustomerDiscount > cartTotal) {
-    totalCustomerDiscount = cartTotal
-  }
-
-  return { partnerCommission: totalPartnerCommission, customerDiscount: totalCustomerDiscount }
-}
-
-function findApplicableCommissionRule(rules: any[], item: any) {
-  const productId = typeof item.product === 'string' ? item.product : item.product?.id
-  const categoryId = item.category ?? item.product?.category
-
-  const productRule = rules.find(
-    (r) =>
-      r.appliesTo === 'products' &&
-      r.products?.some((p: any) => (typeof p === 'string' ? p : p?.id) === productId),
-  )
-  if (productRule) return productRule
-
-  if (categoryId) {
-    const categoryRule = rules.find(
-      (r) =>
-        r.appliesTo === 'categories' &&
-        r.categories?.some((c: any) => (typeof c === 'string' ? c : c?.id) === categoryId),
-    )
-    if (categoryRule) return categoryRule
-  }
-
-  return rules.find((r) => r.appliesTo === 'all') ?? null
 }
 
 export const applyCouponEndpoint = ({ pluginConfig }: Args): Endpoint => ({

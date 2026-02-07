@@ -9,11 +9,13 @@ Production-ready coupon and referral system plugin for **Payload CMS** with seam
 ## 🚀 Features
 
 ### **System Modes**
+
 - **Coupon Mode** (`enableReferrals: false`) – Traditional discount codes
 - **Referral Mode** (`enableReferrals: true`) – Partner commissions + customer discounts
 - **Hybrid Mode** (`enableReferrals: true` + `referralConfig.allowBothSystems: true`) – Both systems active
 
 ### **Coupon Mode Features**
+
 - ✅ **Flexible Discounts** – Percentage or fixed amount discounts (all amounts rounded to 2 decimals)
 - ✅ **Usage Controls** – Global usage limit; usage is counted when an **order is placed** (not on apply)
 - ✅ **Per-customer limit** – Optional limit per customer (requires `customerEmail` when applying)
@@ -21,7 +23,10 @@ Production-ready coupon and referral system plugin for **Payload CMS** with seam
 - ✅ **Auto-Application** – Seamless cart integration; cart total is reduced when a code is applied
 
 ### **Referral Mode Features**
-- ✅ **Commission Rules** – **Required.** At least one rule per program. Each rule has **Referrer Reward** (partner commission) and **Referee Reward** (customer discount) inside it, plus appliesTo (all products / categories / products).
+
+- ✅ **Commission Rules** – **Required.** At least one rule per program. Each rule supports:
+  - **Direct Basis**: Separate Reward (Partner) and Referee Reward (Customer).
+  - **Shared Basis**: Define a total "pot" (e.g., 20% of order) and split it (e.g., 50/50) between partner and customer.
 - ✅ **Referrer/Referee inside each rule** – Partner gets commission, customer gets discount; type (percentage/fixed), value, and optional max cap per rule.
 - ✅ **Partner Tracking** – Commission earnings and referral performance (credited when order is placed)
 - ✅ **Auto-Generated Codes** – Unique referral codes for each partner
@@ -29,11 +34,13 @@ Production-ready coupon and referral system plugin for **Payload CMS** with seam
 - ✅ **Single Code Per Cart** – Enforce one code (coupon or referral) per order
 
 ### **Core Features**
+
 - ✅ **REST API** – Validate, apply, and record usage when order is placed
 - ✅ **Frontend Hooks** – `useCouponCode()`, `usePartnerStats()`, `validateCouponCode()` for React/Next.js
 - ✅ **Auto-Integration** – Extends carts/orders automatically
 - ✅ **Usage on Order** – Coupon/referral usage and partner earnings are recorded when an order is placed (not when code is applied)
 - ✅ **Cart total helper** – `getCartTotalWithDiscounts(cart)` for host app cart hooks so totals respect discounts
+- ✅ **Automatic Cart Recalculation** – Hook ensures commissions and discounts are recalculated whenever cart items change
 - ✅ **Type-Safe** – Full TypeScript support
 - ✅ **Access Control** – Role-based permissions with partner role support
 - ✅ **Custom Admin Groups** – Separate "Coupons" and "Referrals" categories
@@ -71,7 +78,7 @@ export default buildConfig({
       enabled: true,
       enableReferrals: true, // Enable referral system
       defaultCurrency: 'USD',
-      
+
       // Referral-specific configuration
       referralConfig: {
         allowBothSystems: false, // Set true to allow both coupons and referrals
@@ -79,13 +86,13 @@ export default buildConfig({
         defaultPartnerSplit: 70, // 70% to partner
         defaultCustomerSplit: 30, // 30% discount to customer
       },
-      
+
       // Custom admin panel groups
       adminGroups: {
         couponsGroup: 'Coupons',
         referralsGroup: 'Referrals',
       },
-      
+
       // Partner dashboard configuration
       partnerDashboard: {
         enabled: true,
@@ -94,7 +101,7 @@ export default buildConfig({
         showRecentReferrals: true,
         showCommissionBreakdown: true,
       },
-      
+
       // Access control
       access: {
         canUseCoupons: () => true,
@@ -124,6 +131,7 @@ npm run payload migrate
 ```
 
 This will create collections for:
+
 - **Coupons** – Manage discount codes (in "Coupons" group)
 - **Referral Programs** – Set up partner commission structures (in "Referrals" group)
 - **Referral Codes** – Track generated referral links (in "Referrals" group)
@@ -196,13 +204,16 @@ if (doc.paymentStatus === 'paid' && (doc.appliedCoupon || doc.appliedReferralCod
 ### 4.5 Coupon usage rules and cart total
 
 **Usage rule**
+
 - A customer can use a coupon until the coupon’s **global usage limit** or **expiry date** (usage is counted when the order is placed, not when the code is applied).
 - **Optional per-customer limit:** If you set **Per customer limit** on a coupon, the customer must provide their email when applying (e.g. `customerEmail` in the apply request). The coupon is rejected once they have that many **paid** orders with that coupon. You can pass `customerEmail` when validating so the UI can show “limit reached” before apply.
 
 **Monetary values**
+
 - All discount, commission, and total values are rounded to **2 decimal places**.
 
 **Cart total in your app**
+
 - The plugin writes the reduced `total` when a code is applied. If your host app recalculates the cart total (e.g. in a `beforeChange` hook when items change), use the formula **total = subtotal − discountAmount − customerDiscount** so the discount is not overwritten. Use the provided helper in your Carts collection:
 
 ```typescript
@@ -274,7 +285,7 @@ import { usePartnerStats } from '@wtree/payload-ecommerce-coupon'
 // Build custom dashboard with the hook
 function CustomPartnerDashboard() {
   const [data, setData] = useState(null)
-  
+
   useEffect(() => {
     const fetchStats = async () => {
       const result = await usePartnerStats()
@@ -293,7 +304,7 @@ function CustomPartnerDashboard() {
       <p>Total: ${data.stats.totalEarnings}</p>
       <p>Pending: ${data.stats.pendingEarnings}</p>
       <p>Paid: ${data.stats.paidEarnings}</p>
-      
+
       <h2>Your Referral Codes</h2>
       {data.referralCodes.map(code => (
         <div key={code.id}>
@@ -311,12 +322,15 @@ function CustomPartnerDashboard() {
 ### **Choosing Your Mode**
 
 #### **Coupon Mode** (`enableReferrals: false`)
+
 Best for traditional discount campaigns, seasonal sales, and customer loyalty programs.
 
 #### **Referral Mode** (`enableReferrals: true`)
+
 Best for affiliate marketing, partner programs, and customer acquisition through referrals.
 
 #### **Hybrid Mode** (`enableReferrals: true` + `allowBothSystems: true`)
+
 Best when you need both traditional coupons AND partner referrals, but want to enforce only one code per order.
 
 ### **Setting Up Coupon Mode**
@@ -349,6 +363,7 @@ Best when you need both traditional coupons AND partner referrals, but want to e
 - **Referee (customer)** receives a **discount** – applied to the order; stored on cart/order as `customerDiscount`.
 
 #### **Example: Commission Rules with Split**
+
 - **Order Total**: $100 (Electronics category)
 - **Total Commission**: 15% = $15
 - **Partner Share**: 70% of $15 = $10.50 (commission to referrer)
@@ -366,6 +381,7 @@ Best when you need both traditional coupons AND partner referrals, but want to e
 ### **Coupon/Referral Endpoints**
 
 #### POST /api/coupons/validate
+
 Validate a code without applying it. Optionally pass `customerEmail` to check per-customer limit for coupons that have one.
 
 ```bash
@@ -378,6 +394,7 @@ curl -X POST http://localhost:3000/api/coupons/validate \
 ```
 
 #### POST /api/coupons/apply
+
 Apply a code to a cart. **Does not** increment usage; usage is recorded when you call the record-order-usage endpoint for a placed order. For coupons with **per-customer limit**, include `customerEmail` so the limit can be enforced.
 
 ```bash
@@ -390,6 +407,7 @@ curl -X POST http://localhost:3000/api/coupons/apply \
 ```
 
 #### POST /api/coupons/record-order-usage
+
 Record coupon and referral usage for a successfully placed order. Call this once per order when the order is paid/completed (e.g. from your Orders `afterChange` hook).
 
 **Request body:** `{ "orderId": "string" }`
@@ -405,6 +423,7 @@ curl -X POST http://localhost:3000/api/coupons/record-order-usage \
 ### **Partner Stats Endpoint**
 
 #### GET /api/referrals/partner-stats
+
 Get partner dashboard data (requires authentication).
 
 ```bash
@@ -413,6 +432,7 @@ curl -X GET http://localhost:3000/api/referrals/partner-stats \
 ```
 
 **Response:**
+
 ```json
 {
   "success": true,
@@ -444,67 +464,67 @@ curl -X GET http://localhost:3000/api/referrals/partner-stats \
 
 ```typescript
 export type CouponPluginOptions = {
-  enabled?: boolean                    // Enable/disable the plugin (default: true)
-  enableReferrals?: boolean           // Enable referral system (default: false)
+  enabled?: boolean // Enable/disable the plugin (default: true)
+  enableReferrals?: boolean // Enable referral system (default: false)
   allowStackWithOtherCoupons?: boolean // Allow multiple coupons (default: false)
-  defaultCurrency?: string             // Currency code (default: 'USD')
-  autoIntegrate?: boolean              // Auto-extend carts/orders (default: true)
-  
+  defaultCurrency?: string // Currency code (default: 'USD')
+  autoIntegrate?: boolean // Auto-extend carts/orders (default: true)
+
   collections?: {
-    couponsSlug?: string               // Default: 'coupons'
-    referralProgramsSlug?: string      // Default: 'referral-programs'
-    referralCodesSlug?: string         // Default: 'referral-codes'
-    
+    couponsSlug?: string // Default: 'coupons'
+    referralProgramsSlug?: string // Default: 'referral-programs'
+    referralCodesSlug?: string // Default: 'referral-codes'
+
     /** Override the default coupons collection configuration */
     couponsCollectionOverride?: (params: { defaultCollection: any }) => any | Promise<any>
-    
+
     /** Override the default referral programs collection configuration */
     referralProgramsCollectionOverride?: (params: { defaultCollection: any }) => any | Promise<any>
-    
+
     /** Override the default referral codes collection configuration */
     referralCodesCollectionOverride?: (params: { defaultCollection: any }) => any | Promise<any>
   }
-  
+
   endpoints?: {
-    applyCoupon?: string               // Default: '/coupons/apply'
-    validateCoupon?: string            // Default: '/coupons/validate'
-    partnerStats?: string              // Default: '/referrals/partner-stats'
-    recordOrderUsage?: string          // Default: '/coupons/record-order-usage'
+    applyCoupon?: string // Default: '/coupons/apply'
+    validateCoupon?: string // Default: '/coupons/validate'
+    partnerStats?: string // Default: '/referrals/partner-stats'
+    recordOrderUsage?: string // Default: '/coupons/record-order-usage'
   }
-  
+
   access?: {
-    canUseCoupons?: Access             // Who can use coupons
-    canUseReferrals?: Access           // Who can use referrals
-    isAdmin?: Access                   // Who can manage codes/programs
-    isPartner?: Access                 // Who has partner access
+    canUseCoupons?: Access // Who can use coupons
+    canUseReferrals?: Access // Who can use referrals
+    isAdmin?: Access // Who can manage codes/programs
+    isPartner?: Access // Who has partner access
   }
-  
+
   referralConfig?: {
-    allowBothSystems?: boolean         // Allow coupons + referrals (default: false)
-    singleCodePerCart?: boolean        // One code per order (default: true)
-    defaultPartnerSplit?: number       // Default partner % (default: 70)
-    defaultCustomerSplit?: number      // Default customer % (default: 30)
+    allowBothSystems?: boolean // Allow coupons + referrals (default: false)
+    singleCodePerCart?: boolean // One code per order (default: true)
+    defaultPartnerSplit?: number // Default partner % (default: 70)
+    defaultCustomerSplit?: number // Default customer % (default: 30)
   }
-  
+
   adminGroups?: {
-    couponsGroup?: string              // Admin group for coupons (default: 'Coupons')
-    referralsGroup?: string            // Admin group for referrals (default: 'Referrals')
+    couponsGroup?: string // Admin group for coupons (default: 'Coupons')
+    referralsGroup?: string // Admin group for referrals (default: 'Referrals')
   }
-  
+
   partnerDashboard?: {
-    enabled?: boolean                  // Enable dashboard (default: true)
-    showEarningsSummary?: boolean      // Show earnings widget (default: true)
-    showReferralPerformance?: boolean  // Show performance widget (default: true)
-    showRecentReferrals?: boolean      // Show recent referrals (default: true)
-    showCommissionBreakdown?: boolean  // Show breakdown (default: true)
+    enabled?: boolean // Enable dashboard (default: true)
+    showEarningsSummary?: boolean // Show earnings widget (default: true)
+    showReferralPerformance?: boolean // Show performance widget (default: true)
+    showRecentReferrals?: boolean // Show recent referrals (default: true)
+    showCommissionBreakdown?: boolean // Show breakdown (default: true)
   }
 
   /** Optional: for per-customer coupon limit (query paid orders by customer) */
   orderIntegration?: {
-    ordersSlug?: string                // Default: 'orders'
-    orderCustomerEmailField?: string   // Default: 'customerEmail'
-    orderPaymentStatusField?: string  // Default: 'paymentStatus'
-    orderPaidStatusValue?: string     // Default: 'paid'
+    ordersSlug?: string // Default: 'orders'
+    orderCustomerEmailField?: string // Default: 'customerEmail'
+    orderPaymentStatusField?: string // Default: 'paymentStatus'
+    orderPaidStatusValue?: string // Default: 'paid'
   }
 }
 ```
@@ -542,7 +562,7 @@ payloadEcommerceCoupon({
         },
       }
     },
-    
+
     // Override referral programs collection
     referralProgramsCollectionOverride: ({ defaultCollection }) => {
       return {
@@ -553,7 +573,7 @@ payloadEcommerceCoupon({
         },
       }
     },
-    
+
     // Override referral codes collection
     referralCodesCollectionOverride: async ({ defaultCollection }) => {
       return {
@@ -581,13 +601,13 @@ payloadEcommerceCoupon({
   access: {
     // Anyone can use coupons
     canUseCoupons: () => true,
-    
+
     // Only authenticated users can use referrals
     canUseReferrals: ({ req }) => Boolean(req.user),
-    
+
     // Only admins can manage
     isAdmin: ({ req }) => req.user?.role === 'admin',
-    
+
     // Partner role check (supports both single role and array)
     isPartner: ({ req }) => {
       const user = req.user
@@ -607,17 +627,17 @@ payloadEcommerceCoupon({
 ```typescript
 import {
   payloadEcommerceCoupon,
-  
+
   // Collection creation functions
   createCouponsCollection,
   createReferralCodesCollection,
   createReferralProgramsCollection,
-  
+
   // Frontend hooks
   useCouponCode,
   validateCouponCode,
   usePartnerStats,
-  
+
   // Server-only: record usage when order is placed
   recordCouponUsageForOrder,
 } from '@wtree/payload-ecommerce-coupon'
@@ -658,17 +678,22 @@ The plugin provides hooks and (when using the source) React components for partn
 ### **Common Issues**
 
 #### **"A code has already been applied to this cart"**
+
 This occurs when `singleCodePerCart: true` and a code is already applied.
+
 - Solution: Remove the existing code before applying a new one, or set `singleCodePerCart: false`
 
 #### **Partner can't see their referral codes**
+
 - Ensure the user has `role: 'partner'` or `roles: ['partner']`
 - Check the `isPartner` access control function
 
 #### **Usage count or partner earnings not updating**
+
 - Usage is **not** incremented when a code is applied to the cart. Call **record-order-usage** (or `recordCouponUsageForOrder`) when an order is placed/paid. See [Record usage when order is placed](#4-record-usage-when-order-is-placed).
 
 #### **Commission not calculating correctly**
+
 - Ensure at least one **Commission Rule** exists and each rule has **Referrer Reward** and **Referee Reward** set
 - Verify cart has valid `subtotal` or `total` and items match rule’s appliesTo (all / categories / products)
 
@@ -676,30 +701,30 @@ This occurs when `singleCodePerCart: true` and a code is already applied.
 
 The following features are planned for future releases:
 
-| Feature | Status | Description |
-|---------|--------|-------------|
-| Multi-tier commissions | 🔜 Planned | Support for tiered commission rates based on performance |
-| Automatic payouts | 🔜 Planned | Integration with payment providers for automatic partner payouts |
-| Referral analytics | 🔜 Planned | Advanced analytics and reporting dashboard |
-| Email notifications | 🔜 Planned | Automated emails for referral events |
-| Custom code generation | 🔜 Planned | Allow partners to create custom branded codes |
-| Fraud detection | 🔜 Planned | Automatic detection of suspicious referral patterns |
-| Bulk code import | 🔜 Planned | Import coupons/codes from CSV |
-| A/B testing | 🔜 Planned | Test different commission structures |
+| Feature                | Status     | Description                                                      |
+| ---------------------- | ---------- | ---------------------------------------------------------------- |
+| Multi-tier commissions | 🔜 Planned | Support for tiered commission rates based on performance         |
+| Automatic payouts      | 🔜 Planned | Integration with payment providers for automatic partner payouts |
+| Referral analytics     | 🔜 Planned | Advanced analytics and reporting dashboard                       |
+| Email notifications    | 🔜 Planned | Automated emails for referral events                             |
+| Custom code generation | 🔜 Planned | Allow partners to create custom branded codes                    |
+| Fraud detection        | 🔜 Planned | Automatic detection of suspicious referral patterns              |
+| Bulk code import       | 🔜 Planned | Import coupons/codes from CSV                                    |
+| A/B testing            | 🔜 Planned | Test different commission structures                             |
 
 ### **Comparison with Other Solutions**
 
-| Feature | This Plugin | ReferralCandy | Refersion | Custom Build |
-|---------|-------------|---------------|-----------|--------------|
-| Payload CMS Integration | ✅ Native | ❌ | ❌ | ⚠️ Manual |
-| Coupon System | ✅ | ❌ | ❌ | ⚠️ Manual |
-| Referral System | ✅ | ✅ | ✅ | ⚠️ Manual |
-| Partner Dashboard | ✅ | ✅ | ✅ | ⚠️ Manual |
-| Commission Rules | ✅ | ⚠️ Limited | ✅ | ⚠️ Manual |
-| Single Code Enforcement | ✅ | ❌ | ❌ | ⚠️ Manual |
-| TypeScript Support | ✅ | ❌ | ❌ | ⚠️ Varies |
-| Self-Hosted | ✅ | ❌ | ❌ | ✅ |
-| Monthly Cost | Free | $49+ | $89+ | Dev Time |
+| Feature                 | This Plugin | ReferralCandy | Refersion | Custom Build |
+| ----------------------- | ----------- | ------------- | --------- | ------------ |
+| Payload CMS Integration | ✅ Native   | ❌            | ❌        | ⚠️ Manual    |
+| Coupon System           | ✅          | ❌            | ❌        | ⚠️ Manual    |
+| Referral System         | ✅          | ✅            | ✅        | ⚠️ Manual    |
+| Partner Dashboard       | ✅          | ✅            | ✅        | ⚠️ Manual    |
+| Commission Rules        | ✅          | ⚠️ Limited    | ✅        | ⚠️ Manual    |
+| Single Code Enforcement | ✅          | ❌            | ❌        | ⚠️ Manual    |
+| TypeScript Support      | ✅          | ❌            | ❌        | ⚠️ Varies    |
+| Self-Hosted             | ✅          | ❌            | ❌        | ✅           |
+| Monthly Cost            | Free        | $49+          | $89+      | Dev Time     |
 
 ## 🧪 Testing
 

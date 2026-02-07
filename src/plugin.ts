@@ -6,8 +6,11 @@ import { createReferralProgramsCollection } from './collections/createReferralPr
 import { applyCouponEndpoint } from './endpoints/applyCoupon'
 import { partnerStatsEndpoint } from './endpoints/partnerStats'
 import { validateCouponEndpoint } from './endpoints/validateCoupon'
-import type { CouponPluginOptions } from './types'
+import { recalculateCartHook } from './hooks/recalculateCart'
+import { CouponPluginOptions } from './types'
 import { sanitizePluginConfig } from './utilities/sanitizePluginConfig'
+
+// Fields to append to orders (referral mode)
 
 export const payloadEcommerceCouponPlugin =
   (pluginOptions: CouponPluginOptions = {}) =>
@@ -237,6 +240,20 @@ export const payloadEcommerceCouponPlugin =
         ]
         addFieldsToCollection('orders', orderCouponFields)
       }
+    }
+
+    // Add Recalculate Cart Hook
+    const cartIndex = incomingConfig.collections!.findIndex((c: any) => c.slug === 'carts')
+    if (cartIndex > -1) {
+      const collection = incomingConfig.collections![cartIndex]
+      collection.hooks = {
+        ...collection.hooks,
+        beforeChange: [
+          ...(collection.hooks?.beforeChange || []),
+          recalculateCartHook(pluginConfig),
+        ],
+      }
+      incomingConfig.collections![cartIndex] = collection
     }
 
     return incomingConfig

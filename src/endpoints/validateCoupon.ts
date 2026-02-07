@@ -9,39 +9,39 @@ type Args = {
 
 export const validateCouponHandler =
   ({ pluginConfig }: Args): PayloadHandler =>
-  async (req) => {
-    const { payload } = req
-    const { code, cartValue, cartID, customerEmail } = req.data || {}
+    async (req) => {
+      const { payload } = req
+      const { code, cartValue, cartID, customerEmail } = req.data || {}
 
-    if (!code) {
-      return Response.json(
-        {
-          success: false,
-          error: 'Code is required',
-        },
-        { status: 400 },
-      )
-    }
-
-    try {
-      if (pluginConfig.enableReferrals) {
-        // Referral mode: validate referral codes
-        return await validateReferralCode({ payload, code, cartID, pluginConfig })
-      } else {
-        // Coupon mode: validate coupons
-        return await validateCouponCode({
-          payload,
-          code,
-          cartValue,
-          customerEmail,
-          pluginConfig,
-        })
+      if (!code) {
+        return Response.json(
+          {
+            success: false,
+            error: 'Code is required',
+          },
+          { status: 400 },
+        )
       }
-    } catch (error) {
-      console.error('Code validation error:', error)
-      return Response.json({ success: false, error: 'Internal server error' }, { status: 500 })
+
+      try {
+        if (pluginConfig.enableReferrals) {
+          // Referral mode: validate referral codes
+          return await validateReferralCode({ payload, code, cartID, pluginConfig })
+        } else {
+          // Coupon mode: validate coupons
+          return await validateCouponCode({
+            payload,
+            code,
+            cartValue,
+            customerEmail,
+            pluginConfig,
+          })
+        }
+      } catch (error) {
+        console.error('Code validation error:', error)
+        return Response.json({ success: false, error: 'Internal server error' }, { status: 500 })
+      }
     }
-  }
 
 // Validate coupon code (existing logic)
 async function validateCouponCode({
@@ -58,13 +58,34 @@ async function validateCouponCode({
   pluginConfig: SanitizedCouponPluginOptions
 }) {
   // Find the coupon
-  const coupon = await payload.find({
+  // Find the coupon (Case insensitive check: Exact -> Lower -> Upper)
+  let coupon = await payload.find({
     collection: pluginConfig.collections.couponsSlug,
     where: {
       code: { equals: code },
     },
     limit: 1,
   })
+
+  if (!coupon.docs.length) {
+    coupon = await payload.find({
+      collection: pluginConfig.collections.couponsSlug,
+      where: {
+        code: { equals: code.toLowerCase() },
+      },
+      limit: 1,
+    })
+  }
+
+  if (!coupon.docs.length) {
+    coupon = await payload.find({
+      collection: pluginConfig.collections.couponsSlug,
+      where: {
+        code: { equals: code.toUpperCase() },
+      },
+      limit: 1,
+    })
+  }
 
   if (!coupon.docs.length) {
     return Response.json({ success: false, error: 'Invalid coupon code' }, { status: 404 })
@@ -185,13 +206,34 @@ async function validateReferralCode({
   pluginConfig: SanitizedCouponPluginOptions
 }) {
   // Find the referral code
-  const referral = await payload.find({
+  // Find the referral code (Case insensitive check: Exact -> Lower -> Upper)
+  let referral = await payload.find({
     collection: pluginConfig.collections.referralCodesSlug,
     where: {
       code: { equals: code },
     },
     limit: 1,
   })
+
+  if (!referral.docs.length) {
+    referral = await payload.find({
+      collection: pluginConfig.collections.referralCodesSlug,
+      where: {
+        code: { equals: code.toLowerCase() },
+      },
+      limit: 1,
+    })
+  }
+
+  if (!referral.docs.length) {
+    referral = await payload.find({
+      collection: pluginConfig.collections.referralCodesSlug,
+      where: {
+        code: { equals: code.toUpperCase() },
+      },
+      limit: 1,
+    })
+  }
 
   if (!referral.docs.length) {
     return Response.json({ success: false, error: 'Referral code not found' }, { status: 404 })
