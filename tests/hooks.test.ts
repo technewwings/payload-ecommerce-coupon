@@ -1,8 +1,8 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect, beforeEach, jest } from 'bun:test'
 import { useCouponCode, validateCouponCode } from '../src/client/hooks'
 
 beforeEach(() => {
-  vi.clearAllMocks()
+  jest.clearAllMocks()
 })
 
 describe('Frontend Hooks', () => {
@@ -20,7 +20,7 @@ describe('Frontend Hooks', () => {
     })
 
     it('should successfully apply coupon', async () => {
-      global.fetch = vi.fn(() =>
+      global.fetch = jest.fn(() =>
         Promise.resolve({
           ok: true,
           json: () =>
@@ -42,7 +42,7 @@ describe('Frontend Hooks', () => {
     })
 
     it('should successfully apply referral code', async () => {
-      global.fetch = vi.fn(() =>
+      global.fetch = jest.fn(() =>
         Promise.resolve({
           ok: true,
           json: () =>
@@ -66,7 +66,7 @@ describe('Frontend Hooks', () => {
     })
 
     it('should handle network errors', async () => {
-      global.fetch = vi.fn(() =>
+      global.fetch = jest.fn(() =>
         Promise.reject(new Error('Network failed')),
       )
 
@@ -76,7 +76,7 @@ describe('Frontend Hooks', () => {
     })
 
     it('should handle API errors', async () => {
-      global.fetch = vi.fn(() =>
+      global.fetch = jest.fn(() =>
         Promise.resolve({
           ok: false,
           json: () =>
@@ -92,7 +92,7 @@ describe('Frontend Hooks', () => {
     })
 
     it('should handle malformed API response', async () => {
-      global.fetch = vi.fn(() =>
+      global.fetch = jest.fn(() =>
         Promise.resolve({
           ok: true,
           json: () =>
@@ -109,7 +109,7 @@ describe('Frontend Hooks', () => {
     })
 
     it('should include customer email when provided', async () => {
-      global.fetch = vi.fn(() =>
+      global.fetch = jest.fn(() =>
         Promise.resolve({
           ok: true,
           json: () =>
@@ -142,7 +142,7 @@ describe('Frontend Hooks', () => {
 
   describe('validateCouponCode', () => {
     it('should validate coupon code successfully', async () => {
-      global.fetch = vi.fn(() =>
+      global.fetch = jest.fn(() =>
         Promise.resolve({
           ok: true,
           json: () =>
@@ -162,7 +162,7 @@ describe('Frontend Hooks', () => {
     })
 
     it('should validate referral code successfully', async () => {
-      global.fetch = vi.fn(() =>
+      global.fetch = jest.fn(() =>
         Promise.resolve({
           ok: true,
           json: () =>
@@ -185,7 +185,7 @@ describe('Frontend Hooks', () => {
     })
 
     it('should handle validation errors', async () => {
-      global.fetch = vi.fn(() =>
+      global.fetch = jest.fn(() =>
         Promise.resolve({
           ok: false,
           json: () =>
@@ -201,7 +201,7 @@ describe('Frontend Hooks', () => {
     })
 
     it('should handle network errors during validation', async () => {
-      global.fetch = vi.fn(() =>
+      global.fetch = jest.fn(() =>
         Promise.reject(new Error('Network error')),
       )
 
@@ -211,7 +211,7 @@ describe('Frontend Hooks', () => {
     })
 
     it('should include cart value for validation', async () => {
-      global.fetch = vi.fn(() =>
+      global.fetch = jest.fn(() =>
         Promise.resolve({
           ok: true,
           json: () =>
@@ -236,7 +236,7 @@ describe('Frontend Hooks', () => {
     })
 
     it('should include cart ID for referral validation', async () => {
-      global.fetch = vi.fn(() =>
+      global.fetch = jest.fn(() =>
         Promise.resolve({
           ok: true,
           json: () =>
@@ -263,7 +263,7 @@ describe('Frontend Hooks', () => {
 
   describe('Error Scenarios', () => {
     it('should handle fetch throwing non-Error objects', async () => {
-      global.fetch = vi.fn(() =>
+      global.fetch = jest.fn(() =>
         Promise.reject('String error'),
       )
 
@@ -273,7 +273,7 @@ describe('Frontend Hooks', () => {
     })
 
     it('should handle invalid JSON response', async () => {
-      global.fetch = vi.fn(() =>
+      global.fetch = jest.fn(() =>
         Promise.resolve({
           ok: true,
           json: () => Promise.reject(new Error('Invalid JSON')),
@@ -286,7 +286,7 @@ describe('Frontend Hooks', () => {
     })
 
     it('should handle empty response body', async () => {
-      global.fetch = vi.fn(() =>
+      global.fetch = jest.fn(() =>
         Promise.resolve({
           ok: true,
           json: () => Promise.resolve(null),

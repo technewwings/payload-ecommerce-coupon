@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, jest } from 'bun:test'
 import { recalculateCartHook } from '../src/hooks/recalculateCart'
 
 describe('recalculateCartHook', () => {
@@ -16,14 +16,14 @@ describe('recalculateCartHook', () => {
     }
 
     const mockPayload = {
-        find: vi.fn(),
-        findByID: vi.fn(),
+        find: jest.fn(),
+        findByID: jest.fn(),
     }
 
     const mockReq: any = { payload: mockPayload }
 
     beforeEach(() => {
-        vi.clearAllMocks()
+        jest.clearAllMocks()
     })
 
     it('should return zeros if no items in cart', async () => {
@@ -77,16 +77,7 @@ describe('recalculateCartHook', () => {
             return Promise.resolve({ docs: [] })
         })
 
-        // Program returns shared commission rules
-        // Using calculateCommissionAndDiscount logic, let's say 20% pot, 50/50 split
-        // 100 * 20% = 20 pot. 10 partner, 10 customer.
-        vi.mock('../src/utilities/calculateValues', async () => {
-            const actual = await vi.importActual('../src/utilities/calculateValues')
-            return {
-                ...(actual as any),
-                calculateCommissionAndDiscount: () => ({ partnerCommission: 10, customerDiscount: 10 }),
-            }
-        })
+
 
         await hook({ data, req: mockReq } as any)
 
@@ -112,11 +103,11 @@ describe('recalculateCartHook Integration', () => {
         defaultCurrency: 'USD',
     }
 
-    const mockPayload = { find: vi.fn() }
+    const mockPayload = { find: jest.fn() }
     const mockReq: any = { payload: mockPayload }
 
     beforeEach(() => {
-        vi.clearAllMocks()
+        jest.clearAllMocks()
     })
 
     it('should apply referral calculations', async () => {

@@ -1,15 +1,15 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, jest, beforeEach, afterEach } from 'bun:test'
 import { applyCouponHandler } from '../src/endpoints/applyCoupon'
 import { validateCouponHandler } from '../src/endpoints/validateCoupon'
 import { sanitizePluginConfig } from '../src/utilities/sanitizePluginConfig'
 
 // Mock Payload
 const mockPayload = {
-  find: vi.fn(),
-  findByID: vi.fn(),
-  create: vi.fn(),
-  update: vi.fn(),
-  delete: vi.fn(),
+  find: jest.fn(),
+  findByID: jest.fn(),
+  create: jest.fn(),
+  update: jest.fn(),
+  delete: jest.fn(),
 }
 
 describe('Apply Coupon Endpoint', () => {
@@ -45,11 +45,11 @@ describe('Apply Coupon Endpoint', () => {
   })
 
   beforeEach(() => {
-    vi.clearAllMocks()
+    jest.clearAllMocks()
   })
 
   afterEach(() => {
-    vi.restoreAllMocks()
+    jest.restoreAllMocks()
   })
 
   describe('Input Validation', () => {
@@ -455,11 +455,11 @@ describe('Validate Coupon Endpoint', () => {
   })
 
   beforeEach(() => {
-    vi.clearAllMocks()
+    jest.clearAllMocks()
   })
 
   afterEach(() => {
-    vi.restoreAllMocks()
+    jest.restoreAllMocks()
   })
 
   describe('Input Validation', () => {
