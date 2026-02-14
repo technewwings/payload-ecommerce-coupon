@@ -34,9 +34,6 @@ describe('calculateCouponDiscount', () => {
 })
 
 describe('calculateCommissionAndDiscount', () => {
-    const mockPluginConfig: any = { defaultCurrency: 'USD' }
-    const mockPayload: any = {}
-
     describe('Direct Basis (Legacy)', () => {
         it('should calculate direct commission and discount', () => {
             const cartItems = [{ id: '1', price: 100, quantity: 1, product: { id: 'p1' } }]
