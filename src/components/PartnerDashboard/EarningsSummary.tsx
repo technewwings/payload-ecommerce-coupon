@@ -1,21 +1,21 @@
-"use client";
+'use client'
 
-import React from "react";
+import React from 'react'
 
-import type { PartnerStats } from "../../types";
+import type { PartnerStats } from '../../types'
 
 export type EarningsSummaryProps = {
-  stats: PartnerStats;
-  currency: string;
-};
+  stats: PartnerStats
+  currency: string
+}
 
 const formatCurrency = (amount: number, currency: string): string => {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
     currency,
     minimumFractionDigits: 2,
-  }).format(amount);
-};
+  }).format(amount)
+}
 
 export const EarningsSummary: React.FC<EarningsSummaryProps> = ({ stats, currency }) => {
   return (
@@ -44,7 +44,7 @@ export const EarningsSummary: React.FC<EarningsSummaryProps> = ({ stats, currenc
         </div>
       </div>
     </div>
-  );
-};
+  )
+}
 
-export default EarningsSummary;
+export default EarningsSummary

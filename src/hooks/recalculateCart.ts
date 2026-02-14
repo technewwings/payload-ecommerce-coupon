@@ -1,30 +1,30 @@
-import type { CollectionBeforeChangeHook } from "payload";
-import type { SanitizedCouponPluginOptions } from "../types";
+import type { CollectionBeforeChangeHook } from 'payload'
+import type { SanitizedCouponPluginOptions } from '../types'
 import {
   calculateCommissionAndDiscount,
   calculateCouponDiscount,
-} from "../utilities/calculateValues";
-import { getCartItemUnitPrice } from "../utilities/pricing";
-import { roundTo2 } from "../utilities/roundTo2";
+} from '../utilities/calculateValues'
+import { getCartItemUnitPrice } from '../utilities/pricing'
+import { roundTo2 } from '../utilities/roundTo2'
 
 export const recalculateCartHook =
   (pluginConfig: SanitizedCouponPluginOptions): CollectionBeforeChangeHook =>
   async ({ data, req, originalDoc }) => {
     // If no Payload, can't fetch relations
-    if (!req.payload) return data;
+    if (!req.payload) return data
 
     // Determine effective state
     // data.items might be replacing or merging. In standard ecommerce, usually it replaces.
     // We need to calculate based on the *final* state of items.
     // If data.items is present, use it. If not, use originalDoc.items.
-    const effectiveItems = data.items || originalDoc?.items || [];
+    const effectiveItems = data.items || originalDoc?.items || []
 
-    console.log("[RecalculateCart] Hook triggered", {
+    console.log('[RecalculateCart] Hook triggered', {
       hasDataItems: !!data.items,
       dataItemsCount: data.items?.length,
       originalItemsCount: originalDoc?.items?.length,
       effectiveItemsCount: effectiveItems.length,
-    });
+    })
 
     // If no items, ensure totals are 0
     if (!effectiveItems.length) {
@@ -34,12 +34,12 @@ export const recalculateCartHook =
         customerDiscount: 0,
         discountAmount: 0,
         total: 0,
-      };
+      }
     }
 
     // Determine effective codes
-    const appliedReferralCode = data.appliedReferralCode ?? originalDoc?.appliedReferralCode;
-    const appliedCoupon = data.appliedCoupon ?? originalDoc?.appliedCoupon;
+    const appliedReferralCode = data.appliedReferralCode ?? originalDoc?.appliedReferralCode
+    const appliedCoupon = data.appliedCoupon ?? originalDoc?.appliedCoupon
 
     if (!appliedReferralCode && !appliedCoupon) {
       // No codes applied, just return data (cleanup done by other logic if needed, or we explicitly clear?)
@@ -53,9 +53,9 @@ export const recalculateCartHook =
           customerDiscount: 0,
           discountAmount: 0,
           // Recalc total ?? Standard ecommerce will handle total if we don't mess with it.
-        };
+        }
       }
-      return data;
+      return data
     }
 
     // We need fully hydrated items to calculate prices
@@ -66,26 +66,26 @@ export const recalculateCartHook =
     // SAFEST: We calculate our own subtotal based on current prices.
 
     const productIds = effectiveItems
-      .map((item: any) => (typeof item.product === "string" ? item.product : item.product?.id))
-      .filter(Boolean);
+      .map((item: any) => (typeof item.product === 'string' ? item.product : item.product?.id))
+      .filter(Boolean)
 
-    if (!productIds.length) return data;
+    if (!productIds.length) return data
 
     // Fetch products to get prices
     const productsQuery = await req.payload.find({
-      collection: "products", // Assumption: standard shops have products
+      collection: 'products', // Assumption: standard shops have products
       where: {
         id: { in: productIds },
       },
       limit: productIds.length,
-    });
+    })
 
-    const productsMap = new Map(productsQuery.docs.map((p) => [p.id, p]));
+    const productsMap = new Map(productsQuery.docs.map((p) => [p.id, p]))
 
-    let calculatedSubtotal = 0;
+    let calculatedSubtotal = 0
     const enrichedItems = effectiveItems.map((item: any) => {
-      const productId = typeof item.product === "string" ? item.product : item.product?.id;
-      const product: any = productsMap.get(productId) || {};
+      const productId = typeof item.product === 'string' ? item.product : item.product?.id
+      const product: any = productsMap.get(productId) || {}
 
       // We might need variants logic too, keeping it simple for now based on available info
       // Ideally we should replicate the price finding logic fully.
@@ -94,25 +94,25 @@ export const recalculateCartHook =
       const itemPrice = getCartItemUnitPrice({
         item,
         product,
-        variant: typeof item.variant === "object" ? item.variant : undefined,
+        variant: typeof item.variant === 'object' ? item.variant : undefined,
         currencyCode: pluginConfig.defaultCurrency,
-      });
+      })
 
-      calculatedSubtotal += itemPrice * (item.quantity ?? 1);
+      calculatedSubtotal += itemPrice * (item.quantity ?? 1)
 
-      console.log("[RecalculateCart] Item processed", {
+      console.log('[RecalculateCart] Item processed', {
         productId,
         quantity: item.quantity,
         priceUsed: itemPrice,
         currentSubtotal: calculatedSubtotal,
-      });
+      })
 
       return {
         ...item,
         product, // Attach full product for rules
         price: itemPrice, // Normalized price
-      };
-    });
+      }
+    })
 
     // 1. Handle Referral
     if (appliedReferralCode && pluginConfig.enableReferrals) {
@@ -122,18 +122,18 @@ export const recalculateCartHook =
         where: {
           id: {
             equals:
-              typeof appliedReferralCode === "string"
+              typeof appliedReferralCode === 'string'
                 ? appliedReferralCode
                 : appliedReferralCode.id,
           },
         },
         limit: 1,
         depth: 1,
-      });
+      })
 
       if (referralQuery.docs.length) {
-        const referralCode = referralQuery.docs[0];
-        const program = typeof referralCode.program === "object" ? referralCode.program : null;
+        const referralCode = referralQuery.docs[0]
+        const program = typeof referralCode.program === 'object' ? referralCode.program : null
 
         // If program is not populated or valid, we skip
         if (program) {
@@ -141,16 +141,16 @@ export const recalculateCartHook =
             cartItems: enrichedItems,
             program,
             currencyCode: pluginConfig.defaultCurrency,
-          });
+          })
 
-          const roundedCustomerDiscount = roundTo2(customerDiscount);
-          data.partnerCommission = roundTo2(partnerCommission);
-          data.customerDiscount = roundedCustomerDiscount;
+          const roundedCustomerDiscount = roundTo2(customerDiscount)
+          data.partnerCommission = roundTo2(partnerCommission)
+          data.customerDiscount = roundedCustomerDiscount
 
           // Update total
           // Use calculated subtotal or trust data.subtotal if present?
           // Best to use our calculated subtotal to be safely independent.
-          data.total = Math.max(0, calculatedSubtotal - roundedCustomerDiscount);
+          data.total = Math.max(0, calculatedSubtotal - roundedCustomerDiscount)
         }
       }
     }
@@ -160,26 +160,26 @@ export const recalculateCartHook =
       const couponQuery = await req.payload.find({
         collection: pluginConfig.collections.couponsSlug,
         where: {
-          id: { equals: typeof appliedCoupon === "string" ? appliedCoupon : appliedCoupon.id },
+          id: { equals: typeof appliedCoupon === 'string' ? appliedCoupon : appliedCoupon.id },
         },
         limit: 1,
-      });
+      })
 
       if (couponQuery.docs.length) {
-        const coupon = couponQuery.docs[0];
+        const coupon = couponQuery.docs[0]
         const discountAmount = calculateCouponDiscount({
           coupon,
           cartTotal: calculatedSubtotal,
-        });
+        })
 
-        console.log("[RecalculateCart] Coupon Logic", {
+        console.log('[RecalculateCart] Coupon Logic', {
           appliedCoupon,
           couponId: coupon.id,
           cartTotal: calculatedSubtotal,
           discountAmount,
-        });
+        })
 
-        data.discountAmount = discountAmount;
+        data.discountAmount = discountAmount
 
         // If referral also applied, subtract from the already reduced total?
         // Usually discounts stack or are applied to subtotal.
@@ -187,10 +187,10 @@ export const recalculateCartHook =
         // But wait, referral discount reduces total. Coupon reduces total.
         // Standard approach: Total = Subtotal - ReferralDiscount - CouponDiscount
 
-        const currentDiscount = data.customerDiscount || 0;
-        data.total = Math.max(0, calculatedSubtotal - currentDiscount - discountAmount);
+        const currentDiscount = data.customerDiscount || 0
+        data.total = Math.max(0, calculatedSubtotal - currentDiscount - discountAmount)
       }
     }
 
-    return data;
-  };
+    return data
+  }
