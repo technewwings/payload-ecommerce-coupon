@@ -1,29 +1,29 @@
-'use client'
+"use client";
 
-import React from 'react'
+import React from "react";
 
-import type { PartnerStats } from '../../types'
+import type { PartnerStats } from "../../types";
 
 export type RecentReferralsProps = {
-  referrals: PartnerStats['recentReferrals']
-  currency: string
-}
+  referrals: PartnerStats["recentReferrals"];
+  currency: string;
+};
 
 const formatCurrency = (amount: number, currency: string): string => {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
     currency,
     minimumFractionDigits: 2,
-  }).format(amount)
-}
+  }).format(amount);
+};
 
 const formatDate = (dateString: string): string => {
-  return new Date(dateString).toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  })
-}
+  return new Date(dateString).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+};
 
 export const RecentReferrals: React.FC<RecentReferralsProps> = ({ referrals, currency }) => {
   return (
@@ -49,7 +49,9 @@ export const RecentReferrals: React.FC<RecentReferralsProps> = ({ referrals, cur
                   {formatCurrency(referral.commission, currency)}
                 </span>
                 <span className="referrals-table__date">{formatDate(referral.date)}</span>
-                <span className={`referrals-table__status referrals-table__status--${referral.status}`}>
+                <span
+                  className={`referrals-table__status referrals-table__status--${referral.status}`}
+                >
                   {referral.status}
                 </span>
               </div>
@@ -58,7 +60,7 @@ export const RecentReferrals: React.FC<RecentReferralsProps> = ({ referrals, cur
         </div>
       </div>
     </div>
-  )
-}
+  );
+};
 
-export default RecentReferrals
+export default RecentReferrals;

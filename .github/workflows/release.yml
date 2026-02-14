@@ -4,11 +4,11 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version to release (e.g., 1.0.1, 1.1.0, 2.0.0)'
+        description: "Version to release (e.g., 1.0.1, 1.1.0, 2.0.0)"
         required: true
         type: string
       release_type:
-        description: 'Type of release'
+        description: "Type of release"
         required: true
         type: choice
         options:
@@ -22,7 +22,7 @@ jobs:
     permissions:
       contents: write
       id-token: write
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -38,8 +38,8 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20.x'
-          registry-url: 'https://registry.npmjs.org'
+          node-version: "20.x"
+          registry-url: "https://registry.npmjs.org"
 
       - name: Configure Git
         run: |
@@ -81,9 +81,9 @@ jobs:
           release_name: v${{ steps.version.outputs.version }}
           body: |
             ## Release v${{ steps.version.outputs.version }}
-            
+
             See [CHANGELOG.md](https://github.com/technewwings/payload-ecommerce-coupon/blob/main/CHANGELOG.md) for details.
-            
+
             ## Installation
             ```bash
             npm install @wtree/payload-ecommerce-coupon@${{ steps.version.outputs.version }}

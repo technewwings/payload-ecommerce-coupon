@@ -1,12 +1,12 @@
-'use client'
+"use client";
 
-import React from 'react'
+import React from "react";
 
-import type { PartnerStats } from '../../types'
+import type { PartnerStats } from "../../types";
 
 export type ReferralPerformanceProps = {
-  stats: PartnerStats
-}
+  stats: PartnerStats;
+};
 
 export const ReferralPerformance: React.FC<ReferralPerformanceProps> = ({ stats }) => {
   return (
@@ -33,8 +33,8 @@ export const ReferralPerformance: React.FC<ReferralPerformanceProps> = ({ stats 
             <h4 className="performance-chart__title">Monthly Trend</h4>
             <div className="performance-chart__bars">
               {stats.monthlyEarnings.map((month, index) => {
-                const maxEarnings = Math.max(...stats.monthlyEarnings.map((m) => m.earnings), 1)
-                const heightPercent = (month.earnings / maxEarnings) * 100
+                const maxEarnings = Math.max(...stats.monthlyEarnings.map((m) => m.earnings), 1);
+                const heightPercent = (month.earnings / maxEarnings) * 100;
 
                 return (
                   <div key={index} className="performance-chart__bar-container">
@@ -43,16 +43,16 @@ export const ReferralPerformance: React.FC<ReferralPerformanceProps> = ({ stats 
                       style={{ height: `${Math.max(heightPercent, 5)}%` }}
                       title={`${month.month}: ${month.referrals} referrals`}
                     />
-                    <span className="performance-chart__label">{month.month.split(' ')[0]}</span>
+                    <span className="performance-chart__label">{month.month.split(" ")[0]}</span>
                   </div>
-                )
+                );
               })}
             </div>
           </div>
         )}
       </div>
     </div>
-  )
-}
+  );
+};
 
-export default ReferralPerformance
+export default ReferralPerformance;

@@ -1,137 +1,137 @@
-import type { CollectionConfig } from 'payload'
+import type { CollectionConfig } from "payload";
 
-import type { SanitizedCouponPluginOptions } from '../types'
+import type { SanitizedCouponPluginOptions } from "../types";
 
 export const createReferralCodesCollection = (
   pluginConfig: SanitizedCouponPluginOptions,
 ): CollectionConfig => {
-  const { collections, access, adminGroups, defaultCurrency } = pluginConfig
+  const { collections, access, adminGroups, defaultCurrency } = pluginConfig;
 
   return {
     slug: collections.referralCodesSlug,
     admin: {
-      useAsTitle: 'code',
-      defaultColumns: ['code', 'referrer', 'program', 'usageCount', 'isActive'],
+      useAsTitle: "code",
+      defaultColumns: ["code", "referrer", "program", "usageCount", "isActive"],
       group: adminGroups.referralsGroup,
     },
     access: {
       read: ({ req }) => {
         // Partners can read their own codes, admins can read all
-        const user = req?.user as { id?: string; role?: string; roles?: string[] } | undefined
-        if (!user) return false
+        const user = req?.user as { id?: string; role?: string; roles?: string[] } | undefined;
+        if (!user) return false;
 
         // Admin access
-        if (user.role === 'admin' || (Array.isArray(user.roles) && user.roles.includes('admin'))) {
-          return true
+        if (user.role === "admin" || (Array.isArray(user.roles) && user.roles.includes("admin"))) {
+          return true;
         }
 
         // Partner access - only their own codes
         if (
-          user.role === 'partner' ||
-          (Array.isArray(user.roles) && user.roles.includes('partner'))
+          user.role === "partner" ||
+          (Array.isArray(user.roles) && user.roles.includes("partner"))
         ) {
           return {
             referrer: {
               equals: user.id,
             },
-          }
+          };
         }
 
         // Default access from config
-        return access.canUseReferrals ? access.canUseReferrals({ req } as any) : false
+        return access.canUseReferrals ? access.canUseReferrals({ req } as any) : false;
       },
       create: ({ req }) => {
         // Partners can create their own codes, admins can create any
-        const user = req?.user as { role?: string; roles?: string[] } | undefined
-        if (!user) return false
+        const user = req?.user as { role?: string; roles?: string[] } | undefined;
+        if (!user) return false;
 
-        if (user.role === 'admin' || (Array.isArray(user.roles) && user.roles.includes('admin'))) {
-          return true
+        if (user.role === "admin" || (Array.isArray(user.roles) && user.roles.includes("admin"))) {
+          return true;
         }
 
         if (
-          user.role === 'partner' ||
-          (Array.isArray(user.roles) && user.roles.includes('partner'))
+          user.role === "partner" ||
+          (Array.isArray(user.roles) && user.roles.includes("partner"))
         ) {
-          return true
+          return true;
         }
 
-        return access.isAdmin ? access.isAdmin({ req } as any) : false
+        return access.isAdmin ? access.isAdmin({ req } as any) : false;
       },
       update: access.isAdmin || (() => false),
       delete: access.isAdmin || (() => false),
     },
     fields: [
       {
-        name: 'code',
-        type: 'text',
+        name: "code",
+        type: "text",
         required: true,
         unique: true,
         admin: {
-          description: 'The referral code that customers will enter',
+          description: "The referral code that customers will enter",
         },
       },
       {
-        name: 'program',
-        type: 'relationship',
+        name: "program",
+        type: "relationship",
         relationTo: collections.referralProgramsSlug,
         required: true,
         admin: {
-          description: 'The referral program this code belongs to',
+          description: "The referral program this code belongs to",
         },
       },
       {
-        name: 'referrer',
-        type: 'relationship',
-        relationTo: 'users',
+        name: "referrer",
+        type: "relationship",
+        relationTo: "users",
         required: true,
         admin: {
-          description: 'The partner who owns this referral code',
+          description: "The partner who owns this referral code",
         },
       },
       {
-        name: 'isActive',
-        type: 'checkbox',
+        name: "isActive",
+        type: "checkbox",
         defaultValue: true,
         admin: {
-          description: 'Whether this referral code is currently active',
+          description: "Whether this referral code is currently active",
         },
       },
       {
-        name: 'usageCount',
-        type: 'number',
+        name: "usageCount",
+        type: "number",
         defaultValue: 0,
         admin: {
-          description: 'How many times this referral code has been used',
+          description: "How many times this referral code has been used",
           readOnly: true,
         },
       },
       {
-        name: 'usageLimit',
-        type: 'number',
+        name: "usageLimit",
+        type: "number",
         admin: {
-          description: 'Maximum times this code can be used. Empty = unlimited.',
+          description: "Maximum times this code can be used. Empty = unlimited.",
         },
       },
       {
-        name: 'expiresAt',
-        type: 'date',
+        name: "expiresAt",
+        type: "date",
         admin: {
-          description: 'When this referral code expires',
+          description: "When this referral code expires",
         },
       },
       {
-        name: 'successfulReferralsCount',
-        type: 'number',
+        name: "successfulReferralsCount",
+        type: "number",
         defaultValue: 0,
         admin: {
-          description: 'Total count of successful referrals using this code',
+          description: "Total count of successful referrals using this code",
           readOnly: true,
         },
       },
       {
-        name: 'totalEarnings',
-        type: 'number',
+        name: "totalEarnings",
+        type: "number",
         defaultValue: 0,
         admin: {
           description: `Total earnings generated by this code in ${defaultCurrency}`,
@@ -139,8 +139,8 @@ export const createReferralCodesCollection = (
         },
       },
       {
-        name: 'pendingEarnings',
-        type: 'number',
+        name: "pendingEarnings",
+        type: "number",
         defaultValue: 0,
         admin: {
           description: `Pending earnings awaiting payout in ${defaultCurrency}`,
@@ -148,8 +148,8 @@ export const createReferralCodesCollection = (
         },
       },
       {
-        name: 'paidEarnings',
-        type: 'number',
+        name: "paidEarnings",
+        type: "number",
         defaultValue: 0,
         admin: {
           description: `Total earnings paid out in ${defaultCurrency}`,
@@ -157,11 +157,11 @@ export const createReferralCodesCollection = (
         },
       },
       {
-        name: 'metadata',
-        type: 'json',
+        name: "metadata",
+        type: "json",
         admin: {
-          description: 'Additional metadata for the referral code',
-          position: 'sidebar',
+          description: "Additional metadata for the referral code",
+          position: "sidebar",
         },
       },
     ],
@@ -169,27 +169,27 @@ export const createReferralCodesCollection = (
       beforeChange: [
         ({ operation, req, data }) => {
           // Auto-generate code if not provided
-          if (operation === 'create' && !data.code && data.referrer) {
-            const timestamp = Date.now().toString(36)
-            const random = Math.random().toString(36).substring(2, 8)
-            data.code = `REF-${timestamp}-${random}`.toUpperCase()
+          if (operation === "create" && !data.code && data.referrer) {
+            const timestamp = Date.now().toString(36);
+            const random = Math.random().toString(36).substring(2, 8);
+            data.code = `REF-${timestamp}-${random}`.toUpperCase();
           }
 
           // Auto-assign referrer to current user if partner
-          if (operation === 'create' && req.user) {
-            const user = req.user as { id?: string; role?: string; roles?: string[] }
+          if (operation === "create" && req.user) {
+            const user = req.user as { id?: string; role?: string; roles?: string[] };
             if (
-              user.role === 'partner' ||
-              (Array.isArray(user.roles) && user.roles.includes('partner'))
+              user.role === "partner" ||
+              (Array.isArray(user.roles) && user.roles.includes("partner"))
             ) {
-              data.referrer = user.id
+              data.referrer = user.id;
             }
           }
 
-          return data
+          return data;
         },
       ],
     },
     timestamps: true,
-  }
-}
+  };
+};

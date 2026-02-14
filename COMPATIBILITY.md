@@ -2,18 +2,18 @@
 
 ## Payload CMS Compatibility
 
-| Package | Version | Status |
-|---------|---------|--------|
-| payload | ^3.0.0 | ✅ Supported |
-| @payloadcms/plugin-ecommerce | >=3.0.0 | ✅ Required |
+| Package                      | Version | Status       |
+| ---------------------------- | ------- | ------------ |
+| payload                      | ^3.0.0  | ✅ Supported |
+| @payloadcms/plugin-ecommerce | >=3.0.0 | ✅ Required  |
 
 ## Node.js Compatibility
 
-| Node Version | Status |
-|--------------|--------|
-| 18.x | ✅ Supported |
-| 20.x | ✅ Supported (Recommended) |
-| 22.x | ✅ Supported |
+| Node Version | Status                     |
+| ------------ | -------------------------- |
+| 18.x         | ✅ Supported               |
+| 20.x         | ✅ Supported (Recommended) |
+| 22.x         | ✅ Supported               |
 
 ## Framework Compatibility
 

@@ -1,8 +1,33 @@
 {
-  "type": "module",
   "name": "@wtree/payload-ecommerce-coupon",
   "version": "3.76.1",
   "description": "Production-ready coupon and referral system plugin for Payload CMS Ecommerce Plugin",
+  "keywords": [
+    "coupon",
+    "discount",
+    "ecommerce",
+    "payload",
+    "payload-plugin",
+    "payloadcms",
+    "promotion",
+    "referral"
+  ],
+  "homepage": "https://github.com/technewwings/payload-ecommerce-coupon#readme",
+  "bugs": {
+    "url": "https://github.com/technewwings/payload-ecommerce-coupon/issues"
+  },
+  "license": "MIT",
+  "author": "wtree",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/technewwings/payload-ecommerce-coupon.git"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "type": "module",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
   "types": "./dist/index.d.ts",
@@ -13,11 +38,6 @@
       "require": "./dist/index.js"
     }
   },
-  "files": [
-    "dist",
-    "README.md",
-    "LICENSE"
-  ],
   "scripts": {
     "build": "bun run clean && rolldown -c && tsc --declaration --emitDeclarationOnly --outDir dist",
     "clean": "rm -rf dist",
@@ -25,50 +45,27 @@
     "test": "bun test",
     "test:watch": "bun test --watch",
     "test:coverage": "bun test --coverage",
-    "lint": "eslint src --ext .ts",
-    "lint:fix": "eslint src --ext .ts --fix",
+    "lint": "oxlint src",
+    "lint:fix": "oxlint src --fix",
+    "format": "oxfmt \"**/*.{js,mjs,cjs,ts,tsx,mts,cts}\"",
+    "format:check": "oxfmt --check \"**/*.{js,mjs,cjs,ts,tsx,mts,cts}\"",
     "prepublishOnly": "bun run test && bun run build"
   },
-  "keywords": [
-    "payload",
-    "payloadcms",
-    "payload-plugin",
-    "ecommerce",
-    "coupon",
-    "referral",
-    "promotion",
-    "discount"
-  ],
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/technewwings/payload-ecommerce-coupon.git"
-  },
-  "bugs": {
-    "url": "https://github.com/technewwings/payload-ecommerce-coupon/issues"
-  },
-  "homepage": "https://github.com/technewwings/payload-ecommerce-coupon#readme",
-  "author": "wtree",
-  "license": "MIT",
-  "engines": {
-    "node": ">=18.0.0"
-  },
-  "peerDependencies": {
-    "payload": "^3.76.1",
-    "@payloadcms/plugin-ecommerce": ">=3.76.1"
-  },
+  "dependencies": {},
   "devDependencies": {
     "@types/bun": "^1.3.9",
-    "@eslint/js": "^10.0.1",
     "@types/node": "^25.2.3",
-    "@typescript-eslint/eslint-plugin": "^8.55.0",
-    "@typescript-eslint/parser": "^8.55.0",
-    "eslint": "^10.0.0",
-    "eslint-config-prettier": "^10.1.8",
-    "eslint-plugin-prettier": "^5.0.0",
+    "oxfmt": "^0.32.0",
+    "oxlint": "^1.47.0",
     "prettier": "^3.0.0",
     "rolldown": "^1.0.0-rc.4",
-    "typescript": "^5.0.0",
-    "typescript-eslint": "8.55.0"
+    "typescript": "^5.0.0"
   },
-  "dependencies": {}
+  "peerDependencies": {
+    "@payloadcms/plugin-ecommerce": ">=3.76.1",
+    "payload": "^3.76.1"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
 }

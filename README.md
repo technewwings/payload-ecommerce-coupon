@@ -65,9 +65,9 @@ npm install @wtree/payload-ecommerce-coupon
 In your `payload.config.ts`:
 
 ```typescript
-import { buildConfig } from 'payload'
-import { ecommercePlugin } from '@payloadcms/plugin-ecommerce'
-import { payloadEcommerceCoupon } from '@wtree/payload-ecommerce-coupon'
+import { buildConfig } from "payload";
+import { ecommercePlugin } from "@payloadcms/plugin-ecommerce";
+import { payloadEcommerceCoupon } from "@wtree/payload-ecommerce-coupon";
 
 export default buildConfig({
   plugins: [
@@ -77,7 +77,7 @@ export default buildConfig({
     payloadEcommerceCoupon({
       enabled: true,
       enableReferrals: true, // Enable referral system
-      defaultCurrency: 'USD',
+      defaultCurrency: "USD",
 
       // Referral-specific configuration
       referralConfig: {
@@ -89,8 +89,8 @@ export default buildConfig({
 
       // Custom admin panel groups
       adminGroups: {
-        couponsGroup: 'Coupons',
-        referralsGroup: 'Referrals',
+        couponsGroup: "Coupons",
+        referralsGroup: "Referrals",
       },
 
       // Partner dashboard configuration
@@ -106,8 +106,8 @@ export default buildConfig({
       access: {
         canUseCoupons: () => true,
         canUseReferrals: () => true,
-        isAdmin: ({ req }) => req.user?.role === 'admin',
-        isPartner: ({ req }) => req.user?.role === 'partner',
+        isAdmin: ({ req }) => req.user?.role === "admin",
+        isPartner: ({ req }) => req.user?.role === "partner",
       },
 
       // Optional: for per-customer coupon limit (defaults shown)
@@ -119,7 +119,7 @@ export default buildConfig({
       // },
     }),
   ],
-})
+});
 ```
 
 ### 2. Database Migration
@@ -142,37 +142,37 @@ To enable the partner dashboard and role-based access, add a `role` field to you
 
 ```typescript
 // collections/Users.ts
-import type { CollectionConfig } from 'payload'
+import type { CollectionConfig } from "payload";
 
 export const Users: CollectionConfig = {
-  slug: 'users',
+  slug: "users",
   auth: true,
   fields: [
     {
-      name: 'role',
-      type: 'select',
+      name: "role",
+      type: "select",
       options: [
-        { label: 'Admin', value: 'admin' },
-        { label: 'Partner', value: 'partner' },
-        { label: 'Customer', value: 'customer' },
+        { label: "Admin", value: "admin" },
+        { label: "Partner", value: "partner" },
+        { label: "Customer", value: "customer" },
       ],
-      defaultValue: 'customer',
+      defaultValue: "customer",
       required: true,
     },
     // Or use multiple roles
     {
-      name: 'roles',
-      type: 'select',
+      name: "roles",
+      type: "select",
       hasMany: true,
       options: [
-        { label: 'Admin', value: 'admin' },
-        { label: 'Partner', value: 'partner' },
-        { label: 'Customer', value: 'customer' },
+        { label: "Admin", value: "admin" },
+        { label: "Partner", value: "partner" },
+        { label: "Customer", value: "customer" },
       ],
-      defaultValue: ['customer'],
+      defaultValue: ["customer"],
     },
   ],
-}
+};
 ```
 
 ### 4. Record Usage When Order Is Placed
@@ -190,11 +190,11 @@ Content-Type: application/json
 **Option B – Use the server utility** (in your Payload config or Orders hook):
 
 ```typescript
-import { recordCouponUsageForOrder } from '@wtree/payload-ecommerce-coupon'
+import { recordCouponUsageForOrder } from "@wtree/payload-ecommerce-coupon";
 
 // In your Orders collection afterChange hook, when order is paid/completed:
-if (doc.paymentStatus === 'paid' && (doc.appliedCoupon || doc.appliedReferralCode)) {
-  await recordCouponUsageForOrder(payload, doc, pluginConfig)
+if (doc.paymentStatus === "paid" && (doc.appliedCoupon || doc.appliedReferralCode)) {
+  await recordCouponUsageForOrder(payload, doc, pluginConfig);
 }
 ```
 
@@ -217,10 +217,10 @@ if (doc.paymentStatus === 'paid' && (doc.appliedCoupon || doc.appliedReferralCod
 - The plugin writes the reduced `total` when a code is applied. If your host app recalculates the cart total (e.g. in a `beforeChange` hook when items change), use the formula **total = subtotal − discountAmount − customerDiscount** so the discount is not overwritten. Use the provided helper in your Carts collection:
 
 ```typescript
-import { getCartTotalWithDiscounts } from '@wtree/payload-ecommerce-coupon'
+import { getCartTotalWithDiscounts } from "@wtree/payload-ecommerce-coupon";
 
 // In your Carts collection beforeChange hook, after setting items/subtotal:
-data.total = getCartTotalWithDiscounts(data)
+data.total = getCartTotalWithDiscounts(data);
 ```
 
 - **Optional config** for per-customer limit: `orderIntegration` with `ordersSlug`, `orderCustomerEmailField`, `orderPaymentStatusField`, `orderPaidStatusValue` (defaults: `'orders'`, `'customerEmail'`, `'paymentStatus'`, `'paid'`).
@@ -464,69 +464,69 @@ curl -X GET http://localhost:3000/api/referrals/partner-stats \
 
 ```typescript
 export type CouponPluginOptions = {
-  enabled?: boolean // Enable/disable the plugin (default: true)
-  enableReferrals?: boolean // Enable referral system (default: false)
-  allowStackWithOtherCoupons?: boolean // Allow multiple coupons (default: false)
-  defaultCurrency?: string // Currency code (default: 'USD')
-  autoIntegrate?: boolean // Auto-extend carts/orders (default: true)
+  enabled?: boolean; // Enable/disable the plugin (default: true)
+  enableReferrals?: boolean; // Enable referral system (default: false)
+  allowStackWithOtherCoupons?: boolean; // Allow multiple coupons (default: false)
+  defaultCurrency?: string; // Currency code (default: 'USD')
+  autoIntegrate?: boolean; // Auto-extend carts/orders (default: true)
 
   collections?: {
-    couponsSlug?: string // Default: 'coupons'
-    referralProgramsSlug?: string // Default: 'referral-programs'
-    referralCodesSlug?: string // Default: 'referral-codes'
+    couponsSlug?: string; // Default: 'coupons'
+    referralProgramsSlug?: string; // Default: 'referral-programs'
+    referralCodesSlug?: string; // Default: 'referral-codes'
 
     /** Override the default coupons collection configuration */
-    couponsCollectionOverride?: (params: { defaultCollection: any }) => any | Promise<any>
+    couponsCollectionOverride?: (params: { defaultCollection: any }) => any | Promise<any>;
 
     /** Override the default referral programs collection configuration */
-    referralProgramsCollectionOverride?: (params: { defaultCollection: any }) => any | Promise<any>
+    referralProgramsCollectionOverride?: (params: { defaultCollection: any }) => any | Promise<any>;
 
     /** Override the default referral codes collection configuration */
-    referralCodesCollectionOverride?: (params: { defaultCollection: any }) => any | Promise<any>
-  }
+    referralCodesCollectionOverride?: (params: { defaultCollection: any }) => any | Promise<any>;
+  };
 
   endpoints?: {
-    applyCoupon?: string // Default: '/coupons/apply'
-    validateCoupon?: string // Default: '/coupons/validate'
-    partnerStats?: string // Default: '/referrals/partner-stats'
-    recordOrderUsage?: string // Default: '/coupons/record-order-usage'
-  }
+    applyCoupon?: string; // Default: '/coupons/apply'
+    validateCoupon?: string; // Default: '/coupons/validate'
+    partnerStats?: string; // Default: '/referrals/partner-stats'
+    recordOrderUsage?: string; // Default: '/coupons/record-order-usage'
+  };
 
   access?: {
-    canUseCoupons?: Access // Who can use coupons
-    canUseReferrals?: Access // Who can use referrals
-    isAdmin?: Access // Who can manage codes/programs
-    isPartner?: Access // Who has partner access
-  }
+    canUseCoupons?: Access; // Who can use coupons
+    canUseReferrals?: Access; // Who can use referrals
+    isAdmin?: Access; // Who can manage codes/programs
+    isPartner?: Access; // Who has partner access
+  };
 
   referralConfig?: {
-    allowBothSystems?: boolean // Allow coupons + referrals (default: false)
-    singleCodePerCart?: boolean // One code per order (default: true)
-    defaultPartnerSplit?: number // Default partner % (default: 70)
-    defaultCustomerSplit?: number // Default customer % (default: 30)
-  }
+    allowBothSystems?: boolean; // Allow coupons + referrals (default: false)
+    singleCodePerCart?: boolean; // One code per order (default: true)
+    defaultPartnerSplit?: number; // Default partner % (default: 70)
+    defaultCustomerSplit?: number; // Default customer % (default: 30)
+  };
 
   adminGroups?: {
-    couponsGroup?: string // Admin group for coupons (default: 'Coupons')
-    referralsGroup?: string // Admin group for referrals (default: 'Referrals')
-  }
+    couponsGroup?: string; // Admin group for coupons (default: 'Coupons')
+    referralsGroup?: string; // Admin group for referrals (default: 'Referrals')
+  };
 
   partnerDashboard?: {
-    enabled?: boolean // Enable dashboard (default: true)
-    showEarningsSummary?: boolean // Show earnings widget (default: true)
-    showReferralPerformance?: boolean // Show performance widget (default: true)
-    showRecentReferrals?: boolean // Show recent referrals (default: true)
-    showCommissionBreakdown?: boolean // Show breakdown (default: true)
-  }
+    enabled?: boolean; // Enable dashboard (default: true)
+    showEarningsSummary?: boolean; // Show earnings widget (default: true)
+    showReferralPerformance?: boolean; // Show performance widget (default: true)
+    showRecentReferrals?: boolean; // Show recent referrals (default: true)
+    showCommissionBreakdown?: boolean; // Show breakdown (default: true)
+  };
 
   /** Optional: for per-customer coupon limit (query paid orders by customer) */
   orderIntegration?: {
-    ordersSlug?: string // Default: 'orders'
-    orderCustomerEmailField?: string // Default: 'customerEmail'
-    orderPaymentStatusField?: string // Default: 'paymentStatus'
-    orderPaidStatusValue?: string // Default: 'paid'
-  }
-}
+    ordersSlug?: string; // Default: 'orders'
+    orderCustomerEmailField?: string; // Default: 'customerEmail'
+    orderPaymentStatusField?: string; // Default: 'paymentStatus'
+    orderPaidStatusValue?: string; // Default: 'paid'
+  };
+};
 ```
 
 ### **Collection Overrides**
@@ -544,9 +544,9 @@ payloadEcommerceCoupon({
           ...defaultCollection.fields,
           // Add custom field to coupons
           {
-            name: 'customField',
-            type: 'text',
-            label: 'Custom Field',
+            name: "customField",
+            type: "text",
+            label: "Custom Field",
           },
         ],
         hooks: {
@@ -556,11 +556,11 @@ payloadEcommerceCoupon({
             ...(defaultCollection.hooks?.beforeChange || []),
             async ({ data, req, operation }) => {
               // Custom beforeChange logic
-              return data
+              return data;
             },
           ],
         },
-      }
+      };
     },
 
     // Override referral programs collection
@@ -569,9 +569,9 @@ payloadEcommerceCoupon({
         ...defaultCollection,
         admin: {
           ...defaultCollection.admin,
-          defaultColumns: ['name', 'isActive', 'totalReferrals'],
+          defaultColumns: ["name", "isActive", "totalReferrals"],
         },
-      }
+      };
     },
 
     // Override referral codes collection
@@ -581,17 +581,17 @@ payloadEcommerceCoupon({
         fields: [
           ...defaultCollection.fields,
           {
-            name: 'customCodeField',
-            type: 'select',
-            label: 'Custom Code Type',
-            options: ['standard', 'premium'],
-            defaultValue: 'standard',
+            name: "customCodeField",
+            type: "select",
+            label: "Custom Code Type",
+            options: ["standard", "premium"],
+            defaultValue: "standard",
           },
         ],
-      }
+      };
     },
   },
-})
+});
 ```
 
 ### **Access Control Examples**
@@ -606,18 +606,18 @@ payloadEcommerceCoupon({
     canUseReferrals: ({ req }) => Boolean(req.user),
 
     // Only admins can manage
-    isAdmin: ({ req }) => req.user?.role === 'admin',
+    isAdmin: ({ req }) => req.user?.role === "admin",
 
     // Partner role check (supports both single role and array)
     isPartner: ({ req }) => {
-      const user = req.user
-      if (!user) return false
-      if (user.role === 'partner') return true
-      if (Array.isArray(user.roles) && user.roles.includes('partner')) return true
-      return false
+      const user = req.user;
+      if (!user) return false;
+      if (user.role === "partner") return true;
+      if (Array.isArray(user.roles) && user.roles.includes("partner")) return true;
+      return false;
     },
   },
-})
+});
 ```
 
 ## 📦 API Reference
@@ -640,7 +640,7 @@ import {
 
   // Server-only: record usage when order is placed
   recordCouponUsageForOrder,
-} from '@wtree/payload-ecommerce-coupon'
+} from "@wtree/payload-ecommerce-coupon";
 ```
 
 Dashboard components (`PartnerDashboard`, `EarningsSummary`, `ReferralPerformance`, `RecentReferrals`, `ReferralCodes`) are available from the package source; see [Partner Dashboard docs](./docs/partner-dashboard.md) for usage.
@@ -650,9 +650,9 @@ Dashboard components (`PartnerDashboard`, `EarningsSummary`, `ReferralPerformanc
 You can use the collection creation functions directly in your Payload config to customize collections before they're added to the config.
 
 ```typescript
-import { buildConfig } from 'payload'
-import { ecommercePlugin } from '@payloadcms/plugin-ecommerce'
-import { payloadEcommerceCoupon, createCouponsCollection } from '@wtree/payload-ecommerce-coupon'
+import { buildConfig } from "payload";
+import { ecommercePlugin } from "@payloadcms/plugin-ecommerce";
+import { payloadEcommerceCoupon, createCouponsCollection } from "@wtree/payload-ecommerce-coupon";
 
 export default buildConfig({
   plugins: [
@@ -666,7 +666,7 @@ export default buildConfig({
   collections: [
     // The plugin adds collections automatically; use overrides in plugin config to customize
   ],
-})
+});
 ```
 
 ## 🎨 Partner Dashboard

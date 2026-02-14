@@ -1,97 +1,95 @@
-import { describe, it, expect, beforeEach, jest } from 'bun:test'
-import { useCouponCode, validateCouponCode } from '../src/client/hooks'
+import { describe, it, expect, beforeEach, jest } from "bun:test";
+import { useCouponCode, validateCouponCode } from "../src/client/hooks";
 
 beforeEach(() => {
-  jest.clearAllMocks()
-})
+  jest.clearAllMocks();
+});
 
-describe('Frontend Hooks', () => {
-  describe('useCouponCode', () => {
-    it('should handle missing coupon code', async () => {
-      const result = await useCouponCode({ code: '' })
-      expect(result.success).toBe(false)
-      expect(result.error).toBeDefined()
-    })
+describe("Frontend Hooks", () => {
+  describe("useCouponCode", () => {
+    it("should handle missing coupon code", async () => {
+      const result = await useCouponCode({ code: "" });
+      expect(result.success).toBe(false);
+      expect(result.error).toBeDefined();
+    });
 
-    it('should handle missing cart ID', async () => {
-      const result = await useCouponCode({ code: 'TEST10' })
-      expect(result.success).toBe(false)
-      expect(result.error).toBeDefined()
-    })
+    it("should handle missing cart ID", async () => {
+      const result = await useCouponCode({ code: "TEST10" });
+      expect(result.success).toBe(false);
+      expect(result.error).toBeDefined();
+    });
 
-    it('should successfully apply coupon', async () => {
+    it("should successfully apply coupon", async () => {
       global.fetch = jest.fn(() =>
         Promise.resolve({
           ok: true,
           json: () =>
             Promise.resolve({
               success: true,
-              message: 'Coupon applied successfully',
+              message: "Coupon applied successfully",
               discount: 500,
-              coupon: { code: 'TEST10', type: 'percentage', value: 10 },
-              currency: 'USD',
+              coupon: { code: "TEST10", type: "percentage", value: 10 },
+              currency: "USD",
             }),
         } as any),
-      )
+      );
 
-      const result = await useCouponCode({ code: 'TEST10', cartID: 'cart-123' })
-      expect(result.success).toBe(true)
-      expect(result.discount).toBe(500)
-      expect(result.coupon?.code).toBe('TEST10')
-      expect(result.currency).toBeUndefined() // Not returned by hook
-    })
+      const result = await useCouponCode({ code: "TEST10", cartID: "cart-123" });
+      expect(result.success).toBe(true);
+      expect(result.discount).toBe(500);
+      expect(result.coupon?.code).toBe("TEST10");
+      expect(result.currency).toBeUndefined(); // Not returned by hook
+    });
 
-    it('should successfully apply referral code', async () => {
+    it("should successfully apply referral code", async () => {
       global.fetch = jest.fn(() =>
         Promise.resolve({
           ok: true,
           json: () =>
             Promise.resolve({
               success: true,
-              message: 'Referral code applied successfully',
+              message: "Referral code applied successfully",
               partnerCommission: 36.75,
-              customerDiscount: 15.50,
-              referralCode: { code: 'REF-ABC123' },
-              currency: 'USD',
+              customerDiscount: 15.5,
+              referralCode: { code: "REF-ABC123" },
+              currency: "USD",
             }),
         } as any),
-      )
+      );
 
-      const result = await useCouponCode({ code: 'REF-ABC123', cartID: 'cart-123' })
-      expect(result.success).toBe(true)
-      expect(result.discount).toBe(15.50) // customerDiscount becomes discount
-      expect(result.partnerCommission).toBe(36.75)
-      expect(result.customerDiscount).toBe(15.50)
-      expect(result.referralCode?.code).toBe('REF-ABC123')
-    })
+      const result = await useCouponCode({ code: "REF-ABC123", cartID: "cart-123" });
+      expect(result.success).toBe(true);
+      expect(result.discount).toBe(15.5); // customerDiscount becomes discount
+      expect(result.partnerCommission).toBe(36.75);
+      expect(result.customerDiscount).toBe(15.5);
+      expect(result.referralCode?.code).toBe("REF-ABC123");
+    });
 
-    it('should handle network errors', async () => {
-      global.fetch = jest.fn(() =>
-        Promise.reject(new Error('Network failed')),
-      )
+    it("should handle network errors", async () => {
+      global.fetch = jest.fn(() => Promise.reject(new Error("Network failed")));
 
-      const result = await useCouponCode({ code: 'TEST10', cartID: 'cart-123' })
-      expect(result.success).toBe(false)
-      expect(result.error).toContain('Network')
-    })
+      const result = await useCouponCode({ code: "TEST10", cartID: "cart-123" });
+      expect(result.success).toBe(false);
+      expect(result.error).toContain("Network");
+    });
 
-    it('should handle API errors', async () => {
+    it("should handle API errors", async () => {
       global.fetch = jest.fn(() =>
         Promise.resolve({
           ok: false,
           json: () =>
             Promise.resolve({
-              error: 'Coupon not found',
+              error: "Coupon not found",
             }),
         } as any),
-      )
+      );
 
-      const result = await useCouponCode({ code: 'INVALID', cartID: 'cart-123' })
-      expect(result.success).toBe(false)
-      expect(result.error).toBe('Coupon not found')
-    })
+      const result = await useCouponCode({ code: "INVALID", cartID: "cart-123" });
+      expect(result.success).toBe(false);
+      expect(result.error).toBe("Coupon not found");
+    });
 
-    it('should handle malformed API response', async () => {
+    it("should handle malformed API response", async () => {
       global.fetch = jest.fn(() =>
         Promise.resolve({
           ok: true,
@@ -101,116 +99,114 @@ describe('Frontend Hooks', () => {
               // Missing required fields
             }),
         } as any),
-      )
+      );
 
-      const result = await useCouponCode({ code: 'TEST10', cartID: 'cart-123' })
-      expect(result.success).toBe(true)
-      expect(result.discount).toBeUndefined()
-    })
+      const result = await useCouponCode({ code: "TEST10", cartID: "cart-123" });
+      expect(result.success).toBe(true);
+      expect(result.discount).toBeUndefined();
+    });
 
-    it('should include customer email when provided', async () => {
+    it("should include customer email when provided", async () => {
       global.fetch = jest.fn(() =>
         Promise.resolve({
           ok: true,
           json: () =>
             Promise.resolve({
               success: true,
-              message: 'Applied',
+              message: "Applied",
             }),
         } as any),
-      )
+      );
 
       await useCouponCode({
-        code: 'TEST10',
-        cartID: 'cart-123',
-        customerEmail: 'user@example.com'
-      })
+        code: "TEST10",
+        cartID: "cart-123",
+        customerEmail: "user@example.com",
+      });
 
       expect(global.fetch).toHaveBeenCalledWith(
-        '/api/coupons/apply',
+        "/api/coupons/apply",
         expect.objectContaining({
-          method: 'POST',
+          method: "POST",
           body: JSON.stringify({
-            code: 'TEST10',
-            cartID: 'cart-123',
-            customerEmail: 'user@example.com'
-          })
-        })
-      )
-    })
-  })
+            code: "TEST10",
+            cartID: "cart-123",
+            customerEmail: "user@example.com",
+          }),
+        }),
+      );
+    });
+  });
 
-  describe('validateCouponCode', () => {
-    it('should validate coupon code successfully', async () => {
+  describe("validateCouponCode", () => {
+    it("should validate coupon code successfully", async () => {
       global.fetch = jest.fn(() =>
         Promise.resolve({
           ok: true,
           json: () =>
             Promise.resolve({
               success: true,
-              coupon: { code: 'TEST10', type: 'percentage', value: 10 },
+              coupon: { code: "TEST10", type: "percentage", value: 10 },
               discount: 500,
-              currency: 'USD',
+              currency: "USD",
             }),
         } as any),
-      )
+      );
 
-      const result = await validateCouponCode('TEST10')
-      expect(result.success).toBe(true)
-      expect(result.coupon?.code).toBe('TEST10')
-      expect(result.discount).toBe(500)
-    })
+      const result = await validateCouponCode("TEST10");
+      expect(result.success).toBe(true);
+      expect(result.coupon?.code).toBe("TEST10");
+      expect(result.discount).toBe(500);
+    });
 
-    it('should validate referral code successfully', async () => {
+    it("should validate referral code successfully", async () => {
       global.fetch = jest.fn(() =>
         Promise.resolve({
           ok: true,
           json: () =>
             Promise.resolve({
               success: true,
-              referralCode: { code: 'REF-ABC123', description: 'Get discount' },
+              referralCode: { code: "REF-ABC123", description: "Get discount" },
               partnerCommission: 36.75,
-              customerDiscount: 15.50,
-              currency: 'USD',
+              customerDiscount: 15.5,
+              currency: "USD",
             }),
         } as any),
-      )
+      );
 
-      const result = await validateCouponCode('REF-ABC123')
-      expect(result.success).toBe(true)
-      expect(result.referralCode?.code).toBe('REF-ABC123')
-      expect(result.discount).toBeUndefined() // Not set for referrals in validate
-      expect(result.partnerCommission).toBe(36.75)
-      expect(result.customerDiscount).toBe(15.50)
-    })
+      const result = await validateCouponCode("REF-ABC123");
+      expect(result.success).toBe(true);
+      expect(result.referralCode?.code).toBe("REF-ABC123");
+      expect(result.discount).toBeUndefined(); // Not set for referrals in validate
+      expect(result.partnerCommission).toBe(36.75);
+      expect(result.customerDiscount).toBe(15.5);
+    });
 
-    it('should handle validation errors', async () => {
+    it("should handle validation errors", async () => {
       global.fetch = jest.fn(() =>
         Promise.resolve({
           ok: false,
           json: () =>
             Promise.resolve({
-              error: 'Invalid code',
+              error: "Invalid code",
             }),
         } as any),
-      )
+      );
 
-      const result = await validateCouponCode('INVALID')
-      expect(result.success).toBe(false)
-      expect(result.error).toBe('Invalid code')
-    })
+      const result = await validateCouponCode("INVALID");
+      expect(result.success).toBe(false);
+      expect(result.error).toBe("Invalid code");
+    });
 
-    it('should handle network errors during validation', async () => {
-      global.fetch = jest.fn(() =>
-        Promise.reject(new Error('Network error')),
-      )
+    it("should handle network errors during validation", async () => {
+      global.fetch = jest.fn(() => Promise.reject(new Error("Network error")));
 
-      const result = await validateCouponCode('TEST10')
-      expect(result.success).toBe(false)
-      expect(result.error).toContain('Network')
-    })
+      const result = await validateCouponCode("TEST10");
+      expect(result.success).toBe(false);
+      expect(result.error).toContain("Network");
+    });
 
-    it('should include cart value for validation', async () => {
+    it("should include cart value for validation", async () => {
       global.fetch = jest.fn(() =>
         Promise.resolve({
           ok: true,
@@ -219,23 +215,23 @@ describe('Frontend Hooks', () => {
               success: true,
             }),
         } as any),
-      )
+      );
 
-      await validateCouponCode('TEST10', 1000)
+      await validateCouponCode("TEST10", 1000);
 
       expect(global.fetch).toHaveBeenCalledWith(
-        '/api/coupons/validate',
+        "/api/coupons/validate",
         expect.objectContaining({
-          method: 'POST',
+          method: "POST",
           body: JSON.stringify({
-            code: 'TEST10',
-            cartValue: 1000
-          })
-        })
-      )
-    })
+            code: "TEST10",
+            cartValue: 1000,
+          }),
+        }),
+      );
+    });
 
-    it('should include cart ID for referral validation', async () => {
+    it("should include cart ID for referral validation", async () => {
       global.fetch = jest.fn(() =>
         Promise.resolve({
           ok: true,
@@ -244,57 +240,55 @@ describe('Frontend Hooks', () => {
               success: true,
             }),
         } as any),
-      )
+      );
 
-      await validateCouponCode('REF-ABC123', undefined, 'cart-123')
+      await validateCouponCode("REF-ABC123", undefined, "cart-123");
 
       expect(global.fetch).toHaveBeenCalledWith(
-        '/api/coupons/validate',
+        "/api/coupons/validate",
         expect.objectContaining({
-          method: 'POST',
+          method: "POST",
           body: JSON.stringify({
-            code: 'REF-ABC123',
-            cartID: 'cart-123'
-          })
-        })
-      )
-    })
-  })
+            code: "REF-ABC123",
+            cartID: "cart-123",
+          }),
+        }),
+      );
+    });
+  });
 
-  describe('Error Scenarios', () => {
-    it('should handle fetch throwing non-Error objects', async () => {
-      global.fetch = jest.fn(() =>
-        Promise.reject('String error'),
-      )
+  describe("Error Scenarios", () => {
+    it("should handle fetch throwing non-Error objects", async () => {
+      global.fetch = jest.fn(() => Promise.reject("String error"));
 
-      const result = await useCouponCode({ code: 'TEST10', cartID: 'cart-123' })
-      expect(result.success).toBe(false)
-      expect(result.error).toBeDefined()
-    })
+      const result = await useCouponCode({ code: "TEST10", cartID: "cart-123" });
+      expect(result.success).toBe(false);
+      expect(result.error).toBeDefined();
+    });
 
-    it('should handle invalid JSON response', async () => {
+    it("should handle invalid JSON response", async () => {
       global.fetch = jest.fn(() =>
         Promise.resolve({
           ok: true,
-          json: () => Promise.reject(new Error('Invalid JSON')),
+          json: () => Promise.reject(new Error("Invalid JSON")),
         } as any),
-      )
+      );
 
-      const result = await useCouponCode({ code: 'TEST10', cartID: 'cart-123' })
-      expect(result.success).toBe(false)
-      expect(result.error).toBeDefined()
-    })
+      const result = await useCouponCode({ code: "TEST10", cartID: "cart-123" });
+      expect(result.success).toBe(false);
+      expect(result.error).toBeDefined();
+    });
 
-    it('should handle empty response body', async () => {
+    it("should handle empty response body", async () => {
       global.fetch = jest.fn(() =>
         Promise.resolve({
           ok: true,
           json: () => Promise.resolve(null),
         } as any),
-      )
+      );
 
-      const result = await useCouponCode({ code: 'TEST10', cartID: 'cart-123' })
-      expect(result.success).toBe(false)
-    })
-  })
-})
+      const result = await useCouponCode({ code: "TEST10", cartID: "cart-123" });
+      expect(result.success).toBe(false);
+    });
+  });
+});
