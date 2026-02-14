@@ -4,6 +4,7 @@ import {
   calculateCommissionAndDiscount,
   calculateCouponDiscount,
 } from '../utilities/calculateValues'
+import { getCartItemUnitPrice } from '../utilities/pricing'
 import { roundTo2 } from '../utilities/roundTo2'
 
 export const recalculateCartHook =
@@ -90,8 +91,12 @@ export const recalculateCartHook =
       // Ideally we should replicate the price finding logic fully.
       // For now, let's map what we have.
 
-      const itemPrice =
-        item.price ?? item.unitPrice ?? product.price ?? (product as any).priceInAED ?? 0
+      const itemPrice = getCartItemUnitPrice({
+        item,
+        product,
+        variant: typeof item.variant === 'object' ? item.variant : undefined,
+        currencyCode: pluginConfig.defaultCurrency,
+      })
 
       calculatedSubtotal += itemPrice * (item.quantity ?? 1)
 
@@ -135,6 +140,7 @@ export const recalculateCartHook =
           const { partnerCommission, customerDiscount } = calculateCommissionAndDiscount({
             cartItems: enrichedItems,
             program,
+            currencyCode: pluginConfig.defaultCurrency,
           })
 
           const roundedCustomerDiscount = roundTo2(customerDiscount)

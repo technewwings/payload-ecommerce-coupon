@@ -1,4 +1,5 @@
 import { roundTo2 } from './roundTo2'
+import { getCartItemUnitPrice } from './pricing'
 
 export function calculateCouponDiscount({ coupon, cartTotal }: { coupon: any; cartTotal: number }) {
   let discount = 0
@@ -23,9 +24,11 @@ export function calculateCouponDiscount({ coupon, cartTotal }: { coupon: any; ca
 export function calculateCommissionAndDiscount({
   cartItems,
   program,
+  currencyCode = 'AED',
 }: {
   cartItems: any[]
   program: any
+  currencyCode?: string
 }): { partnerCommission: number; customerDiscount: number } {
   const rules = program.commissionRules || []
 
@@ -43,14 +46,12 @@ export function calculateCommissionAndDiscount({
     const product = typeof item.product === 'object' ? item.product : {}
     const variant = typeof item.variant === 'object' ? item.variant : {}
 
-    const itemPrice =
-      item.price ??
-      item.unitPrice ??
-      product.price ??
-      product.priceInAED ??
-      variant.price ??
-      variant.priceInAED ??
-      0
+    const itemPrice = getCartItemUnitPrice({
+      item,
+      product,
+      variant,
+      currencyCode,
+    })
 
     const quantity = item.quantity ?? 1
     const itemTotal = itemPrice * quantity

@@ -221,4 +221,54 @@ describe('recalculateCartHook Integration', () => {
         expect(result.discountAmount).toBe(20)
         expect(result.total).toBe(180)
     })
+
+    it('should prefer requested/default currency price field from product', async () => {
+        const hook = recalculateCartHook(mockPluginConfig)
+        const data = { items: [{ product: 'p1', quantity: 2 }], appliedCoupon: 'coupon-1' }
+
+        mockPayload.find.mockImplementation((args: any) => {
+            if (args.collection === 'products') {
+                return Promise.resolve({
+                    docs: [{ id: 'p1', priceInUSD: 120, priceInAED: 440, price: 999 }],
+                })
+            }
+            if (args.collection === 'coupons') {
+                return Promise.resolve({
+                    docs: [{ id: 'coupon-1', type: 'fixed', value: 30 }],
+                })
+            }
+            return Promise.resolve({ docs: [] })
+        })
+
+        const result: any = await hook({ data, req: mockReq } as any)
+
+        // Uses USD field from plugin default currency (120 * 2 = 240)
+        expect(result.discountAmount).toBe(30)
+        expect(result.total).toBe(210)
+    })
+
+    it('should fallback to base price when currency-specific fields are missing', async () => {
+        const hook = recalculateCartHook(mockPluginConfig)
+        const data = { items: [{ product: 'p1', quantity: 2 }], appliedCoupon: 'coupon-1' }
+
+        mockPayload.find.mockImplementation((args: any) => {
+            if (args.collection === 'products') {
+                return Promise.resolve({
+                    docs: [{ id: 'p1', price: 80 }],
+                })
+            }
+            if (args.collection === 'coupons') {
+                return Promise.resolve({
+                    docs: [{ id: 'coupon-1', type: 'percentage', value: 25 }],
+                })
+            }
+            return Promise.resolve({ docs: [] })
+        })
+
+        const result: any = await hook({ data, req: mockReq } as any)
+
+        // (80 * 2) - 25% = 120
+        expect(result.discountAmount).toBe(40)
+        expect(result.total).toBe(120)
+    })
 })
