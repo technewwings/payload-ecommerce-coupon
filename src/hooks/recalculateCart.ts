@@ -39,8 +39,11 @@ export const recalculateCartHook =
 
     // Determine effective codes
     const appliedReferralCode =
-      data.appliedReferralCode !== undefined ? data.appliedReferralCode : originalDoc?.appliedReferralCode
-    const appliedCoupon = data.appliedCoupon !== undefined ? data.appliedCoupon : originalDoc?.appliedCoupon
+      data.appliedReferralCode !== undefined
+        ? data.appliedReferralCode
+        : originalDoc?.appliedReferralCode
+    const appliedCoupon =
+      data.appliedCoupon !== undefined ? data.appliedCoupon : originalDoc?.appliedCoupon
 
     if (!appliedReferralCode && !appliedCoupon) {
       // No codes applied, just return data (cleanup done by other logic if needed, or we explicitly clear?)
@@ -82,7 +85,7 @@ export const recalculateCartHook =
 
     const productIds = effectiveItems
       .map((item: any) => getRelationID(item.product))
-      .filter((id): id is number | string => id !== undefined)
+      .filter((id: any): id is number | string => id !== undefined)
 
     if (!productIds.length) return data
 

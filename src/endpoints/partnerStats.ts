@@ -131,9 +131,15 @@ export const partnerStatsHandler =
               const typedProgram = programData as any
               const firstRule = typedProgram.commissionRules?.[0]
               const partnerSplit =
-                firstRule?.partnerSplit ?? firstRule?.referrerSplit ?? firstRule?.split?.partnerPercentage ?? 0
+                firstRule?.partnerSplit ??
+                firstRule?.referrerSplit ??
+                firstRule?.split?.partnerPercentage ??
+                0
               const customerSplit =
-                firstRule?.customerSplit ?? firstRule?.refereeSplit ?? firstRule?.split?.customerPercentage ?? (100 - partnerSplit)
+                firstRule?.customerSplit ??
+                firstRule?.refereeSplit ??
+                firstRule?.split?.customerPercentage ??
+                100 - partnerSplit
               program = {
                 name: typedProgram.name,
                 commissionRate: partnerSplit,

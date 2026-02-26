@@ -86,7 +86,7 @@ export const createReferralCodesCollection = (
         relationTo: 'users',
         required: true,
         filterOptions: {
-          roles: { in: 'partner' },
+          roles: { contains: 'partner' },
         },
         admin: {
           description: 'The partner who owns this referral code',

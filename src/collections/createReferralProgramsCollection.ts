@@ -39,62 +39,77 @@ export const createReferralProgramsCollection = (
         throw new Error('At least one commission rule is required')
       }
 
-      data.commissionRules = data.commissionRules.map((rule: Record<string, unknown>, index: number) => {
-        const r = rule as RuleData
+      data.commissionRules = data.commissionRules.map(
+        (rule: Record<string, unknown>, index: number) => {
+          const r = rule as RuleData
 
-        if (!r.totalCommission) {
-          throw new Error(`Commission rule ${index + 1}: Total Commission is required`)
-        }
+          if (!r.totalCommission) {
+            throw new Error(`Commission rule ${index + 1}: Total Commission is required`)
+          }
 
-        if (!r.totalCommission.type || !['fixed', 'percentage'].includes(r.totalCommission.type)) {
-          throw new Error(`Commission rule ${index + 1}: Total Commission type must be fixed or percentage`)
-        }
+          if (
+            !r.totalCommission.type ||
+            !['fixed', 'percentage'].includes(r.totalCommission.type)
+          ) {
+            throw new Error(
+              `Commission rule ${index + 1}: Total Commission type must be fixed or percentage`,
+            )
+          }
 
-        const totalValue = toNumber(r.totalCommission.value)
-        if (totalValue == null || totalValue < 0) {
-          throw new Error(`Commission rule ${index + 1}: Total Commission value must be a non-negative number`)
-        }
-        if (r.totalCommission.type === 'percentage' && totalValue > 100) {
-          throw new Error(`Commission rule ${index + 1}: Percentage Total Commission cannot exceed 100`)
-        }
+          const totalValue = toNumber(r.totalCommission.value)
+          if (totalValue == null || totalValue < 0) {
+            throw new Error(
+              `Commission rule ${index + 1}: Total Commission value must be a non-negative number`,
+            )
+          }
+          if (r.totalCommission.type === 'percentage' && totalValue > 100) {
+            throw new Error(
+              `Commission rule ${index + 1}: Percentage Total Commission cannot exceed 100`,
+            )
+          }
 
-        const maxAmount = toNumber(r.totalCommission.maxAmount)
-        if (maxAmount != null && maxAmount < 0) {
-          throw new Error(`Commission rule ${index + 1}: Max Amount must be a non-negative number`)
-        }
+          const maxAmount = toNumber(r.totalCommission.maxAmount)
+          if (maxAmount != null && maxAmount < 0) {
+            throw new Error(
+              `Commission rule ${index + 1}: Max Amount must be a non-negative number`,
+            )
+          }
 
-        const appliesTo = r.appliesTo ?? 'all'
-        if (appliesTo === 'products' && (!r.products || r.products.length === 0)) {
-          throw new Error(`Commission rule ${index + 1}: At least one product is required`)
-        }
+          const appliesTo = r.appliesTo ?? 'all'
+          if (appliesTo === 'products' && (!r.products || r.products.length === 0)) {
+            throw new Error(`Commission rule ${index + 1}: At least one product is required`)
+          }
 
-        if (
-          (appliesTo === 'segments' || appliesTo === 'categories') &&
-          (!r.categories || r.categories.length === 0) &&
-          (!r.tags || r.tags.length === 0)
-        ) {
-          throw new Error(`Commission rule ${index + 1}: At least one category or tag is required`)
-        }
+          if (
+            (appliesTo === 'segments' || appliesTo === 'categories') &&
+            (!r.categories || r.categories.length === 0) &&
+            (!r.tags || r.tags.length === 0)
+          ) {
+            throw new Error(
+              `Commission rule ${index + 1}: At least one category or tag is required`,
+            )
+          }
 
-        const partnerSplit = toNumber(r.partnerSplit)
-        if (partnerSplit == null || partnerSplit < 0 || partnerSplit > 100) {
-          throw new Error(`Commission rule ${index + 1}: Partner Split must be between 0 and 100`)
-        }
+          const partnerSplit = toNumber(r.partnerSplit)
+          if (partnerSplit == null || partnerSplit < 0 || partnerSplit > 100) {
+            throw new Error(`Commission rule ${index + 1}: Partner Split must be between 0 and 100`)
+          }
 
-        const customerSplit = 100 - partnerSplit
+          const customerSplit = 100 - partnerSplit
 
-        return {
-          ...rule,
-          appliesTo: appliesTo === 'categories' ? 'segments' : appliesTo,
-          totalCommission: {
-            type: r.totalCommission.type,
-            value: totalValue,
-            maxAmount: maxAmount ?? null,
-          },
-          partnerSplit,
-          customerSplit,
-        }
-      })
+          return {
+            ...rule,
+            appliesTo: appliesTo === 'categories' ? 'segments' : appliesTo,
+            totalCommission: {
+              type: r.totalCommission.type,
+              value: totalValue,
+              maxAmount: maxAmount ?? null,
+            },
+            partnerSplit,
+            customerSplit,
+          }
+        },
+      )
 
       return data
     },
