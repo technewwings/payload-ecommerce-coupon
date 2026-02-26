@@ -35,7 +35,7 @@ export const partnerStatsHandler =
       const referralCodesQuery = await payload.find({
         collection: pluginConfig.collections.referralCodesSlug,
         where: {
-          referrer: { equals: typedUser.id },
+          partner: { equals: typedUser.id },
         },
         limit: 100,
       })

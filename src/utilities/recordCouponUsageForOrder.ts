@@ -22,7 +22,7 @@ export type RecordCouponUsageResult = {
  *
  * - Coupon: increments the coupon's usageCount.
  * - Referral: increments the referral code's usageCount and successfulReferralsCount,
- *   and adds order.partnerCommission to totalEarnings and pendingEarnings (referrer gets commission;
+ *   and adds order.partnerCommission to totalEarnings and pendingEarnings (partner gets commission;
  *   referee discount is already on the order).
  */
 export async function recordCouponUsageForOrder(

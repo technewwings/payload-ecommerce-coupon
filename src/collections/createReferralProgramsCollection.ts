@@ -16,6 +16,14 @@ function toNumber(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? value : null
 }
 
+const deriveCustomerSplit = (partnerSplit: unknown): number => {
+  const partner = toNumber(partnerSplit)
+  if (partner == null) return 0
+  if (partner < 0) return 100
+  if (partner > 100) return 0
+  return 100 - partner
+}
+
 export const createReferralProgramsCollection = (
   pluginConfig: SanitizedCouponPluginOptions,
 ): CollectionConfig => {
@@ -236,9 +244,19 @@ export const createReferralProgramsCollection = (
             type: 'number',
             min: 0,
             max: 100,
+            hooks: {
+              beforeValidate: [
+                ({ siblingData }: { siblingData?: { partnerSplit?: number } }) =>
+                  deriveCustomerSplit(siblingData?.partnerSplit),
+              ],
+              beforeChange: [
+                ({ siblingData }: { siblingData?: { partnerSplit?: number } }) =>
+                  deriveCustomerSplit(siblingData?.partnerSplit),
+              ],
+            },
             admin: {
               readOnly: true,
-              description: 'Auto-calculated as 100 - Partner Split',
+              description: 'Auto-calculated from Partner Split (saved automatically)',
             },
           },
         ],

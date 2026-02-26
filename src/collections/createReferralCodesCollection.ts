@@ -11,7 +11,7 @@ export const createReferralCodesCollection = (
     slug: collections.referralCodesSlug,
     admin: {
       useAsTitle: 'code',
-      defaultColumns: ['code', 'referrer', 'program', 'usageCount', 'isActive'],
+      defaultColumns: ['code', 'partner', 'program', 'usageCount', 'isActive'],
       group: adminGroups.referralsGroup,
     },
     access: {
@@ -31,7 +31,7 @@ export const createReferralCodesCollection = (
           (Array.isArray(user.roles) && user.roles.includes('partner'))
         ) {
           return {
-            referrer: {
+            partner: {
               equals: user.id,
             },
           }
@@ -81,10 +81,13 @@ export const createReferralCodesCollection = (
         },
       },
       {
-        name: 'referrer',
+        name: 'partner',
         type: 'relationship',
         relationTo: 'users',
         required: true,
+        filterOptions: {
+          roles: { in: 'partner' },
+        },
         admin: {
           description: 'The partner who owns this referral code',
         },
@@ -169,20 +172,20 @@ export const createReferralCodesCollection = (
       beforeChange: [
         ({ operation, req, data }) => {
           // Auto-generate code if not provided
-          if (operation === 'create' && !data.code && data.referrer) {
+          if (operation === 'create' && !data.code && data.partner) {
             const timestamp = Date.now().toString(36)
             const random = Math.random().toString(36).substring(2, 8)
             data.code = `REF-${timestamp}-${random}`.toUpperCase()
           }
 
-          // Auto-assign referrer to current user if partner
+          // Auto-assign partner to current user if partner
           if (operation === 'create' && req.user) {
             const user = req.user as { id?: string; role?: string; roles?: string[] }
             if (
               user.role === 'partner' ||
               (Array.isArray(user.roles) && user.roles.includes('partner'))
             ) {
-              data.referrer = user.id
+              data.partner = user.id
             }
           }
 
