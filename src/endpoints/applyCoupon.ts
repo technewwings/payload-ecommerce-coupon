@@ -13,12 +13,22 @@ type Args = {
 // Debug Capture
 const globalDebugLogs: string[] = []
 
+const getRelationId = (value: any): string | number | null => {
+  if (value == null) return null
+  if (typeof value === 'string' || typeof value === 'number') return value
+  if (typeof value === 'object' && (typeof value.id === 'string' || typeof value.id === 'number')) {
+    return value.id
+  }
+  return null
+}
+
 export const applyCouponHandler =
   ({ pluginConfig }: Args): PayloadHandler =>
   async (req) => {
     globalDebugLogs.length = 0 // Reset logs
     const { payload } = req
-    const { code, cartID, customerEmail } = req.data || {}
+    const { code: rawCode, cartID, customerEmail } = req.data || {}
+    const code = typeof rawCode === 'string' ? rawCode.trim() : rawCode
 
     if (!code || !cartID) {
       return Response.json(
@@ -205,7 +215,7 @@ async function handleCouponCode({
   }
 
   // Check if coupon already applied to this cart
-  if (cart.appliedCoupon === coupon.id) {
+  if (getRelationId(cart.appliedCoupon) === coupon.id) {
     return Response.json(
       { success: false, error: 'Coupon already applied to this cart' },
       { status: 400 },
@@ -354,21 +364,8 @@ async function handleReferralCode({
     )
   }
 
-  // Check program dates
-  const now = new Date()
-  if (program.activeFrom && now < new Date(program.activeFrom)) {
-    return Response.json(
-      { success: false, error: 'Referral program is not yet active' },
-      { status: 400 },
-    )
-  }
-
-  if (program.activeUntil && now > new Date(program.activeUntil)) {
-    return Response.json({ success: false, error: 'Referral program has expired' }, { status: 400 })
-  }
-
   // Check if referral code already applied to this cart
-  if (cart.appliedReferralCode === referralCode.id) {
+  if (getRelationId(cart.appliedReferralCode) === referralCode.id) {
     return Response.json(
       { success: false, error: 'Referral code already applied to this cart' },
       { status: 400 },
@@ -378,21 +375,11 @@ async function handleReferralCode({
   // Calculate commission and discount
   const cartTotal = cart.subtotal || cart.total || 0
 
-  // Check minimum order value
-  if (program.minOrderValue && cartTotal < program.minOrderValue) {
-    return Response.json(
-      {
-        success: false,
-        error: `Minimum order value of ${program.minOrderValue} ${pluginConfig.defaultCurrency} required`,
-      },
-      { status: 400 },
-    )
-  }
-
   // Calculate based on commission rules
   const { partnerCommission, customerDiscount } = calculateCommissionAndDiscount({
     cartItems: cart.items || [],
     program,
+    currencyCode: pluginConfig.defaultCurrency,
   })
 
   // Round commission and discount

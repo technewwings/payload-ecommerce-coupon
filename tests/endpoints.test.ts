@@ -740,3 +740,145 @@ describe('Validate Coupon Endpoint', () => {
     })
   })
 })
+
+describe('Referral v2 Consistency', () => {
+  const referralPluginConfig = sanitizePluginConfig({
+    pluginConfig: {
+      enabled: true,
+      enableReferrals: true,
+      defaultCurrency: 'USD',
+      collections: {
+        couponsSlug: 'coupons',
+        referralProgramsSlug: 'referral-programs',
+        referralCodesSlug: 'referral-codes',
+        referralPartnersSlug: 'referral-partners',
+      },
+      endpoints: {
+        applyCoupon: '/coupons/apply',
+        validateCoupon: '/coupons/validate',
+      },
+      access: {
+        canUseCoupons: () => true,
+        canUseReferrals: () => true,
+        isAdmin: () => true,
+      },
+    },
+  })
+
+  beforeEach(() => {
+    jest.clearAllMocks()
+  })
+
+  it('should return identical referral values in apply and validate for same cart', async () => {
+    const referralCode = { id: 'ref-1', code: 'REF123', isActive: true, program: 'prog-1' }
+    const program = {
+      id: 'prog-1',
+      isActive: true,
+      commissionRules: [
+        {
+          appliesTo: 'all',
+          totalCommission: { type: 'percentage', value: 10 },
+          partnerSplit: 50,
+          customerSplit: 50,
+        },
+      ],
+    }
+    const cart = {
+      id: 'cart-1',
+      subtotal: 100,
+      items: [{ product: { id: 'p1' }, quantity: 1, price: 100 }],
+    }
+
+    mockPayload.find.mockImplementation((args: any) => {
+      if (args.collection === 'referral-codes') return Promise.resolve({ docs: [referralCode] })
+      return Promise.resolve({ docs: [] })
+    })
+    mockPayload.findByID.mockImplementation((args: any) => {
+      if (args.collection === 'carts') return Promise.resolve(cart)
+      if (args.collection === 'referral-programs') return Promise.resolve(program)
+      return Promise.resolve(null)
+    })
+    mockPayload.update.mockResolvedValue({})
+
+    const apply = applyCouponHandler({ pluginConfig: referralPluginConfig })
+    const validate = validateCouponHandler({ pluginConfig: referralPluginConfig })
+
+    const applyResp = await apply({
+      payload: mockPayload,
+      data: { code: 'REF123', cartID: 'cart-1' },
+    } as any)
+    const validateResp = await validate({
+      payload: mockPayload,
+      data: { code: 'REF123', cartID: 'cart-1' },
+    } as any)
+
+    const applyJson = await applyResp.json()
+    const validateJson = await validateResp.json()
+
+    expect(applyJson.partnerCommission).toBe(validateJson.partnerCommission)
+    expect(applyJson.customerDiscount).toBe(validateJson.customerDiscount)
+  })
+
+  it('should trim referral code before lookup', async () => {
+    const referralCode = { id: 'ref-1', code: 'REF123', isActive: true, program: 'prog-1' }
+    const program = { id: 'prog-1', isActive: true, commissionRules: [] }
+    const cart = { id: 'cart-1', subtotal: 100, items: [] }
+
+    mockPayload.find.mockImplementation((args: any) => {
+      if (args.collection === 'referral-codes' && args.where?.code?.equals === 'REF123') {
+        return Promise.resolve({ docs: [referralCode] })
+      }
+      return Promise.resolve({ docs: [] })
+    })
+    mockPayload.findByID.mockImplementation((args: any) => {
+      if (args.collection === 'carts') return Promise.resolve(cart)
+      if (args.collection === 'referral-programs') return Promise.resolve(program)
+      return Promise.resolve(null)
+    })
+    mockPayload.update.mockResolvedValue({})
+
+    const apply = applyCouponHandler({ pluginConfig: referralPluginConfig })
+    const resp = await apply({
+      payload: mockPayload,
+      data: { code: ' REF123 ', cartID: 'cart-1' },
+    } as any)
+    const result = await resp.json()
+
+    expect(resp.status).toBe(200)
+    expect(result.success).toBe(true)
+  })
+
+  it('should detect already applied referral when relation is populated object', async () => {
+    const referralCode = { id: 'ref-1', code: 'REF123', isActive: true, program: 'prog-1' }
+    const program = { id: 'prog-1', isActive: true, commissionRules: [] }
+    const cart = { id: 'cart-1', subtotal: 100, items: [], appliedReferralCode: { id: 'ref-1' } }
+
+    mockPayload.find.mockImplementation((args: any) => {
+      if (args.collection === 'referral-codes') return Promise.resolve({ docs: [referralCode] })
+      return Promise.resolve({ docs: [] })
+    })
+    mockPayload.findByID.mockImplementation((args: any) => {
+      if (args.collection === 'carts') return Promise.resolve(cart)
+      if (args.collection === 'referral-programs') return Promise.resolve(program)
+      return Promise.resolve(null)
+    })
+
+    const apply = applyCouponHandler({
+      pluginConfig: {
+        ...referralPluginConfig,
+        referralConfig: {
+          ...referralPluginConfig.referralConfig,
+          singleCodePerCart: false,
+        },
+      },
+    })
+    const resp = await apply({
+      payload: mockPayload,
+      data: { code: 'REF123', cartID: 'cart-1' },
+    } as any)
+    const result = await resp.json()
+
+    expect(resp.status).toBe(400)
+    expect(result.error).toBe('Referral code already applied to this cart')
+  })
+})

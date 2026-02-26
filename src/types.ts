@@ -175,7 +175,6 @@ export type PartnerDashboardData = {
   }>
   program: {
     name: string
-    description?: string
     commissionRate: number
     customerDiscount: number
   } | null

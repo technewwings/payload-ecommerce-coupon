@@ -6,19 +6,189 @@ export function calculateCouponDiscount({ coupon, cartTotal }: { coupon: any; ca
 
   if (coupon.type === 'percentage') {
     discount = roundTo2((cartTotal * coupon.value) / 100)
-    // Apply max discount cap if set
     if (coupon.maxDiscountAmount != null && discount > coupon.maxDiscountAmount) {
       discount = roundTo2(coupon.maxDiscountAmount)
     }
   } else if (coupon.type === 'fixed') {
     discount = roundTo2(coupon.value)
-    // Ensure discount doesn't exceed cart total
     if (discount > cartTotal) {
       discount = roundTo2(cartTotal)
     }
   }
 
   return roundTo2(discount)
+}
+
+function relationId(value: any): string | number | null {
+  if (value == null) return null
+  if (typeof value === 'string' || typeof value === 'number') return value
+  if (typeof value === 'object' && (typeof value.id === 'string' || typeof value.id === 'number')) {
+    return value.id
+  }
+  return null
+}
+
+function normalizeIds(values: any[] | null | undefined): Array<string | number> {
+  if (!Array.isArray(values)) return []
+  return values.map(relationId).filter((v): v is string | number => v != null)
+}
+
+function getRuleSplits(rule: any): { partnerSplit: number; customerSplit: number } | null {
+  const partnerRaw =
+    typeof rule.partnerSplit === 'number'
+      ? rule.partnerSplit
+      : typeof rule.referrerSplit === 'number'
+        ? rule.referrerSplit
+        : null
+  if (partnerRaw == null) return null
+
+  const customerRaw =
+    typeof rule.customerSplit === 'number'
+      ? rule.customerSplit
+      : typeof rule.refereeSplit === 'number'
+        ? rule.refereeSplit
+        : 100 - partnerRaw
+
+  return {
+    partnerSplit: partnerRaw,
+    customerSplit: customerRaw,
+  }
+}
+
+function calculateItemRewardByRule({
+  rule,
+  itemTotal,
+  quantity,
+}: {
+  rule: any
+  itemTotal: number
+  quantity: number
+}): { partner: number; customer: number } | null {
+  // Shared model (v2)
+  if (rule.totalCommission) {
+    const splits = getRuleSplits(rule)
+    if (!splits) return null
+
+    let totalPot = 0
+    if (rule.totalCommission.type === 'percentage') {
+      totalPot = (itemTotal * rule.totalCommission.value) / 100
+    } else {
+      totalPot = rule.totalCommission.value * quantity
+    }
+
+    if (rule.totalCommission.maxAmount != null) {
+      const maxPotForLine = rule.totalCommission.maxAmount * quantity
+      if (totalPot > maxPotForLine) {
+        totalPot = maxPotForLine
+      }
+    }
+
+    return {
+      partner: Math.floor((totalPot * splits.partnerSplit) / 100),
+      customer: Math.floor((totalPot * splits.customerSplit) / 100),
+    }
+  }
+
+  // Compatibility fallback for legacy direct rules during migration window.
+  if (rule.referrerReward && rule.refereeReward) {
+    let partner = 0
+    if (rule.referrerReward.type === 'percentage') {
+      partner = (itemTotal * rule.referrerReward.value) / 100
+    } else {
+      partner = rule.referrerReward.value * quantity
+    }
+    if (rule.referrerReward.maxReward != null && partner > rule.referrerReward.maxReward) {
+      partner = rule.referrerReward.maxReward
+    }
+
+    let customer = 0
+    if (rule.refereeReward.type === 'percentage') {
+      customer = (itemTotal * rule.refereeReward.value) / 100
+    } else {
+      customer = rule.refereeReward.value * quantity
+    }
+    if (rule.refereeReward.maxReward != null && customer > rule.refereeReward.maxReward) {
+      customer = rule.refereeReward.maxReward
+    }
+
+    return { partner, customer }
+  }
+
+  return null
+}
+
+function getItemCategoryIds(item: any): Array<string | number> {
+  const productCategories = Array.isArray(item?.product?.categories)
+    ? normalizeIds(item.product.categories)
+    : []
+  const singleCategory = relationId(item?.category ?? item?.product?.category)
+  return [...productCategories, ...(singleCategory != null ? [singleCategory] : [])]
+}
+
+function getItemTagIds(item: any): Array<string | number> {
+  return Array.isArray(item?.product?.tags) ? normalizeIds(item.product.tags) : []
+}
+
+function selectBestRuleForItem({
+  rules,
+  item,
+  itemTotal,
+  quantity,
+}: {
+  rules: any[]
+  item: any
+  itemTotal: number
+  quantity: number
+}): { rule: any; reward: { partner: number; customer: number } } | null {
+  const productId = relationId(item.product)
+  const itemCategoryIds = new Set(getItemCategoryIds(item))
+  const itemTagIds = new Set(getItemTagIds(item))
+
+  const productCandidates = rules.filter(
+    (r: any) =>
+      r.appliesTo === 'products' &&
+      normalizeIds(r.products).some((id) => productId != null && id === productId),
+  )
+
+  const segmentCategoryCandidates = rules.filter((r: any) => {
+    const isSegment = r.appliesTo === 'segments' || r.appliesTo === 'categories'
+    if (!isSegment) return false
+    return normalizeIds(r.categories).some((id) => itemCategoryIds.has(id))
+  })
+
+  const segmentTagCandidates = rules.filter((r: any) => {
+    if (r.appliesTo !== 'segments') return false
+    return normalizeIds(r.tags).some((id) => itemTagIds.has(id))
+  })
+
+  const allCandidates = rules.filter((r: any) => r.appliesTo === 'all')
+
+  const levels = [productCandidates, segmentCategoryCandidates, segmentTagCandidates, allCandidates]
+  const candidates = levels.find((level) => level.length > 0) ?? []
+  if (!candidates.length) return null
+
+  let best: { rule: any; reward: { partner: number; customer: number } } | null = null
+
+  for (const rule of candidates) {
+    const reward = calculateItemRewardByRule({ rule, itemTotal, quantity })
+    if (!reward) continue
+
+    if (!best) {
+      best = { rule, reward }
+      continue
+    }
+
+    if (reward.customer > best.reward.customer) {
+      best = { rule, reward }
+      continue
+    }
+
+    if (reward.customer === best.reward.customer && reward.partner > best.reward.partner) {
+      best = { rule, reward }
+    }
+  }
+
+  return best
 }
 
 export function calculateCommissionAndDiscount({
@@ -30,9 +200,9 @@ export function calculateCommissionAndDiscount({
   program: any
   currencyCode?: string
 }): { partnerCommission: number; customerDiscount: number } {
-  const rules = program.commissionRules || []
+  const rules = Array.isArray(program?.commissionRules) ? program.commissionRules : []
 
-  if (rules.length === 0) {
+  if (!rules.length) {
     return { partnerCommission: 0, customerDiscount: 0 }
   }
 
@@ -40,9 +210,6 @@ export function calculateCommissionAndDiscount({
   let totalCustomerDiscount = 0
 
   for (const item of cartItems) {
-    const rule = findApplicableCommissionRule(rules, item)
-    if (!rule) continue
-
     const product = typeof item.product === 'object' ? item.product : {}
     const variant = typeof item.variant === 'object' ? item.variant : {}
 
@@ -56,81 +223,18 @@ export function calculateCommissionAndDiscount({
     const quantity = item.quantity ?? 1
     const itemTotal = itemPrice * quantity
 
-    let itemPartner
-    let itemCustomer
+    const bestMatch = selectBestRuleForItem({
+      rules,
+      item: { ...item, product },
+      itemTotal,
+      quantity,
+    })
 
-    // Shared Basis Calculation
-    if (rule.basis === 'shared') {
-      if (!rule.totalCommission || rule.referrerSplit == null || rule.refereeSplit == null) {
-        continue
-      }
+    if (!bestMatch) continue
 
-      let totalPot
-      if (rule.totalCommission.type === 'percentage') {
-        totalPot = (itemTotal * rule.totalCommission.value) / 100
-      } else {
-        totalPot = rule.totalCommission.value * quantity
-      }
-
-      if (rule.totalCommission.maxAmount != null && totalPot > rule.totalCommission.maxAmount) {
-        totalPot = rule.totalCommission.maxAmount
-      }
-
-      // Using Math.floor as per customer requirement (e.g. 2499.5 -> 2499)
-      itemPartner = Math.floor((totalPot * (rule.referrerSplit || 0)) / 100)
-      itemCustomer = Math.floor((totalPot * (rule.refereeSplit || 0)) / 100)
-    }
-    // Direct Basis Calculation (Legacy)
-    else {
-      if (!rule.referrerReward || !rule.refereeReward) continue
-
-      // Partner commission from this rule's referrerReward
-      if (rule.referrerReward.type === 'percentage') {
-        itemPartner = (itemTotal * rule.referrerReward.value) / 100
-      } else {
-        itemPartner = rule.referrerReward.value * quantity
-      }
-      if (rule.referrerReward.maxReward != null && itemPartner > rule.referrerReward.maxReward) {
-        itemPartner = rule.referrerReward.maxReward
-      }
-
-      // Customer discount from this rule's refereeReward
-      if (rule.refereeReward.type === 'percentage') {
-        itemCustomer = (itemTotal * rule.refereeReward.value) / 100
-      } else {
-        itemCustomer = rule.refereeReward.value * quantity
-      }
-      if (rule.refereeReward.maxReward != null && itemCustomer > rule.refereeReward.maxReward) {
-        itemCustomer = rule.refereeReward.maxReward
-      }
-    }
-
-    totalPartnerCommission += itemPartner
-    totalCustomerDiscount += itemCustomer
+    totalPartnerCommission += bestMatch.reward.partner
+    totalCustomerDiscount += bestMatch.reward.customer
   }
 
   return { partnerCommission: totalPartnerCommission, customerDiscount: totalCustomerDiscount }
-}
-
-function findApplicableCommissionRule(rules: any[], item: any) {
-  const productId = typeof item.product === 'string' ? item.product : item.product?.id
-  const categoryId = item.category ?? item.product?.category
-
-  const productRule = rules.find(
-    (r: any) =>
-      r.appliesTo === 'products' &&
-      r.products?.some((p: any) => (typeof p === 'string' ? p : p?.id) === productId),
-  )
-  if (productRule) return productRule
-
-  if (categoryId) {
-    const categoryRule = rules.find(
-      (r: any) =>
-        r.appliesTo === 'categories' &&
-        r.categories?.some((c: any) => (typeof c === 'string' ? c : c?.id) === categoryId),
-    )
-    if (categoryRule) return categoryRule
-  }
-
-  return rules.find((r: any) => r.appliesTo === 'all') ?? null
 }

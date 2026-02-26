@@ -1,6 +1,7 @@
 import type { Endpoint, PayloadHandler } from 'payload'
 
 import type { SanitizedCouponPluginOptions } from '../types'
+import { calculateCommissionAndDiscount } from '../utilities/calculateValues'
 import { roundTo2 } from '../utilities/roundTo2'
 
 type Args = {
@@ -11,7 +12,8 @@ export const validateCouponHandler =
   ({ pluginConfig }: Args): PayloadHandler =>
   async (req) => {
     const { payload } = req
-    const { code, cartValue, cartID, customerEmail } = req.data || {}
+    const { code: rawCode, cartValue, cartID, customerEmail } = req.data || {}
+    const code = typeof rawCode === 'string' ? rawCode.trim() : rawCode
 
     if (!code) {
       return Response.json(
@@ -260,9 +262,12 @@ async function validateReferralCode({
   }
 
   // Get the referral program
+  const programId =
+    typeof referralData.program === 'string' ? referralData.program : referralData.program?.id
+
   const program = await payload.findByID({
     collection: pluginConfig.collections.referralProgramsSlug,
-    id: referralData.program,
+    id: programId,
   })
 
   if (!program || !program.isActive) {
@@ -272,55 +277,26 @@ async function validateReferralCode({
     )
   }
 
-  // Calculate from commission rules (each rule has referrerReward + refereeReward)
-  let totalPartnerCommission = 0
-  let totalCustomerDiscount = 0
-  const rules = (program as any).commissionRules || []
+  const cart = cartID
+    ? await payload.findByID({
+        collection: 'carts',
+        id: cartID,
+        depth: 2,
+      })
+    : null
 
-  if (cartID && rules.length > 0) {
-    const cart = await payload.findByID({
-      collection: 'carts',
-      id: cartID,
-    })
-    const cartTotal = cart ? cart.subtotal || cart.total || 0 : 0
-    const items = cart?.items || []
+  const { partnerCommission, customerDiscount } = calculateCommissionAndDiscount({
+    cartItems: cart?.items || [],
+    program,
+    currencyCode: pluginConfig.defaultCurrency,
+  })
 
-    for (const item of items) {
-      const rule = findApplicableReferralRule(rules, item)
-      if (!rule?.referrerReward || !rule?.refereeReward) continue
+  const cartTotal = cart ? cart.subtotal || cart.total || 0 : 0
+  const cappedCustomerDiscount =
+    cartTotal > 0 ? Math.min(customerDiscount, cartTotal) : customerDiscount
 
-      const itemPrice = item.price ?? item.unitPrice ?? 0
-      const quantity = item.quantity ?? 1
-      const itemTotal = itemPrice * quantity
-
-      let itemPartner
-      if (rule.referrerReward.type === 'percentage') {
-        itemPartner = (itemTotal * rule.referrerReward.value) / 100
-      } else {
-        itemPartner = rule.referrerReward.value * quantity
-      }
-      if (rule.referrerReward.maxReward != null && itemPartner > rule.referrerReward.maxReward) {
-        itemPartner = rule.referrerReward.maxReward
-      }
-      totalPartnerCommission += itemPartner
-
-      let itemCustomer
-      if (rule.refereeReward.type === 'percentage') {
-        itemCustomer = (itemTotal * rule.refereeReward.value) / 100
-      } else {
-        itemCustomer = rule.refereeReward.value * quantity
-      }
-      if (rule.refereeReward.maxReward != null && itemCustomer > rule.refereeReward.maxReward) {
-        itemCustomer = rule.refereeReward.maxReward
-      }
-      totalCustomerDiscount += itemCustomer
-    }
-
-    if (totalCustomerDiscount > cartTotal) totalCustomerDiscount = cartTotal
-  }
-
-  const roundedPartnerCommission = roundTo2(totalPartnerCommission)
-  const roundedCustomerDiscount = roundTo2(totalCustomerDiscount)
+  const roundedPartnerCommission = roundTo2(partnerCommission)
+  const roundedCustomerDiscount = roundTo2(cappedCustomerDiscount)
 
   return Response.json({
     success: true,
@@ -332,29 +308,6 @@ async function validateReferralCode({
     customerDiscount: roundedCustomerDiscount,
     currency: pluginConfig.defaultCurrency,
   })
-}
-
-function findApplicableReferralRule(rules: any[], item: any) {
-  const productId = typeof item.product === 'string' ? item.product : item.product?.id
-  const categoryId = item.category ?? item.product?.category
-
-  const productRule = rules.find(
-    (r) =>
-      r.appliesTo === 'products' &&
-      r.products?.some((p: any) => (typeof p === 'string' ? p : p?.id) === productId),
-  )
-  if (productRule) return productRule
-
-  if (categoryId) {
-    const categoryRule = rules.find(
-      (r) =>
-        r.appliesTo === 'categories' &&
-        r.categories?.some((c: any) => (typeof c === 'string' ? c : c?.id) === categoryId),
-    )
-    if (categoryRule) return categoryRule
-  }
-
-  return rules.find((r) => r.appliesTo === 'all') ?? null
 }
 
 export const validateCouponEndpoint = ({ pluginConfig }: Args): Endpoint => ({

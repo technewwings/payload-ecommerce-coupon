@@ -2,6 +2,20 @@ import type { CollectionConfig } from 'payload'
 
 import type { SanitizedCouponPluginOptions } from '../types'
 
+type RuleData = {
+  appliesTo?: 'all' | 'products' | 'segments' | 'categories'
+  products?: unknown[]
+  categories?: unknown[]
+  tags?: unknown[]
+  totalCommission?: { type?: 'fixed' | 'percentage'; value?: number; maxAmount?: number }
+  partnerSplit?: number
+  customerSplit?: number
+}
+
+function toNumber(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null
+}
+
 export const createReferralProgramsCollection = (
   pluginConfig: SanitizedCouponPluginOptions,
 ): CollectionConfig => {
@@ -9,7 +23,6 @@ export const createReferralProgramsCollection = (
 
   const beforeChange: NonNullable<CollectionConfig['hooks']>['beforeChange'] = [
     ({ data }: { data: Record<string, unknown> }) => {
-      // Commission rules are required; each rule must have referrerReward and refereeReward
       if (
         !data.commissionRules ||
         !Array.isArray(data.commissionRules) ||
@@ -17,57 +30,64 @@ export const createReferralProgramsCollection = (
       ) {
         throw new Error('At least one commission rule is required')
       }
-      data.commissionRules.forEach((rule: Record<string, unknown>, index: number) => {
-        const r = rule as {
-          basis?: 'direct' | 'shared'
-          referrerReward?: { type?: string; value?: number }
-          refereeReward?: { type?: string; value?: number }
-          totalCommission?: { type?: string; value?: number }
-          referrerSplit?: number
-          refereeSplit?: number
+
+      data.commissionRules = data.commissionRules.map((rule: Record<string, unknown>, index: number) => {
+        const r = rule as RuleData
+
+        if (!r.totalCommission) {
+          throw new Error(`Commission rule ${index + 1}: Total Commission is required`)
         }
 
-        // Shared Basis Validation
-        if (r.basis === 'shared') {
-          if (!r.totalCommission || r.totalCommission.value == null) {
-            throw new Error(
-              `Commission rule ${index + 1}: Total Commission is required for Shared Basis`,
-            )
-          }
-          if (r.referrerSplit == null) {
-            throw new Error(
-              `Commission rule ${index + 1}: Referrer Split is required for Shared Basis`,
-            )
-          }
-          if (r.refereeSplit == null) {
-            throw new Error(
-              `Commission rule ${index + 1}: Referee Split is required for Shared Basis`,
-            )
-          }
-          if ((r.referrerSplit || 0) + (r.refereeSplit || 0) > 100) {
-            throw new Error(
-              `Commission rule ${index + 1}: Referrer + Referee split cannot exceed 100%`,
-            )
-          }
+        if (!r.totalCommission.type || !['fixed', 'percentage'].includes(r.totalCommission.type)) {
+          throw new Error(`Commission rule ${index + 1}: Total Commission type must be fixed or percentage`)
         }
-        // Direct Basis Validation (Legacy)
-        else {
-          if (!r.referrerReward || r.referrerReward.value == null) {
-            throw new Error(`Commission rule ${index + 1}: Referrer Reward is required`)
-          }
-          if (!r.refereeReward || r.refereeReward.value == null) {
-            throw new Error(`Commission rule ${index + 1}: Referee Reward is required`)
-          }
-          if (r.referrerReward?.type === 'percentage' && r.refereeReward?.type === 'percentage') {
-            const total = (r.referrerReward.value || 0) + (r.refereeReward.value || 0)
-            if (total > 100) {
-              throw new Error(
-                `Commission rule ${index + 1}: Referrer + Referee percentage cannot exceed 100%`,
-              )
-            }
-          }
+
+        const totalValue = toNumber(r.totalCommission.value)
+        if (totalValue == null || totalValue < 0) {
+          throw new Error(`Commission rule ${index + 1}: Total Commission value must be a non-negative number`)
+        }
+        if (r.totalCommission.type === 'percentage' && totalValue > 100) {
+          throw new Error(`Commission rule ${index + 1}: Percentage Total Commission cannot exceed 100`)
+        }
+
+        const maxAmount = toNumber(r.totalCommission.maxAmount)
+        if (maxAmount != null && maxAmount < 0) {
+          throw new Error(`Commission rule ${index + 1}: Max Amount must be a non-negative number`)
+        }
+
+        const appliesTo = r.appliesTo ?? 'all'
+        if (appliesTo === 'products' && (!r.products || r.products.length === 0)) {
+          throw new Error(`Commission rule ${index + 1}: At least one product is required`)
+        }
+
+        if (
+          (appliesTo === 'segments' || appliesTo === 'categories') &&
+          (!r.categories || r.categories.length === 0) &&
+          (!r.tags || r.tags.length === 0)
+        ) {
+          throw new Error(`Commission rule ${index + 1}: At least one category or tag is required`)
+        }
+
+        const partnerSplit = toNumber(r.partnerSplit)
+        if (partnerSplit == null || partnerSplit < 0 || partnerSplit > 100) {
+          throw new Error(`Commission rule ${index + 1}: Partner Split must be between 0 and 100`)
+        }
+
+        const customerSplit = 100 - partnerSplit
+
+        return {
+          ...rule,
+          appliesTo: appliesTo === 'categories' ? 'segments' : appliesTo,
+          totalCommission: {
+            type: r.totalCommission.type,
+            value: totalValue,
+            maxAmount: maxAmount ?? null,
+          },
+          partnerSplit,
+          customerSplit,
         }
       })
+
       return data
     },
   ]
@@ -98,13 +118,6 @@ export const createReferralProgramsCollection = (
         },
       },
       {
-        name: 'description',
-        type: 'textarea',
-        admin: {
-          description: 'Description of the referral program',
-        },
-      },
-      {
         name: 'isActive',
         type: 'checkbox',
         defaultValue: true,
@@ -118,15 +131,14 @@ export const createReferralProgramsCollection = (
         required: true,
         minRows: 1,
         admin: {
-          description:
-            'Commission rules: each rule defines who it applies to and Referrer Reward + Referee Reward inside the rule.',
+          description: 'Rules for referral commission and customer discount distribution.',
         },
         fields: [
           {
             name: 'name',
             type: 'text',
-            required: true,
-            admin: { description: 'Name of this rule' },
+            required: false,
+            admin: { description: 'Optional rule label for admin clarity' },
           },
           {
             name: 'appliesTo',
@@ -134,21 +146,10 @@ export const createReferralProgramsCollection = (
             required: true,
             options: [
               { label: 'All Products', value: 'all' },
-              { label: 'Specific Categories', value: 'categories' },
               { label: 'Specific Products', value: 'products' },
+              { label: 'Categories and Tags', value: 'segments' },
             ],
             defaultValue: 'all',
-          },
-          {
-            name: 'categories',
-            type: 'relationship',
-            relationTo: 'categories',
-            hasMany: true,
-            admin: {
-              condition: (_: unknown, siblingData: { appliesTo?: string }) =>
-                siblingData?.appliesTo === 'categories',
-              description: 'Categories this rule applies to',
-            },
           },
           {
             name: 'products',
@@ -162,26 +163,32 @@ export const createReferralProgramsCollection = (
             },
           },
           {
-            name: 'basis',
-            type: 'select',
-            required: true,
-            defaultValue: 'direct',
-            options: [
-              { label: 'Direct Values', value: 'direct' },
-              { label: 'Shared Commission', value: 'shared' },
-            ],
+            name: 'categories',
+            type: 'relationship',
+            relationTo: 'categories',
+            hasMany: true,
             admin: {
-              description:
-                'Direct: Set specific reward/discount for each. Shared: Set a total commission and split it.',
+              condition: (_: unknown, siblingData: { appliesTo?: string }) =>
+                siblingData?.appliesTo === 'segments',
+              description: 'Any matching category can activate this rule',
+            },
+          },
+          {
+            name: 'tags',
+            type: 'relationship',
+            relationTo: 'tags',
+            hasMany: true,
+            admin: {
+              condition: (_: unknown, siblingData: { appliesTo?: string }) =>
+                siblingData?.appliesTo === 'segments',
+              description: 'Any matching tag can activate this rule',
             },
           },
           {
             name: 'totalCommission',
             type: 'group',
             admin: {
-              condition: (_: unknown, siblingData: { basis?: string }) =>
-                siblingData?.basis === 'shared',
-              description: 'Total commission available to be split between partner and customer',
+              description: 'Total commission pool to split between partner and customer',
             },
             fields: [
               {
@@ -198,6 +205,7 @@ export const createReferralProgramsCollection = (
                 name: 'value',
                 type: 'number',
                 required: true,
+                min: 0,
                 admin: {
                   description: `Total commission value`,
                 },
@@ -205,6 +213,7 @@ export const createReferralProgramsCollection = (
               {
                 name: 'maxAmount',
                 type: 'number',
+                min: 0,
                 admin: {
                   description: `Max commission cap per item in ${defaultCurrency}`,
                 },
@@ -212,155 +221,27 @@ export const createReferralProgramsCollection = (
             ],
           },
           {
-            name: 'referrerSplit',
+            name: 'partnerSplit',
+            type: 'number',
+            required: true,
+            min: 0,
+            max: 100,
+            defaultValue: referralConfig.defaultPartnerSplit,
+            admin: {
+              description: 'Percentage of total commission given to Partner (0-100)',
+            },
+          },
+          {
+            name: 'customerSplit',
             type: 'number',
             min: 0,
             max: 100,
             admin: {
-              condition: (_: unknown, siblingData: { basis?: string }) =>
-                siblingData?.basis === 'shared',
-              description: 'Percentage of total commission given to the Partner (0-100)',
+              readOnly: true,
+              description: 'Auto-calculated as 100 - Partner Split',
             },
-          },
-          {
-            name: 'refereeSplit',
-            type: 'number',
-            min: 0,
-            max: 100,
-            admin: {
-              condition: (_: unknown, siblingData: { basis?: string }) =>
-                siblingData?.basis === 'shared',
-              description: 'Percentage of total commission given as Discount to Customer (0-100)',
-            },
-          },
-          {
-            name: 'referrerReward',
-            type: 'group',
-            admin: {
-              condition: (_: unknown, siblingData: { basis?: string }) =>
-                siblingData?.basis !== 'shared',
-              description: 'Reward given to the partner who refers others',
-            },
-            fields: [
-              {
-                name: 'type',
-                type: 'select',
-                required: true,
-                options: [
-                  { label: 'Fixed Amount', value: 'fixed' },
-                  { label: 'Percentage of Order', value: 'percentage' },
-                ],
-                defaultValue: 'percentage',
-              },
-              {
-                name: 'value',
-                type: 'number',
-                required: true,
-                defaultValue: referralConfig.defaultPartnerSplit,
-                admin: {
-                  description: `For percentage: 10 = 10% of order value. For fixed: amount in ${defaultCurrency}`,
-                },
-              },
-              {
-                name: 'maxReward',
-                type: 'number',
-                admin: {
-                  description: `Max reward in ${defaultCurrency}. Leave empty for no cap.`,
-                },
-              },
-            ],
-          },
-          {
-            name: 'refereeReward',
-            type: 'group',
-            admin: {
-              condition: (_: unknown, siblingData: { basis?: string }) =>
-                siblingData?.basis !== 'shared',
-              description: 'Discount given to the customer who was referred',
-            },
-            fields: [
-              {
-                name: 'type',
-                type: 'select',
-                required: true,
-                options: [
-                  { label: 'Fixed Amount', value: 'fixed' },
-                  { label: 'Percentage Discount', value: 'percentage' },
-                ],
-                defaultValue: 'percentage',
-              },
-              {
-                name: 'value',
-                type: 'number',
-                required: true,
-                defaultValue: referralConfig.defaultCustomerSplit,
-                admin: {
-                  description: `For percentage: 10 = 10% discount. For fixed: amount in ${defaultCurrency}`,
-                },
-              },
-              {
-                name: 'maxReward',
-                type: 'number',
-                admin: {
-                  description: `Max discount in ${defaultCurrency}. Leave empty for no cap.`,
-                },
-              },
-            ],
           },
         ],
-      },
-      {
-        name: 'minOrderValue',
-        type: 'number',
-        admin: {
-          description: `Minimum order value required for referral in ${defaultCurrency}`,
-        },
-      },
-      {
-        name: 'maxReferralsPerUser',
-        type: 'number',
-        admin: {
-          description: 'Maximum number of referrals a partner can make. Empty = unlimited.',
-        },
-      },
-      {
-        name: 'referralCodePrefix',
-        type: 'text',
-        admin: {
-          description: 'Prefix for generated referral codes (e.g., "REF" will create REF123)',
-        },
-      },
-      {
-        name: 'activeFrom',
-        type: 'date',
-        admin: {
-          description: 'Program becomes active from this date',
-        },
-      },
-      {
-        name: 'activeUntil',
-        type: 'date',
-        admin: {
-          description: 'Program expires after this date',
-        },
-      },
-      {
-        name: 'totalReferrals',
-        type: 'number',
-        defaultValue: 0,
-        admin: {
-          description: 'Total number of successful referrals through this program',
-          readOnly: true,
-        },
-      },
-      {
-        name: 'totalRewardsPaid',
-        type: 'number',
-        defaultValue: 0,
-        admin: {
-          description: `Total rewards paid out in ${defaultCurrency}`,
-          readOnly: true,
-        },
       },
     ],
     timestamps: true,

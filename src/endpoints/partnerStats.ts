@@ -130,11 +130,14 @@ export const partnerStatsHandler =
             if (programData) {
               const typedProgram = programData as any
               const firstRule = typedProgram.commissionRules?.[0]
+              const partnerSplit =
+                firstRule?.partnerSplit ?? firstRule?.referrerSplit ?? firstRule?.split?.partnerPercentage ?? 0
+              const customerSplit =
+                firstRule?.customerSplit ?? firstRule?.refereeSplit ?? firstRule?.split?.customerPercentage ?? (100 - partnerSplit)
               program = {
                 name: typedProgram.name,
-                description: typedProgram.description,
-                commissionRate: firstRule?.referrerReward?.value ?? 0,
-                customerDiscount: firstRule?.refereeReward?.value ?? 0,
+                commissionRate: partnerSplit,
+                customerDiscount: customerSplit,
               }
             }
           } catch {
