@@ -38,8 +38,9 @@ export const recalculateCartHook =
     }
 
     // Determine effective codes
-    const appliedReferralCode = data.appliedReferralCode ?? originalDoc?.appliedReferralCode
-    const appliedCoupon = data.appliedCoupon ?? originalDoc?.appliedCoupon
+    const appliedReferralCode =
+      data.appliedReferralCode !== undefined ? data.appliedReferralCode : originalDoc?.appliedReferralCode
+    const appliedCoupon = data.appliedCoupon !== undefined ? data.appliedCoupon : originalDoc?.appliedCoupon
 
     if (!appliedReferralCode && !appliedCoupon) {
       // No codes applied, just return data (cleanup done by other logic if needed, or we explicitly clear?)
@@ -47,12 +48,19 @@ export const recalculateCartHook =
       // If we are just updating items, and code was removed, these should be 0.
       // But if code was removed, data.appliedCoupon is null.
       if (data.appliedReferralCode === null || data.appliedCoupon === null) {
+        const fallbackSubtotal =
+          typeof data.subtotal === 'number'
+            ? data.subtotal
+            : typeof originalDoc?.subtotal === 'number'
+              ? originalDoc.subtotal
+              : undefined
+
         return {
           ...data,
           partnerCommission: 0,
           customerDiscount: 0,
           discountAmount: 0,
-          // Recalc total ?? Standard ecommerce will handle total if we don't mess with it.
+          total: fallbackSubtotal,
         }
       }
       return data
@@ -65,9 +73,16 @@ export const recalculateCartHook =
     // Since we don't know the order of hooks, we can't rely on data.subtotal being correct yet if we run before ecommerce.
     // SAFEST: We calculate our own subtotal based on current prices.
 
+    const getRelationID = (value: unknown): number | string | undefined => {
+      if (value === null || value === undefined) return undefined
+      if (typeof value === 'object') return (value as { id?: number | string }).id
+      if (typeof value === 'string' || typeof value === 'number') return value
+      return undefined
+    }
+
     const productIds = effectiveItems
-      .map((item: any) => (typeof item.product === 'string' ? item.product : item.product?.id))
-      .filter(Boolean)
+      .map((item: any) => getRelationID(item.product))
+      .filter((id): id is number | string => id !== undefined)
 
     if (!productIds.length) return data
 
@@ -80,12 +95,12 @@ export const recalculateCartHook =
       limit: productIds.length,
     })
 
-    const productsMap = new Map(productsQuery.docs.map((p) => [p.id, p]))
+    const productsMap = new Map(productsQuery.docs.map((p) => [String(p.id), p]))
 
     let calculatedSubtotal = 0
     const enrichedItems = effectiveItems.map((item: any) => {
-      const productId = typeof item.product === 'string' ? item.product : item.product?.id
-      const product: any = productsMap.get(productId) || {}
+      const productId = getRelationID(item.product)
+      const product: any = productId !== undefined ? productsMap.get(String(productId)) || {} : {}
 
       // We might need variants logic too, keeping it simple for now based on available info
       // Ideally we should replicate the price finding logic fully.
@@ -116,16 +131,19 @@ export const recalculateCartHook =
 
     // 1. Handle Referral
     if (appliedReferralCode && pluginConfig.enableReferrals) {
+      const appliedReferralCodeID = getRelationID(appliedReferralCode)
+      if (appliedReferralCodeID === undefined) {
+        data.partnerCommission = 0
+        data.customerDiscount = 0
+        data.total = calculatedSubtotal
+        return data
+      }
+
       // Fetch referral code & program
       const referralQuery = await req.payload.find({
         collection: pluginConfig.collections.referralCodesSlug,
         where: {
-          id: {
-            equals:
-              typeof appliedReferralCode === 'string'
-                ? appliedReferralCode
-                : appliedReferralCode.id,
-          },
+          id: { equals: appliedReferralCodeID },
         },
         limit: 1,
         depth: 1,
@@ -133,9 +151,18 @@ export const recalculateCartHook =
 
       if (referralQuery.docs.length) {
         const referralCode = referralQuery.docs[0]
-        const program = typeof referralCode.program === 'object' ? referralCode.program : null
+        const programId =
+          typeof referralCode.program === 'string' ? referralCode.program : referralCode.program?.id
+        const program =
+          typeof referralCode.program === 'object'
+            ? referralCode.program
+            : programId
+              ? await req.payload.findByID({
+                  collection: pluginConfig.collections.referralProgramsSlug,
+                  id: programId,
+                })
+              : null
 
-        // If program is not populated or valid, we skip
         if (program) {
           const { partnerCommission, customerDiscount } = calculateCommissionAndDiscount({
             cartItems: enrichedItems,
@@ -151,16 +178,26 @@ export const recalculateCartHook =
           // Use calculated subtotal or trust data.subtotal if present?
           // Best to use our calculated subtotal to be safely independent.
           data.total = Math.max(0, calculatedSubtotal - roundedCustomerDiscount)
+        } else {
+          // If referral code exists but program is unavailable, clear referral discount fields.
+          data.partnerCommission = 0
+          data.customerDiscount = 0
+          data.total = calculatedSubtotal
         }
       }
     }
 
     // 2. Handle Coupon
     if (appliedCoupon && (!appliedReferralCode || pluginConfig.referralConfig.allowBothSystems)) {
+      const appliedCouponID = getRelationID(appliedCoupon)
+      if (appliedCouponID === undefined) {
+        return data
+      }
+
       const couponQuery = await req.payload.find({
         collection: pluginConfig.collections.couponsSlug,
         where: {
-          id: { equals: typeof appliedCoupon === 'string' ? appliedCoupon : appliedCoupon.id },
+          id: { equals: appliedCouponID },
         },
         limit: 1,
       })

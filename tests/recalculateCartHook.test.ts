@@ -59,6 +59,28 @@ describe('recalculateCartHook', () => {
     expect(result).toBe(data)
   })
 
+  it('should reset total to subtotal when coupon is removed', async () => {
+    const hook = recalculateCartHook(mockPluginConfig)
+    const originalDoc = {
+      items: [{ product: 'p1', quantity: 2 }],
+      subtotal: 200,
+      discountAmount: 20,
+      total: 180,
+      appliedCoupon: 'coupon-1',
+    }
+    const data = {
+      items: [{ product: 'p1', quantity: 2 }],
+      subtotal: 200,
+      appliedCoupon: null,
+    }
+
+    const result: any = await hook({ data, req: mockReq, originalDoc } as any)
+    expect(result.discountAmount).toBe(0)
+    expect(result.customerDiscount).toBe(0)
+    expect(result.partnerCommission).toBe(0)
+    expect(result.total).toBe(200)
+  })
+
   it('should calculate referral discount', async () => {
     const hook = recalculateCartHook(mockPluginConfig)
     const data = {
@@ -268,5 +290,30 @@ describe('recalculateCartHook Integration', () => {
     // (80 * 2) - 25% = 120
     expect(result.discountAmount).toBe(40)
     expect(result.total).toBe(120)
+  })
+
+  it('should recalculate coupon discount when item product IDs are numeric', async () => {
+    const hook = recalculateCartHook(mockPluginConfig)
+    const data = { items: [{ product: 1, quantity: 3 }], appliedCoupon: 11 }
+
+    mockPayload.find.mockImplementation((args: any) => {
+      if (args.collection === 'products') {
+        return Promise.resolve({
+          docs: [{ id: 1, price: 50 }],
+        })
+      }
+      if (args.collection === 'coupons') {
+        return Promise.resolve({
+          docs: [{ id: 11, type: 'percentage', value: 10 }],
+        })
+      }
+      return Promise.resolve({ docs: [] })
+    })
+
+    const result: any = await hook({ data, req: mockReq } as any)
+
+    // (50 * 3) - 10% = 135
+    expect(result.discountAmount).toBe(15)
+    expect(result.total).toBe(135)
   })
 })
