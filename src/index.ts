@@ -4,14 +4,15 @@ import { createReferralProgramsCollection } from './collections/createReferralPr
 import { payloadEcommerceCouponPlugin } from './plugin'
 
 export { useCouponCode, usePartnerStats, validateCouponCode } from './client/hooks'
+export { calculateCommissionAndDiscount } from './utilities/calculateValues'
+export { getCartTotalWithDiscounts } from './utilities/getCartTotalWithDiscounts'
+export { recordCouponUsageForOrder } from './utilities/recordCouponUsageForOrder'
 export {
   createCouponsCollection,
   createReferralCodesCollection,
   createReferralProgramsCollection,
   payloadEcommerceCouponPlugin as payloadEcommerceCoupon,
 }
-export { getCartTotalWithDiscounts } from './utilities/getCartTotalWithDiscounts'
-export { recordCouponUsageForOrder } from './utilities/recordCouponUsageForOrder'
 
 export type {
   AdminGroupConfig,
