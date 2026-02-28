@@ -17,18 +17,18 @@ export const createReferralCodesCollection = (
     access: {
       read: ({ req }) => {
         // Partners can read their own codes, admins can read all
-        const user = req?.user as { id?: string; role?: string; roles?: string[] } | undefined
+        const user = req?.user as { id?: string; role?: string | string[]; roles?: string[] } | undefined
         if (!user) return false
 
         // Admin access
-        if (user.role === 'admin' || (Array.isArray(user.roles) && user.roles.includes('admin'))) {
+        if (user.role === 'admin' || (Array.isArray(user.role) && user.role.includes('admin')) || (Array.isArray(user.roles) && user.roles.includes('admin'))) {
           return true
         }
 
         // Partner access - only their own codes
         if (
           user.role === 'partner' ||
-          (Array.isArray(user.roles) && user.roles.includes('partner'))
+          (Array.isArray(user.role) && user.role.includes('partner')) || (Array.isArray(user.roles) && user.roles.includes('partner'))
         ) {
           return {
             partner: {
@@ -42,16 +42,16 @@ export const createReferralCodesCollection = (
       },
       create: ({ req }) => {
         // Partners can create their own codes, admins can create any
-        const user = req?.user as { role?: string; roles?: string[] } | undefined
+        const user = req?.user as { role?: string | string[]; roles?: string[] } | undefined
         if (!user) return false
 
-        if (user.role === 'admin' || (Array.isArray(user.roles) && user.roles.includes('admin'))) {
+        if (user.role === 'admin' || (Array.isArray(user.role) && user.role.includes('admin')) || (Array.isArray(user.roles) && user.roles.includes('admin'))) {
           return true
         }
 
         if (
           user.role === 'partner' ||
-          (Array.isArray(user.roles) && user.roles.includes('partner'))
+          (Array.isArray(user.role) && user.role.includes('partner')) || (Array.isArray(user.roles) && user.roles.includes('partner'))
         ) {
           return true
         }
@@ -85,8 +85,19 @@ export const createReferralCodesCollection = (
         type: 'relationship',
         relationTo: 'users',
         required: true,
-        filterOptions: {
-          roles: { contains: 'partner' },
+        filterOptions: ({ data }) => {
+          const user = data?.user as { role?: string | string[]; roles?: string[] } | undefined
+          if (!user) return false
+          // if (user.role === 'admin' || (Array.isArray(user.role) && user.role.includes('admin')) || (Array.isArray(user.roles) && user.roles.includes('admin'))) {
+          //   return true
+          // }
+          if (
+            user.role === 'partner' ||
+            (Array.isArray(user.role) && user.role.includes('partner')) || (Array.isArray(user.roles) && user.roles.includes('partner'))
+          ) {
+            return true
+          }
+          return false
         },
         admin: {
           description: 'The partner who owns this referral code',
@@ -183,7 +194,7 @@ export const createReferralCodesCollection = (
             const user = req.user as { id?: string; role?: string; roles?: string[] }
             if (
               user.role === 'partner' ||
-              (Array.isArray(user.roles) && user.roles.includes('partner'))
+              (Array.isArray(user.role) && user.role.includes('partner'))
             ) {
               data.partner = user.id
             }
