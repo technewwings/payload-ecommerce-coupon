@@ -82,6 +82,18 @@ referralConfig?: {
   singleCodePerCart?: boolean     // Default: true - One code per order
   defaultPartnerSplit?: number    // Default: 70 - Partner commission %
   defaultCustomerSplit?: number   // Default: 30 - Customer discount %
+  allowedTotalCommissionTypes?: Array<'fixed' | 'percentage'> // Default: ['fixed', 'percentage']
+}
+```
+
+#### Role Configuration
+
+```typescript
+roleConfig?: {
+  roleFieldPaths?: string[]      // Default: ['role', 'roles']
+  adminRoleValues?: string[]     // Default: ['admin']
+  partnerRoleValues?: string[]   // Default: ['partner']
+  customRoleResolver?: (user) => string[] // Optional advanced resolver
 }
 ```
 

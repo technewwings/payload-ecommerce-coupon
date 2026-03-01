@@ -127,6 +127,36 @@ describe('sanitizePluginConfig', () => {
       expect(result.access.canUseReferrals).toBeDefined() // default
       expect(result.access.isAdmin).toBeDefined() // default
     })
+
+    it('should honor custom roleConfig field paths and values', () => {
+      const result = sanitizePluginConfig({
+        pluginConfig: {
+          roleConfig: {
+            roleFieldPaths: ['account.roles', 'permissions.roles'],
+            partnerRoleValues: ['affiliate'],
+            adminRoleValues: ['superadmin'],
+          },
+        },
+      })
+
+      const partnerReq = {
+        user: {
+          account: {
+            roles: ['affiliate'],
+          },
+        },
+      }
+      const adminReq = {
+        user: {
+          permissions: {
+            roles: ['superadmin'],
+          },
+        },
+      }
+
+      expect(result.access.isPartner({ req: partnerReq } as any)).toBe(true)
+      expect(result.access.isAdmin({ req: adminReq } as any)).toBe(true)
+    })
   })
 
   describe('Input Validation', () => {

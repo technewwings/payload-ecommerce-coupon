@@ -1,10 +1,54 @@
 import type { CouponPluginOptions, SanitizedCouponPluginOptions } from '../types'
+import { isAdminUser, isPartnerUser } from './userRoles'
 
 export const sanitizePluginConfig = ({
   pluginConfig,
 }: {
   pluginConfig: CouponPluginOptions
 }): SanitizedCouponPluginOptions => {
+  const roleConfig = {
+    roleFieldPaths:
+      Array.isArray(pluginConfig?.roleConfig?.roleFieldPaths) &&
+      pluginConfig.roleConfig.roleFieldPaths.length > 0
+        ? pluginConfig.roleConfig.roleFieldPaths
+            .filter((value): value is string => typeof value === 'string')
+            .map((value) => value.trim())
+            .filter(Boolean)
+        : ['role', 'roles'],
+    adminRoleValues:
+      Array.isArray(pluginConfig?.roleConfig?.adminRoleValues) &&
+      pluginConfig.roleConfig.adminRoleValues.length > 0
+        ? pluginConfig.roleConfig.adminRoleValues
+            .filter((value): value is string => typeof value === 'string')
+            .map((value) => value.trim())
+            .filter(Boolean)
+        : ['admin'],
+    partnerRoleValues:
+      Array.isArray(pluginConfig?.roleConfig?.partnerRoleValues) &&
+      pluginConfig.roleConfig.partnerRoleValues.length > 0
+        ? pluginConfig.roleConfig.partnerRoleValues
+            .filter((value): value is string => typeof value === 'string')
+            .map((value) => value.trim())
+            .filter(Boolean)
+        : ['partner'],
+    customRoleResolver:
+      typeof pluginConfig?.roleConfig?.customRoleResolver === 'function'
+        ? pluginConfig.roleConfig.customRoleResolver
+        : undefined,
+  }
+
+  const normalizedAllowedTotalCommissionTypes = Array.isArray(
+    pluginConfig?.referralConfig?.allowedTotalCommissionTypes,
+  )
+    ? [
+        ...new Set(
+          pluginConfig.referralConfig.allowedTotalCommissionTypes.filter(
+            (value): value is 'fixed' | 'percentage' => value === 'fixed' || value === 'percentage',
+          ),
+        ),
+      ]
+    : []
+
   // Apply defaults for each property when missing or invalid
   return {
     enabled: !(
@@ -86,24 +130,21 @@ export const sanitizePluginConfig = ({
       isAdmin:
         typeof pluginConfig?.access?.isAdmin === 'function'
           ? pluginConfig.access.isAdmin
-          : () => false,
+          : ({ req }) => isAdminUser({ user: req?.user, roleConfig }),
       isPartner:
         typeof pluginConfig?.access?.isPartner === 'function'
           ? pluginConfig.access.isPartner
-          : ({ req }) => {
-              // Default: check if user has partner role
-              const user = req?.user as { role?: string; roles?: string[] } | undefined
-              if (!user) return false
-              if (user.role === 'partner') return true
-              if (Array.isArray(user.roles) && user.roles.includes('partner')) return true
-              return false
-            },
+          : ({ req }) => isPartnerUser({ user: req?.user, roleConfig }),
     },
     referralConfig: {
       allowBothSystems: pluginConfig?.referralConfig?.allowBothSystems ?? false,
       singleCodePerCart: pluginConfig?.referralConfig?.singleCodePerCart ?? true,
       defaultPartnerSplit: pluginConfig?.referralConfig?.defaultPartnerSplit ?? 70,
       defaultCustomerSplit: pluginConfig?.referralConfig?.defaultCustomerSplit ?? 30,
+      allowedTotalCommissionTypes:
+        normalizedAllowedTotalCommissionTypes.length > 0
+          ? normalizedAllowedTotalCommissionTypes
+          : ['fixed', 'percentage'],
     },
     adminGroups: {
       couponsGroup: pluginConfig?.adminGroups?.couponsGroup ?? 'Coupons',
@@ -137,5 +178,6 @@ export const sanitizePluginConfig = ({
           ? pluginConfig.orderIntegration.orderPaidStatusValue
           : 'paid',
     },
+    roleConfig,
   }
 }

@@ -34,6 +34,19 @@ export type ReferralProgramConfig = {
   defaultPartnerSplit?: number
   /** Default discount split for customers */
   defaultCustomerSplit?: number
+  /** Allowed Total Commission types in referral programs */
+  allowedTotalCommissionTypes?: Array<'fixed' | 'percentage'>
+}
+
+export type RoleConfig = {
+  /** User field paths that can hold roles (supports string or string[]) */
+  roleFieldPaths?: string[]
+  /** Values considered admin role */
+  adminRoleValues?: string[]
+  /** Values considered partner role */
+  partnerRoleValues?: string[]
+  /** Optional override to extract roles from req.user */
+  customRoleResolver?: (user: unknown) => string[]
 }
 
 export type AdminGroupConfig = {
@@ -92,6 +105,8 @@ export type CouponPluginOptions = {
   partnerDashboard?: PartnerDashboardConfig
   /** Order integration for per-customer coupon limit */
   orderIntegration?: OrderIntegrationConfig
+  /** Role resolution configuration for access checks and user filtering */
+  roleConfig?: RoleConfig
 }
 
 export type SanitizedCouponPluginOptions = {
@@ -107,6 +122,12 @@ export type SanitizedCouponPluginOptions = {
   adminGroups: Required<AdminGroupConfig>
   partnerDashboard: Required<PartnerDashboardConfig>
   orderIntegration: Required<OrderIntegrationConfig>
+  roleConfig: {
+    roleFieldPaths: string[]
+    adminRoleValues: string[]
+    partnerRoleValues: string[]
+    customRoleResolver?: (user: unknown) => string[]
+  }
 }
 
 export type CouponPluginConfig = {

@@ -4,7 +4,10 @@ import { createReferralProgramsCollection } from './collections/createReferralPr
 import { payloadEcommerceCouponPlugin } from './plugin'
 
 export { useCouponCode, usePartnerStats, validateCouponCode } from './client/hooks'
-export { calculateCommissionAndDiscount } from './utilities/calculateValues'
+export {
+  calculateCommissionAndDiscount,
+  getProgramMinimumOrderAmount,
+} from './utilities/calculateValues'
 export { getCartTotalWithDiscounts } from './utilities/getCartTotalWithDiscounts'
 export { recordCouponUsageForOrder } from './utilities/recordCouponUsageForOrder'
 export {
@@ -26,5 +29,6 @@ export type {
   PartnerDashboardData,
   PartnerStats,
   ReferralProgramConfig,
+  RoleConfig,
 } from './types'
 export type { CartLike } from './utilities/getCartTotalWithDiscounts'

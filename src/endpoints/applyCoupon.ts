@@ -3,6 +3,7 @@ import type { SanitizedCouponPluginOptions } from '../types'
 import {
   calculateCommissionAndDiscount,
   calculateCouponDiscount,
+  getProgramMinimumOrderAmount,
 } from '../utilities/calculateValues'
 import { roundTo2 } from '../utilities/roundTo2'
 
@@ -374,12 +375,28 @@ async function handleReferralCode({
 
   // Calculate commission and discount
   const cartTotal = cart.subtotal || cart.total || 0
+  const minOrderAmount = getProgramMinimumOrderAmount({
+    program,
+    allowedTotalCommissionTypes: pluginConfig.referralConfig.allowedTotalCommissionTypes,
+  })
+
+  if (typeof minOrderAmount === 'number' && cartTotal < minOrderAmount) {
+    return Response.json(
+      {
+        success: false,
+        error: `Minimum order value of ${minOrderAmount} ${pluginConfig.defaultCurrency} required for this referral program`,
+      },
+      { status: 400 },
+    )
+  }
 
   // Calculate based on commission rules
   const { partnerCommission, customerDiscount } = calculateCommissionAndDiscount({
     cartItems: cart.items || [],
     program,
     currencyCode: pluginConfig.defaultCurrency,
+    cartTotal,
+    allowedTotalCommissionTypes: pluginConfig.referralConfig.allowedTotalCommissionTypes,
   })
 
   // Round commission and discount

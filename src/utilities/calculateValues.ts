@@ -28,6 +28,11 @@ function relationId(value: any): string | number | null {
   return null
 }
 
+const allowedCommissionTypesSet = (
+  allowed: Array<'fixed' | 'percentage'> | undefined,
+): Set<string> =>
+  new Set((allowed && allowed.length ? allowed : ['fixed', 'percentage']).map((v) => v))
+
 function normalizeIds(values: any[] | null | undefined): Array<string | number> {
   if (!Array.isArray(values)) return []
   return values.map(relationId).filter((v): v is string | number => v != null)
@@ -59,13 +64,19 @@ function calculateItemRewardByRule({
   rule,
   itemTotal,
   quantity,
+  allowedTotalCommissionTypes,
 }: {
   rule: any
   itemTotal: number
   quantity: number
+  allowedTotalCommissionTypes?: Array<'fixed' | 'percentage'>
 }): { partner: number; customer: number } | null {
+  const allowedTypes = allowedCommissionTypesSet(allowedTotalCommissionTypes)
+
   // Shared model (v2)
   if (rule.totalCommission) {
+    if (!allowedTypes.has(rule.totalCommission.type)) return null
+
     const splits = getRuleSplits(rule)
     if (!splits) return null
 
@@ -134,34 +145,50 @@ function selectBestRuleForItem({
   item,
   itemTotal,
   quantity,
+  cartTotal,
+  allowedTotalCommissionTypes,
 }: {
   rules: any[]
   item: any
   itemTotal: number
   quantity: number
+  cartTotal: number
+  allowedTotalCommissionTypes?: Array<'fixed' | 'percentage'>
 }): { rule: any; reward: { partner: number; customer: number } } | null {
+  const allowedTypes = allowedCommissionTypesSet(allowedTotalCommissionTypes)
+  const eligibleRules = rules.filter((rule: any) => {
+    const hasSharedType = rule?.totalCommission?.type
+      ? allowedTypes.has(rule.totalCommission.type)
+      : true
+    if (!hasSharedType) return false
+    if (typeof rule?.minOrderAmount === 'number' && Number.isFinite(rule.minOrderAmount)) {
+      return cartTotal >= rule.minOrderAmount
+    }
+    return true
+  })
+
   const productId = relationId(item.product)
   const itemCategoryIds = new Set(getItemCategoryIds(item))
   const itemTagIds = new Set(getItemTagIds(item))
 
-  const productCandidates = rules.filter(
+  const productCandidates = eligibleRules.filter(
     (r: any) =>
       r.appliesTo === 'products' &&
       normalizeIds(r.products).some((id) => productId != null && id === productId),
   )
 
-  const segmentCategoryCandidates = rules.filter((r: any) => {
+  const segmentCategoryCandidates = eligibleRules.filter((r: any) => {
     const isSegment = r.appliesTo === 'segments' || r.appliesTo === 'categories'
     if (!isSegment) return false
     return normalizeIds(r.categories).some((id) => itemCategoryIds.has(id))
   })
 
-  const segmentTagCandidates = rules.filter((r: any) => {
+  const segmentTagCandidates = eligibleRules.filter((r: any) => {
     if (r.appliesTo !== 'segments') return false
     return normalizeIds(r.tags).some((id) => itemTagIds.has(id))
   })
 
-  const allCandidates = rules.filter((r: any) => r.appliesTo === 'all')
+  const allCandidates = eligibleRules.filter((r: any) => r.appliesTo === 'all')
 
   const levels = [productCandidates, segmentCategoryCandidates, segmentTagCandidates, allCandidates]
   const candidates = levels.find((level) => level.length > 0) ?? []
@@ -170,7 +197,12 @@ function selectBestRuleForItem({
   let best: { rule: any; reward: { partner: number; customer: number } } | null = null
 
   for (const rule of candidates) {
-    const reward = calculateItemRewardByRule({ rule, itemTotal, quantity })
+    const reward = calculateItemRewardByRule({
+      rule,
+      itemTotal,
+      quantity,
+      allowedTotalCommissionTypes,
+    })
     if (!reward) continue
 
     if (!best) {
@@ -191,14 +223,43 @@ function selectBestRuleForItem({
   return best
 }
 
+export function getProgramMinimumOrderAmount({
+  program,
+  allowedTotalCommissionTypes,
+}: {
+  program: any
+  allowedTotalCommissionTypes?: Array<'fixed' | 'percentage'>
+}): number | null {
+  const rules = Array.isArray(program?.commissionRules) ? program.commissionRules : []
+  if (!rules.length) return null
+
+  const allowedTypes = allowedCommissionTypesSet(allowedTotalCommissionTypes)
+  const minValues = rules
+    .filter((rule: any) => {
+      if (rule?.totalCommission?.type) return allowedTypes.has(rule.totalCommission.type)
+      return true
+    })
+    .map((rule: any) => rule?.minOrderAmount)
+    .filter(
+      (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value),
+    )
+
+  if (!minValues.length) return null
+  return Math.min(...minValues)
+}
+
 export function calculateCommissionAndDiscount({
   cartItems,
   program,
   currencyCode = 'AED',
+  cartTotal = 0,
+  allowedTotalCommissionTypes,
 }: {
   cartItems: any[]
   program: any
   currencyCode?: string
+  cartTotal?: number
+  allowedTotalCommissionTypes?: Array<'fixed' | 'percentage'>
 }): { partnerCommission: number; customerDiscount: number } {
   const rules = Array.isArray(program?.commissionRules) ? program.commissionRules : []
 
@@ -228,6 +289,8 @@ export function calculateCommissionAndDiscount({
       item: { ...item, product },
       itemTotal,
       quantity,
+      cartTotal,
+      allowedTotalCommissionTypes,
     })
 
     if (!bestMatch) continue

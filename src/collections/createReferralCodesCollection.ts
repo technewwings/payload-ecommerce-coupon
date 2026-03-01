@@ -1,11 +1,12 @@
 import type { CollectionConfig } from 'payload'
 
 import type { SanitizedCouponPluginOptions } from '../types'
+import { buildPartnerUserFilterWhere, isAdminUser, isPartnerUser } from '../utilities/userRoles'
 
 export const createReferralCodesCollection = (
   pluginConfig: SanitizedCouponPluginOptions,
 ): CollectionConfig => {
-  const { collections, access, adminGroups, defaultCurrency } = pluginConfig
+  const { collections, access, adminGroups, defaultCurrency, roleConfig } = pluginConfig
 
   return {
     slug: collections.referralCodesSlug,
@@ -17,26 +18,16 @@ export const createReferralCodesCollection = (
     access: {
       read: ({ req }) => {
         // Partners can read their own codes, admins can read all
-        const user = req?.user as
-          | { id?: string; role?: string | string[]; roles?: string[] }
-          | undefined
+        const user = req?.user as { id?: string } | undefined
         if (!user) return false
 
         // Admin access
-        if (
-          user.role === 'admin' ||
-          (Array.isArray(user.role) && user.role.includes('admin')) ||
-          (Array.isArray(user.roles) && user.roles.includes('admin'))
-        ) {
+        if (isAdminUser({ user, roleConfig }) || access.isAdmin?.({ req } as any)) {
           return true
         }
 
         // Partner access - only their own codes
-        if (
-          user.role === 'partner' ||
-          (Array.isArray(user.role) && user.role.includes('partner')) ||
-          (Array.isArray(user.roles) && user.roles.includes('partner'))
-        ) {
+        if (isPartnerUser({ user, roleConfig }) || access.isPartner?.({ req } as any)) {
           return {
             partner: {
               equals: user.id,
@@ -49,22 +40,14 @@ export const createReferralCodesCollection = (
       },
       create: ({ req }) => {
         // Partners can create their own codes, admins can create any
-        const user = req?.user as { role?: string | string[]; roles?: string[] } | undefined
+        const user = req?.user
         if (!user) return false
 
-        if (
-          user.role === 'admin' ||
-          (Array.isArray(user.role) && user.role.includes('admin')) ||
-          (Array.isArray(user.roles) && user.roles.includes('admin'))
-        ) {
+        if (isAdminUser({ user, roleConfig }) || access.isAdmin?.({ req } as any)) {
           return true
         }
 
-        if (
-          user.role === 'partner' ||
-          (Array.isArray(user.role) && user.role.includes('partner')) ||
-          (Array.isArray(user.roles) && user.roles.includes('partner'))
-        ) {
+        if (isPartnerUser({ user, roleConfig }) || access.isPartner?.({ req } as any)) {
           return true
         }
 
@@ -97,20 +80,12 @@ export const createReferralCodesCollection = (
         type: 'relationship',
         relationTo: 'users',
         required: true,
-        filterOptions: ({ data }) => {
-          const user = data?.user as { role?: string | string[]; roles?: string[] } | undefined
-          if (!user) return false
-          // if (user.role === 'admin' || (Array.isArray(user.role) && user.role.includes('admin')) || (Array.isArray(user.roles) && user.roles.includes('admin'))) {
-          //   return true
-          // }
-          if (
-            user.role === 'partner' ||
-            (Array.isArray(user.role) && user.role.includes('partner')) ||
-            (Array.isArray(user.roles) && user.roles.includes('partner'))
-          ) {
+        filterOptions: ({ req, user }) => {
+          const currentUser = user || req?.user
+          if (isAdminUser({ user: currentUser, roleConfig }) || access.isAdmin?.({ req } as any)) {
             return true
           }
-          return false
+          return buildPartnerUserFilterWhere({ roleConfig })
         },
         admin: {
           description: 'The partner who owns this referral code',
@@ -204,11 +179,8 @@ export const createReferralCodesCollection = (
 
           // Auto-assign partner to current user if partner
           if (operation === 'create' && req.user) {
-            const user = req.user as { id?: string; role?: string; roles?: string[] }
-            if (
-              user.role === 'partner' ||
-              (Array.isArray(user.role) && user.role.includes('partner'))
-            ) {
+            const user = req.user as { id?: string }
+            if (isPartnerUser({ user, roleConfig })) {
               data.partner = user.id
             }
           }

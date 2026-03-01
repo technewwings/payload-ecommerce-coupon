@@ -316,4 +316,46 @@ describe('recalculateCartHook Integration', () => {
     expect(result.discountAmount).toBe(15)
     expect(result.total).toBe(135)
   })
+
+  it('should clear applied referral code when minOrderAmount is no longer met', async () => {
+    const hook = recalculateCartHook(mockPluginConfig)
+    const data = { items: [{ product: 'p1', quantity: 1 }], appliedReferralCode: 'ref-1' }
+
+    mockPayload.find.mockImplementation((args: any) => {
+      if (args.collection === 'products') {
+        return Promise.resolve({
+          docs: [{ id: 'p1', price: 100 }],
+        })
+      }
+      if (args.collection === 'referral-codes') {
+        return Promise.resolve({
+          docs: [
+            {
+              id: 'ref-1',
+              program: {
+                id: 'prog-1',
+                commissionRules: [
+                  {
+                    appliesTo: 'all',
+                    totalCommission: { type: 'fixed', value: 20 },
+                    partnerSplit: 50,
+                    customerSplit: 50,
+                    minOrderAmount: 300,
+                  },
+                ],
+              },
+            },
+          ],
+        })
+      }
+      return Promise.resolve({ docs: [] })
+    })
+
+    const result: any = await hook({ data, req: mockReq } as any)
+
+    expect(result.appliedReferralCode).toBeNull()
+    expect(result.partnerCommission).toBe(0)
+    expect(result.customerDiscount).toBe(0)
+    expect(result.total).toBe(100)
+  })
 })

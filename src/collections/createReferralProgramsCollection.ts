@@ -10,6 +10,7 @@ type RuleData = {
   totalCommission?: { type?: 'fixed' | 'percentage'; value?: number; maxAmount?: number }
   partnerSplit?: number
   customerSplit?: number
+  minOrderAmount?: number
 }
 
 function toNumber(value: unknown): number | null {
@@ -28,6 +29,7 @@ export const createReferralProgramsCollection = (
   pluginConfig: SanitizedCouponPluginOptions,
 ): CollectionConfig => {
   const { collections, access, defaultCurrency, adminGroups, referralConfig } = pluginConfig
+  const allowedTotalCommissionTypes = referralConfig.allowedTotalCommissionTypes
 
   const beforeChange: NonNullable<CollectionConfig['hooks']>['beforeChange'] = [
     ({ data }: { data: Record<string, unknown> }) => {
@@ -49,10 +51,10 @@ export const createReferralProgramsCollection = (
 
           if (
             !r.totalCommission.type ||
-            !['fixed', 'percentage'].includes(r.totalCommission.type)
+            !allowedTotalCommissionTypes.includes(r.totalCommission.type)
           ) {
             throw new Error(
-              `Commission rule ${index + 1}: Total Commission type must be fixed or percentage`,
+              `Commission rule ${index + 1}: Total Commission type must be one of ${allowedTotalCommissionTypes.join(', ')}`,
             )
           }
 
@@ -96,6 +98,14 @@ export const createReferralProgramsCollection = (
           }
 
           const customerSplit = 100 - partnerSplit
+          const minOrderAmount = toNumber(
+            (r as RuleData & { minOrderAmount?: number }).minOrderAmount,
+          )
+          if (minOrderAmount != null && minOrderAmount < 0) {
+            throw new Error(
+              `Commission rule ${index + 1}: Minimum Order Amount must be a non-negative number`,
+            )
+          }
 
           return {
             ...rule,
@@ -107,6 +117,7 @@ export const createReferralProgramsCollection = (
             },
             partnerSplit,
             customerSplit,
+            minOrderAmount: minOrderAmount ?? null,
           }
         },
       )
@@ -218,11 +229,13 @@ export const createReferralProgramsCollection = (
                 name: 'type',
                 type: 'select',
                 required: true,
-                options: [
-                  { label: 'Fixed Amount', value: 'fixed' },
-                  { label: 'Percentage of Order', value: 'percentage' },
-                ],
-                defaultValue: 'percentage',
+                options: allowedTotalCommissionTypes.map((value) => ({
+                  label: value === 'fixed' ? 'Fixed Amount' : 'Percentage of Order',
+                  value,
+                })),
+                defaultValue: allowedTotalCommissionTypes.includes('fixed')
+                  ? 'fixed'
+                  : 'percentage',
               },
               {
                 name: 'value',
@@ -252,6 +265,14 @@ export const createReferralProgramsCollection = (
             defaultValue: referralConfig.defaultPartnerSplit,
             admin: {
               description: 'Percentage of total commission given to Partner (0-100)',
+            },
+          },
+          {
+            name: 'minOrderAmount',
+            type: 'number',
+            min: 0,
+            admin: {
+              description: `Minimum cart subtotal required for this rule in ${defaultCurrency}. Leave empty for no minimum.`,
             },
           },
           {

@@ -3,6 +3,7 @@ import type { SanitizedCouponPluginOptions } from '../types'
 import {
   calculateCommissionAndDiscount,
   calculateCouponDiscount,
+  getProgramMinimumOrderAmount,
 } from '../utilities/calculateValues'
 import { getCartItemUnitPrice } from '../utilities/pricing'
 import { roundTo2 } from '../utilities/roundTo2'
@@ -18,13 +19,6 @@ export const recalculateCartHook =
     // We need to calculate based on the *final* state of items.
     // If data.items is present, use it. If not, use originalDoc.items.
     const effectiveItems = data.items || originalDoc?.items || []
-
-    console.log('[RecalculateCart] Hook triggered', {
-      hasDataItems: !!data.items,
-      dataItemsCount: data.items?.length,
-      originalItemsCount: originalDoc?.items?.length,
-      effectiveItemsCount: effectiveItems.length,
-    })
 
     // If no items, ensure totals are 0
     if (!effectiveItems.length) {
@@ -118,13 +112,6 @@ export const recalculateCartHook =
 
       calculatedSubtotal += itemPrice * (item.quantity ?? 1)
 
-      console.log('[RecalculateCart] Item processed', {
-        productId,
-        quantity: item.quantity,
-        priceUsed: itemPrice,
-        currentSubtotal: calculatedSubtotal,
-      })
-
       return {
         ...item,
         product, // Attach full product for rules
@@ -167,10 +154,24 @@ export const recalculateCartHook =
               : null
 
         if (program) {
+          const minOrderAmount = getProgramMinimumOrderAmount({
+            program,
+            allowedTotalCommissionTypes: pluginConfig.referralConfig.allowedTotalCommissionTypes,
+          })
+          if (typeof minOrderAmount === 'number' && calculatedSubtotal < minOrderAmount) {
+            data.appliedReferralCode = null
+            data.partnerCommission = 0
+            data.customerDiscount = 0
+            data.total = calculatedSubtotal
+            return data
+          }
+
           const { partnerCommission, customerDiscount } = calculateCommissionAndDiscount({
             cartItems: enrichedItems,
             program,
             currencyCode: pluginConfig.defaultCurrency,
+            cartTotal: calculatedSubtotal,
+            allowedTotalCommissionTypes: pluginConfig.referralConfig.allowedTotalCommissionTypes,
           })
 
           const roundedCustomerDiscount = roundTo2(customerDiscount)
@@ -183,6 +184,7 @@ export const recalculateCartHook =
           data.total = Math.max(0, calculatedSubtotal - roundedCustomerDiscount)
         } else {
           // If referral code exists but program is unavailable, clear referral discount fields.
+          data.appliedReferralCode = null
           data.partnerCommission = 0
           data.customerDiscount = 0
           data.total = calculatedSubtotal
@@ -210,13 +212,6 @@ export const recalculateCartHook =
         const discountAmount = calculateCouponDiscount({
           coupon,
           cartTotal: calculatedSubtotal,
-        })
-
-        console.log('[RecalculateCart] Coupon Logic', {
-          appliedCoupon,
-          couponId: coupon.id,
-          cartTotal: calculatedSubtotal,
-          discountAmount,
         })
 
         data.discountAmount = discountAmount

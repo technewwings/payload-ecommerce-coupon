@@ -369,6 +369,55 @@ describe('Apply Coupon Endpoint', () => {
       expect(result.success).toBe(false)
       expect(result.error).toBe('Referral code is not active')
     })
+
+    it('should enforce referral program minimum order amount on apply', async () => {
+      const mockReferralCode = {
+        id: 'ref-1',
+        code: 'REF123',
+        isActive: true,
+        program: 'program-1',
+      }
+
+      const mockProgram = {
+        id: 'program-1',
+        isActive: true,
+        commissionRules: [
+          {
+            appliesTo: 'all',
+            totalCommission: { type: 'fixed', value: 20 },
+            partnerSplit: 50,
+            customerSplit: 50,
+            minOrderAmount: 200,
+          },
+        ],
+      }
+
+      mockPayload.find.mockResolvedValue({
+        docs: [mockReferralCode],
+        totalDocs: 1,
+      })
+      mockPayload.findByID.mockImplementation((args: any) => {
+        if (args.collection === 'referral-programs' && args.id === 'program-1') {
+          return Promise.resolve(mockProgram)
+        }
+        if (args.collection === 'carts' && args.id === 'cart-123') {
+          return Promise.resolve({ id: 'cart-123', subtotal: 100, items: [] })
+        }
+        return Promise.resolve(null)
+      })
+
+      const handler = applyCouponHandler({ pluginConfig: referralPluginConfig })
+      const req = {
+        payload: mockPayload,
+        data: { code: 'REF123', cartID: 'cart-123' },
+      }
+
+      const response = await handler(req as any)
+      const result = await response.json()
+
+      expect(response.status).toBe(400)
+      expect(result.error).toContain('Minimum order value of 200')
+    })
   })
 
   describe('Error Handling', () => {
@@ -704,6 +753,57 @@ describe('Validate Coupon Endpoint', () => {
       expect(response.status).toBe(404)
       expect(result.success).toBe(false)
       expect(result.error).toBe('Referral code not found')
+    })
+
+    it('should enforce referral program minimum order amount on validate', async () => {
+      const mockReferralCode = {
+        id: 'ref-1',
+        code: 'REF123',
+        isActive: true,
+        program: 'program-1',
+      }
+
+      const mockProgram = {
+        id: 'program-1',
+        isActive: true,
+        commissionRules: [
+          {
+            appliesTo: 'all',
+            totalCommission: { type: 'fixed', value: 20 },
+            partnerSplit: 50,
+            customerSplit: 50,
+            minOrderAmount: 200,
+          },
+        ],
+      }
+
+      mockPayload.find.mockResolvedValueOnce({
+        docs: [mockReferralCode],
+        totalDocs: 1,
+      })
+      mockPayload.findByID.mockImplementation((args: any) => {
+        if (args.collection === 'referral-programs') return Promise.resolve(mockProgram)
+        if (args.collection === 'carts') {
+          return Promise.resolve({
+            id: 'cart-123',
+            subtotal: 100,
+            items: [],
+          })
+        }
+        return Promise.resolve(null)
+      })
+
+      const handler = validateCouponHandler({ pluginConfig: referralPluginConfig })
+      const req = {
+        payload: mockPayload,
+        data: { code: 'REF123', cartID: 'cart-123' },
+      }
+
+      const response = await handler(req as any)
+      const result = await response.json()
+
+      expect(response.status).toBe(400)
+      expect(result.error).toContain('Minimum order value of 200')
     })
   })
 

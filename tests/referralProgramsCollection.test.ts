@@ -101,4 +101,50 @@ describe('Referral Programs Collection v2', () => {
     expect(result.commissionRules[0].appliesTo).toBe('segments')
     expect(result.commissionRules[0].customerSplit).toBe(50)
   })
+
+  it('should reject commission types not allowed by config', () => {
+    const fixedOnlyPluginConfig = sanitizePluginConfig({
+      pluginConfig: {
+        enableReferrals: true,
+        referralConfig: {
+          allowedTotalCommissionTypes: ['fixed'],
+        },
+      },
+    })
+    const fixedOnlyCollection = createReferralProgramsCollection(fixedOnlyPluginConfig)
+    const fixedOnlyBeforeChangeHook = fixedOnlyCollection.hooks?.beforeChange?.[0] as any
+
+    expect(() =>
+      fixedOnlyBeforeChangeHook({
+        data: {
+          name: 'Program',
+          commissionRules: [
+            {
+              appliesTo: 'all',
+              totalCommission: { type: 'percentage', value: 10 },
+              partnerSplit: 30,
+            },
+          ],
+        },
+      }),
+    ).toThrow('Total Commission type must be one of fixed')
+  })
+
+  it('should preserve minOrderAmount when provided', async () => {
+    const result = await beforeChangeHook({
+      data: {
+        name: 'Program',
+        commissionRules: [
+          {
+            appliesTo: 'all',
+            totalCommission: { type: 'fixed', value: 15 },
+            partnerSplit: 50,
+            minOrderAmount: 120,
+          },
+        ],
+      },
+    })
+
+    expect(result.commissionRules[0].minOrderAmount).toBe(120)
+  })
 })

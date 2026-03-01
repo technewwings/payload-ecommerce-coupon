@@ -187,4 +187,45 @@ describe('calculateCommissionAndDiscount', () => {
     expect(result.partnerCommission).toBe(15)
     expect(result.customerDiscount).toBe(5)
   })
+
+  it('should skip rules when cart total is below rule minOrderAmount', () => {
+    const cartItems = [{ id: '1', price: 100, quantity: 1, product: { id: 'p1' } }]
+    const program = {
+      commissionRules: [
+        {
+          appliesTo: 'all',
+          totalCommission: { type: 'fixed', value: 20 },
+          partnerSplit: 50,
+          customerSplit: 50,
+          minOrderAmount: 200,
+        },
+      ],
+    }
+
+    const result = calculateCommissionAndDiscount({ cartItems, program, cartTotal: 100 })
+    expect(result.partnerCommission).toBe(0)
+    expect(result.customerDiscount).toBe(0)
+  })
+
+  it('should enforce allowedTotalCommissionTypes when calculating rewards', () => {
+    const cartItems = [{ id: '1', price: 100, quantity: 1, product: { id: 'p1' } }]
+    const program = {
+      commissionRules: [
+        {
+          appliesTo: 'all',
+          totalCommission: { type: 'percentage', value: 20 },
+          partnerSplit: 50,
+          customerSplit: 50,
+        },
+      ],
+    }
+
+    const result = calculateCommissionAndDiscount({
+      cartItems,
+      program,
+      allowedTotalCommissionTypes: ['fixed'],
+    })
+    expect(result.partnerCommission).toBe(0)
+    expect(result.customerDiscount).toBe(0)
+  })
 })

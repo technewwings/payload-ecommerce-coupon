@@ -1,6 +1,7 @@
 import type { Endpoint, PayloadHandler } from 'payload'
 
 import type { PartnerDashboardData, PartnerStats, SanitizedCouponPluginOptions } from '../types'
+import { isAdminUser, isPartnerUser } from '../utilities/userRoles'
 
 type Args = {
   pluginConfig: SanitizedCouponPluginOptions
@@ -15,18 +16,15 @@ export const partnerStatsHandler =
       return Response.json({ success: false, error: 'Authentication required' }, { status: 401 })
     }
 
-    const typedUser = user as { id: string; role?: string | string[]; roles?: string[] }
+    const typedUser = user as { id: string }
 
     // Check if user is a partner
     const isPartner =
-      typedUser.role === 'partner' ||
-      (Array.isArray(typedUser.role) && typedUser.role?.includes('partner')) ||
-      (Array.isArray(typedUser.roles) && typedUser.roles?.includes('partner'))
-
+      isPartnerUser({ user: typedUser, roleConfig: pluginConfig.roleConfig }) ||
+      pluginConfig.access.isPartner?.({ req } as any)
     const isAdmin =
-      typedUser.role === 'admin' ||
-      (Array.isArray(typedUser.role) && typedUser.role?.includes('admin')) ||
-      (Array.isArray(typedUser.roles) && typedUser.roles?.includes('admin'))
+      isAdminUser({ user: typedUser, roleConfig: pluginConfig.roleConfig }) ||
+      pluginConfig.access.isAdmin?.({ req } as any)
 
     if (!isPartner && !isAdmin) {
       return Response.json({ success: false, error: 'Partner access required' }, { status: 403 })

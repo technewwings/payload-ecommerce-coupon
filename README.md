@@ -27,6 +27,8 @@ Production-ready coupon and referral system plugin for **Payload CMS** with seam
 - ✅ **Commission Rules** – **Required.** At least one rule per program. Each rule supports:
   - **Direct Basis**: Separate Reward (Partner) and Referee Reward (Customer).
   - **Shared Basis**: Define a total "pot" (e.g., 20% of order) and split it (e.g., 50/50) between partner and customer.
+- ✅ **Rule-level Minimum Order** – Optional `minOrderAmount` per commission rule, validated on apply/validate/recalculate
+- ✅ **Fixed-only Mode** – Restrict `totalCommission.type` to fixed only via `referralConfig.allowedTotalCommissionTypes: ['fixed']`
 - ✅ **Referrer/Referee inside each rule** – Partner gets commission, customer gets discount; type (percentage/fixed), value, and optional max cap per rule.
 - ✅ **Partner Tracking** – Commission earnings and referral performance (credited when order is placed)
 - ✅ **Auto-Generated Codes** – Unique referral codes for each partner
@@ -85,6 +87,8 @@ export default buildConfig({
         singleCodePerCart: true, // Only one code per order
         defaultPartnerSplit: 70, // 70% to partner
         defaultCustomerSplit: 30, // 30% discount to customer
+        // Set fixed-only mode for production partner programs
+        allowedTotalCommissionTypes: ["fixed"], // Default: ["fixed", "percentage"]
       },
 
       // Custom admin panel groups
@@ -109,6 +113,13 @@ export default buildConfig({
         isAdmin: ({ req }) => req.user?.role === "admin",
         isPartner: ({ req }) => req.user?.role === "partner",
       },
+
+      // Optional: role resolver for custom user schemas
+      // roleConfig: {
+      //   roleFieldPaths: ["role", "roles", "account.roles"],
+      //   adminRoleValues: ["admin"],
+      //   partnerRoleValues: ["partner", "affiliate"],
+      // },
 
       // Optional: for per-customer coupon limit (defaults shown)
       // orderIntegration: {
@@ -138,7 +149,7 @@ This will create collections for:
 
 ### 3. Setting Up Partner Role
 
-To enable the partner dashboard and role-based access, add a `role` field to your Users collection:
+To enable the partner dashboard and role-based access, add a `role` or `roles` field to your Users collection (or configure custom paths with `roleConfig`):
 
 ```typescript
 // collections/Users.ts
@@ -173,6 +184,16 @@ export const Users: CollectionConfig = {
     },
   ],
 };
+```
+
+If your user schema stores roles in a custom structure, configure:
+
+```typescript
+roleConfig: {
+  roleFieldPaths: ["role", "roles", "profile.accountRoles"],
+  adminRoleValues: ["admin"],
+  partnerRoleValues: ["partner", "affiliate"],
+}
 ```
 
 ### 4. Record Usage When Order Is Placed
