@@ -80,7 +80,7 @@ describe("Referral Programs Collection v2", () => {
           ],
         },
       }),
-    ).toThrow("Partner Split must be a non-negative number");
+    ).toThrow("Partner Split must be between 0 and 100");
   });
 
   it("should allow fixed rules without a commission value and custom splits", async () => {

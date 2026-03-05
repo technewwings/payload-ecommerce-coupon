@@ -17,15 +17,22 @@ function toNumber(value: unknown): number | null {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
-const deriveCustomerSplit = (partnerSplit: unknown, totalType?: string): number => {
-  // when fixed amount rules are used the customer split is entered directly;
-  // we should not auto‑derive it
-  if (totalType === "fixed") {
+const deriveCustomerSplit = (
+  partnerSplit: unknown,
+  totalCommission?: { type?: string; value?: number },
+): number => {
+  // if fixed-type commission and the value is absent we’re in direct-split
+  // mode. In that case the UI allows entering both partner and customer
+  // amounts; the helper isn’t responsible for computing anything useful, so
+  // just echo the partner value to avoid `undefined`.
+  if (totalCommission?.type === "fixed" && totalCommission.value == null) {
     const partner = toNumber(partnerSplit);
-    // fall back to the partner value so the customer field isn't left undefined
     return partner != null ? partner : 0;
   }
 
+  // for all other cases (percentage rules and fixed-with-value rules) we
+  // derive the customer percentage as the complement of the partner
+  // percentage. Bounds are enforced elsewhere.
   const partner = toNumber(partnerSplit);
   if (partner == null) return 0;
   if (partner < 0) return 100;
@@ -75,7 +82,7 @@ export const createReferralProgramsCollection = (
               `Commission rule ${index + 1}: Total Commission value must be a non-negative number`,
             );
           }
-          if (r.totalCommission.type === "percentage" && totalValue > 100) {
+          if (r.totalCommission.type === "percentage" && totalValue && totalValue > 100) {
             throw new Error(
               `Commission rule ${index + 1}: Percentage Total Commission cannot exceed 100`,
             );
@@ -109,17 +116,32 @@ export const createReferralProgramsCollection = (
               `Commission rule ${index + 1}: Partner Split must be a non-negative number`,
             );
           }
+          const hasFixedValue =
+            r.totalCommission.type === "fixed" && toNumber(r.totalCommission.value) != null;
+          if (!hasFixedValue && r.totalCommission.type !== "fixed" && partnerSplit > 100) {
+            // percentage rule with too-large split
+            throw new Error(
+              `Commission rule ${index + 1}: Partner Split must be between 0 and 100`,
+            );
+          }
+          if (hasFixedValue && partnerSplit > 100) {
+            // fixed-with-value also treated as percentage
+            throw new Error(
+              `Commission rule ${index + 1}: Partner Split must be between 0 and 100`,
+            );
+          }
 
           let customerSplit: number | null = null;
-          if (r.totalCommission.type === "fixed") {
+          if (r.totalCommission.type === "fixed" && !hasFixedValue) {
+            // direct mode: require explicit customerSplit
             customerSplit = toNumber(r.customerSplit);
             if (customerSplit == null || customerSplit < 0) {
               throw new Error(
-                `Commission rule ${index + 1}: For fixed commissions both partnerSplit and customerSplit must be non-negative numbers`,
+                `Commission rule ${index + 1}: For fixed commissions with no value, both partnerSplit and customerSplit must be non-negative numbers`,
               );
             }
           } else {
-            // percentages are still derived from partnerSplit
+            // percentage rules and fixed-with-value automatically derive
             customerSplit = 100 - partnerSplit;
           }
 
@@ -305,6 +327,12 @@ export const createReferralProgramsCollection = (
             name: "customerSplit",
             type: "number",
             min: 0,
+            admin: {
+              condition: ({ siblingData }: { siblingData?: { totalCommission?: any } }) =>
+                siblingData?.totalCommission?.type !== "fixed",
+              description:
+                "When using percentage rules this is auto-calculated; for fixed-type rules you may enter a literal amount",
+            },
             hooks: {
               beforeValidate: [
                 ({
@@ -328,12 +356,6 @@ export const createReferralProgramsCollection = (
                     siblingData?.totalCommission?.type,
                   ),
               ],
-            },
-            admin: {
-              readOnly: ({ siblingData }: { siblingData?: { totalCommission?: any } }) =>
-                siblingData?.totalCommission?.type !== "fixed",
-              description:
-                "When using percentage rules this is auto-calculated; for fixed-type rules you may enter a literal amount",
             },
           },
         ],

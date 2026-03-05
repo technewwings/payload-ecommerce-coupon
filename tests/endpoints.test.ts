@@ -383,6 +383,8 @@ describe("Apply Coupon Endpoint", () => {
         docs: [],
         totalDocs: 0,
       });
+      // cart lookup must succeed otherwise handler returns cart-not-found first
+      mockPayload.findByID.mockResolvedValue({ id: "cart-123", items: [], subtotal: 0 });
 
       const handler = applyCouponHandler({ pluginConfig: referralPluginConfig });
       const req = {
@@ -409,6 +411,7 @@ describe("Apply Coupon Endpoint", () => {
         docs: [mockReferralCode],
         totalDocs: 1,
       });
+      mockPayload.findByID.mockResolvedValue({ id: "cart-123", items: [], subtotal: 0 });
 
       const handler = applyCouponHandler({ pluginConfig: referralPluginConfig });
       const req = {
