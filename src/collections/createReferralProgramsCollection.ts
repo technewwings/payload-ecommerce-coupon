@@ -339,22 +339,11 @@ export const createReferralProgramsCollection = (
                   siblingData,
                 }: {
                   siblingData?: { partnerSplit?: number; totalCommission?: any };
-                }) =>
-                  deriveCustomerSplit(
-                    siblingData?.partnerSplit,
-                    siblingData?.totalCommission?.type,
-                  ),
-              ],
-              beforeChange: [
-                ({
-                  siblingData,
-                }: {
-                  siblingData?: { partnerSplit?: number; totalCommission?: any };
-                }) =>
-                  deriveCustomerSplit(
-                    siblingData?.partnerSplit,
-                    siblingData?.totalCommission?.type,
-                  ),
+                }) => {
+                  if (!siblingData) return 0;
+
+                  return deriveCustomerSplit(siblingData.partnerSplit, siblingData.totalCommission);
+                },
               ],
             },
           },
