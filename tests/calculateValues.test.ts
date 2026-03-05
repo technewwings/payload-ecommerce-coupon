@@ -1,231 +1,249 @@
-import { describe, expect, it } from 'bun:test'
+import { describe, expect, it } from "bun:test";
 import {
   calculateCommissionAndDiscount,
   calculateCouponDiscount,
-} from '../src/utilities/calculateValues'
+} from "../src/utilities/calculateValues";
 
-describe('calculateCouponDiscount', () => {
-  it('should calculate percentage discount correctly', () => {
-    const coupon = { type: 'percentage', value: 10 }
-    const discount = calculateCouponDiscount({ coupon, cartTotal: 100 })
-    expect(discount).toBe(10)
-  })
+describe("calculateCouponDiscount", () => {
+  it("should calculate percentage discount correctly", () => {
+    const coupon = { type: "percentage", value: 10 };
+    const discount = calculateCouponDiscount({ coupon, cartTotal: 100 });
+    expect(discount).toBe(10);
+  });
 
-  it('should cap percentage discount at maxDiscountAmount', () => {
-    const coupon = { type: 'percentage', value: 50, maxDiscountAmount: 20 }
-    const discount = calculateCouponDiscount({ coupon, cartTotal: 100 })
-    expect(discount).toBe(20)
-  })
-})
+  it("should cap percentage discount at maxDiscountAmount", () => {
+    const coupon = { type: "percentage", value: 50, maxDiscountAmount: 20 };
+    const discount = calculateCouponDiscount({ coupon, cartTotal: 100 });
+    expect(discount).toBe(20);
+  });
+});
 
-describe('calculateCommissionAndDiscount', () => {
-  it('should calculate shared commission with partner/customer splits', () => {
-    const cartItems = [{ id: '1', price: 100, quantity: 1, product: { id: 'p1' } }]
+describe("calculateCommissionAndDiscount", () => {
+  it("should calculate shared commission with partner/customer splits", () => {
+    const cartItems = [{ id: "1", price: 100, quantity: 1, product: { id: "p1" } }];
     const program = {
       commissionRules: [
         {
-          appliesTo: 'all',
-          totalCommission: { type: 'percentage', value: 20 },
+          appliesTo: "all",
+          totalCommission: { type: "percentage", value: 20 },
           partnerSplit: 50,
           customerSplit: 50,
         },
       ],
-    }
+    };
 
-    const result = calculateCommissionAndDiscount({ cartItems, program })
-    expect(result.partnerCommission).toBe(10)
-    expect(result.customerDiscount).toBe(10)
-  })
+    const result = calculateCommissionAndDiscount({ cartItems, program });
+    expect(result.partnerCommission).toBe(10);
+    expect(result.customerDiscount).toBe(10);
+  });
 
-  it('should support legacy split fields during migration window', () => {
-    const cartItems = [{ id: '1', price: 100, quantity: 1, product: { id: 'p1' } }]
+  it("should support legacy split fields during migration window", () => {
+    const cartItems = [{ id: "1", price: 100, quantity: 1, product: { id: "p1" } }];
     const program = {
       commissionRules: [
         {
-          appliesTo: 'all',
-          totalCommission: { type: 'percentage', value: 20 },
+          appliesTo: "all",
+          totalCommission: { type: "percentage", value: 20 },
           referrerSplit: 50,
           refereeSplit: 50,
         },
       ],
-    }
+    };
 
-    const result = calculateCommissionAndDiscount({ cartItems, program })
-    expect(result.partnerCommission).toBe(10)
-    expect(result.customerDiscount).toBe(10)
-  })
+    const result = calculateCommissionAndDiscount({ cartItems, program });
+    expect(result.partnerCommission).toBe(10);
+    expect(result.customerDiscount).toBe(10);
+  });
 
-  it('should apply shared maxAmount cap per item (not per line)', () => {
-    const cartItems = [{ id: '1', price: 1979, quantity: 4, product: { id: 'p1' } }]
+  it("should apply shared maxAmount cap per item (not per line)", () => {
+    const cartItems = [{ id: "1", price: 1979, quantity: 4, product: { id: "p1" } }];
     const program = {
       commissionRules: [
         {
-          appliesTo: 'all',
-          totalCommission: { type: 'percentage', value: 15, maxAmount: 100 },
+          appliesTo: "all",
+          totalCommission: { type: "percentage", value: 15, maxAmount: 100 },
           partnerSplit: 30,
           customerSplit: 70,
         },
       ],
-    }
+    };
 
-    const result = calculateCommissionAndDiscount({ cartItems, program })
-    expect(result.partnerCommission).toBe(120)
-    expect(result.customerDiscount).toBe(280)
-  })
+    const result = calculateCommissionAndDiscount({ cartItems, program });
+    expect(result.partnerCommission).toBe(120);
+    expect(result.customerDiscount).toBe(280);
+  });
 
-  it('should prioritize product > category > tag > all', () => {
+  it("should prioritize product > category > tag > all", () => {
     const cartItems = [
       {
-        id: '1',
+        id: "1",
         price: 100,
         quantity: 1,
-        product: { id: 'p1', categories: [{ id: 'c1' }], tags: [{ id: 't1' }] },
+        product: { id: "p1", categories: [{ id: "c1" }], tags: [{ id: "t1" }] },
       },
-    ]
+    ];
 
     const program = {
       commissionRules: [
         {
-          appliesTo: 'all',
-          totalCommission: { type: 'percentage', value: 10 },
+          appliesTo: "all",
+          totalCommission: { type: "percentage", value: 10 },
           partnerSplit: 0,
           customerSplit: 100,
         },
         {
-          appliesTo: 'segments',
-          categories: [{ id: 'c1' }],
-          totalCommission: { type: 'percentage', value: 20 },
+          appliesTo: "segments",
+          categories: [{ id: "c1" }],
+          totalCommission: { type: "percentage", value: 20 },
           partnerSplit: 0,
           customerSplit: 100,
         },
         {
-          appliesTo: 'segments',
-          tags: [{ id: 't1' }],
-          totalCommission: { type: 'percentage', value: 90 },
+          appliesTo: "segments",
+          tags: [{ id: "t1" }],
+          totalCommission: { type: "percentage", value: 90 },
           partnerSplit: 0,
           customerSplit: 100,
         },
         {
-          appliesTo: 'products',
-          products: [{ id: 'p1' }],
-          totalCommission: { type: 'percentage', value: 15 },
+          appliesTo: "products",
+          products: [{ id: "p1" }],
+          totalCommission: { type: "percentage", value: 15 },
           partnerSplit: 0,
           customerSplit: 100,
         },
       ],
-    }
+    };
 
-    const result = calculateCommissionAndDiscount({ cartItems, program })
+    const result = calculateCommissionAndDiscount({ cartItems, program });
     // Product-level should win over category/tag/all.
-    expect(result.customerDiscount).toBe(15)
-  })
+    expect(result.customerDiscount).toBe(15);
+  });
 
-  it('should select highest customer discount within same precedence level', () => {
+  it("should select highest customer discount within same precedence level", () => {
     const cartItems = [
       {
-        id: '1',
+        id: "1",
         price: 100,
         quantity: 1,
-        product: { id: 'p1', categories: [{ id: 'c1' }] },
+        product: { id: "p1", categories: [{ id: "c1" }] },
       },
-    ]
+    ];
 
     const program = {
       commissionRules: [
         {
-          appliesTo: 'segments',
-          categories: [{ id: 'c1' }],
-          totalCommission: { type: 'percentage', value: 20 },
+          appliesTo: "segments",
+          categories: [{ id: "c1" }],
+          totalCommission: { type: "percentage", value: 20 },
           partnerSplit: 50,
           customerSplit: 50,
         },
         {
-          appliesTo: 'segments',
-          categories: [{ id: 'c1' }],
-          totalCommission: { type: 'percentage', value: 30 },
+          appliesTo: "segments",
+          categories: [{ id: "c1" }],
+          totalCommission: { type: "percentage", value: 30 },
           partnerSplit: 50,
           customerSplit: 50,
         },
       ],
-    }
+    };
 
-    const result = calculateCommissionAndDiscount({ cartItems, program })
-    expect(result.customerDiscount).toBe(15)
-  })
+    const result = calculateCommissionAndDiscount({ cartItems, program });
+    expect(result.customerDiscount).toBe(15);
+  });
 
-  it('should tie-break by higher partner commission when customer discount is equal', () => {
+  it("should tie-break by higher partner commission when customer discount is equal", () => {
     const cartItems = [
       {
-        id: '1',
+        id: "1",
         price: 100,
         quantity: 1,
-        product: { id: 'p1', categories: [{ id: 'c1' }] },
+        product: { id: "p1", categories: [{ id: "c1" }] },
       },
-    ]
+    ];
 
     const program = {
       commissionRules: [
         {
-          appliesTo: 'segments',
-          categories: [{ id: 'c1' }],
-          totalCommission: { type: 'percentage', value: 10 },
+          appliesTo: "segments",
+          categories: [{ id: "c1" }],
+          totalCommission: { type: "percentage", value: 10 },
           partnerSplit: 50,
           customerSplit: 50,
         },
         {
-          appliesTo: 'segments',
-          categories: [{ id: 'c1' }],
-          totalCommission: { type: 'percentage', value: 20 },
+          appliesTo: "segments",
+          categories: [{ id: "c1" }],
+          totalCommission: { type: "percentage", value: 20 },
           partnerSplit: 75,
           customerSplit: 25,
         },
       ],
-    }
+    };
 
-    const result = calculateCommissionAndDiscount({ cartItems, program })
+    const result = calculateCommissionAndDiscount({ cartItems, program });
     // Both customer=5, second has partner=15 (first partner=5), so second wins.
-    expect(result.partnerCommission).toBe(15)
-    expect(result.customerDiscount).toBe(5)
-  })
+    expect(result.partnerCommission).toBe(15);
+    expect(result.customerDiscount).toBe(5);
+  });
 
-  it('should skip rules when cart total is below rule minOrderAmount', () => {
-    const cartItems = [{ id: '1', price: 100, quantity: 1, product: { id: 'p1' } }]
+  it("should calculate fixed‑amount splits when value is omitted", () => {
+    const cartItems = [{ id: "1", price: 100, quantity: 1, product: { id: "p1" } }];
     const program = {
       commissionRules: [
         {
-          appliesTo: 'all',
-          totalCommission: { type: 'fixed', value: 20 },
+          appliesTo: "all",
+          totalCommission: { type: "fixed" },
+          partnerSplit: 10,
+          customerSplit: 5,
+        },
+      ],
+    };
+
+    const result = calculateCommissionAndDiscount({ cartItems, program });
+    expect(result.partnerCommission).toBe(10);
+    expect(result.customerDiscount).toBe(5);
+  });
+
+  it("should skip rules when cart total is below rule minOrderAmount", () => {
+    const cartItems = [{ id: "1", price: 100, quantity: 1, product: { id: "p1" } }];
+    const program = {
+      commissionRules: [
+        {
+          appliesTo: "all",
+          totalCommission: { type: "fixed", value: 20 },
           partnerSplit: 50,
           customerSplit: 50,
           minOrderAmount: 200,
         },
       ],
-    }
+    };
 
-    const result = calculateCommissionAndDiscount({ cartItems, program, cartTotal: 100 })
-    expect(result.partnerCommission).toBe(0)
-    expect(result.customerDiscount).toBe(0)
-  })
+    const result = calculateCommissionAndDiscount({ cartItems, program, cartTotal: 100 });
+    expect(result.partnerCommission).toBe(0);
+    expect(result.customerDiscount).toBe(0);
+  });
 
-  it('should enforce allowedTotalCommissionTypes when calculating rewards', () => {
-    const cartItems = [{ id: '1', price: 100, quantity: 1, product: { id: 'p1' } }]
+  it("should enforce allowedTotalCommissionTypes when calculating rewards", () => {
+    const cartItems = [{ id: "1", price: 100, quantity: 1, product: { id: "p1" } }];
     const program = {
       commissionRules: [
         {
-          appliesTo: 'all',
-          totalCommission: { type: 'percentage', value: 20 },
+          appliesTo: "all",
+          totalCommission: { type: "percentage", value: 20 },
           partnerSplit: 50,
           customerSplit: 50,
         },
       ],
-    }
+    };
 
     const result = calculateCommissionAndDiscount({
       cartItems,
       program,
-      allowedTotalCommissionTypes: ['fixed'],
-    })
-    expect(result.partnerCommission).toBe(0)
-    expect(result.customerDiscount).toBe(0)
-  })
-})
+      allowedTotalCommissionTypes: ["fixed"],
+    });
+    expect(result.partnerCommission).toBe(0);
+    expect(result.customerDiscount).toBe(0);
+  });
+});
