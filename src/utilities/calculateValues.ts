@@ -106,14 +106,78 @@ function calculateItemRewardByRule({
       return { partner, customer }
     }
 
-    const splits = getRuleSplits(rule)
-    if (!splits) return null
-
     let totalPot = 0
     if (rule.totalCommission.type === 'percentage') {
-      totalPot = (itemTotal * rule.totalCommission.value) / 100
+      const commissionValue =
+        typeof rule.totalCommission.value === 'number' &&
+        Number.isFinite(rule.totalCommission.value)
+          ? rule.totalCommission.value
+          : null
+
+      if (commissionValue == null) {
+        const partnerPercentInput =
+          typeof rule.partnerPercent === 'number'
+            ? rule.partnerPercent
+            : typeof rule.partnerSplit === 'number'
+              ? rule.partnerSplit
+              : null
+        if (partnerPercentInput == null || partnerPercentInput < 0 || partnerPercentInput > 100) {
+          return null
+        }
+
+        const customerPercentInput =
+          typeof rule.customerPercent === 'number'
+            ? rule.customerPercent
+            : typeof rule.customerSplit === 'number'
+              ? rule.customerSplit
+              : 100 - partnerPercentInput
+
+        if (
+          customerPercentInput == null ||
+          customerPercentInput < 0 ||
+          customerPercentInput > 100
+        ) {
+          return null
+        }
+
+        const partner = (itemTotal * partnerPercentInput) / 100
+        const customer = (itemTotal * customerPercentInput) / 100
+
+        if (resolvedMaxAmount != null) {
+          const maxPotForLine = resolvedMaxAmount * quantity
+          const totalForLine = partner + customer
+          if (totalForLine > maxPotForLine && totalForLine > 0) {
+            const ratio = maxPotForLine / totalForLine
+            return {
+              partner: Math.floor(partner * ratio),
+              customer: Math.floor(customer * ratio),
+            }
+          }
+        }
+
+        return {
+          partner: Math.floor(partner),
+          customer: Math.floor(customer),
+        }
+      }
+
+      totalPot = (itemTotal * commissionValue) / 100
     } else {
+      const splits = getRuleSplits(rule)
+      if (!splits) return null
       totalPot = rule.totalCommission.value * quantity
+
+      if (resolvedMaxAmount != null) {
+        const maxPotForLine = resolvedMaxAmount * quantity
+        if (totalPot > maxPotForLine) {
+          totalPot = maxPotForLine
+        }
+      }
+
+      return {
+        partner: Math.floor((totalPot * splits.partnerSplit) / 100),
+        customer: Math.floor((totalPot * splits.customerSplit) / 100),
+      }
     }
 
     if (resolvedMaxAmount != null) {
@@ -122,6 +186,9 @@ function calculateItemRewardByRule({
         totalPot = maxPotForLine
       }
     }
+
+    const splits = getRuleSplits(rule)
+    if (!splits) return null
 
     return {
       partner: Math.floor((totalPot * splits.partnerSplit) / 100),
@@ -198,7 +265,8 @@ function selectBestRuleForItem({
         : typeof rule?.minOrderAmount === 'number' && Number.isFinite(rule.minOrderAmount)
           ? rule.minOrderAmount
           : null
-    if (resolvedMinOrderAmount != null) {
+    const shouldApplyMinOrder = rule?.totalCommission?.type !== 'fixed'
+    if (resolvedMinOrderAmount != null && shouldApplyMinOrder) {
       return cartTotal >= resolvedMinOrderAmount
     }
     return true
@@ -272,7 +340,20 @@ export function getProgramMinimumOrderAmount({
   if (!rules.length) return null
 
   const allowedTypes = allowedCommissionTypesSet(allowedTotalCommissionTypes)
-  if (typeof program?.minOrderAmount === 'number' && Number.isFinite(program.minOrderAmount)) {
+  const hasEligiblePercentageRule = rules.some((rule: any) => {
+    if (rule?.totalCommission?.type) {
+      return (
+        rule.totalCommission.type === 'percentage' && allowedTypes.has(rule.totalCommission.type)
+      )
+    }
+    return true
+  })
+
+  if (
+    hasEligiblePercentageRule &&
+    typeof program?.minOrderAmount === 'number' &&
+    Number.isFinite(program.minOrderAmount)
+  ) {
     return program.minOrderAmount
   }
 

@@ -482,7 +482,7 @@ describe('Apply Coupon Endpoint', () => {
         commissionRules: [
           {
             appliesTo: 'all',
-            totalCommission: { type: 'fixed', value: 20 },
+            totalCommission: { type: 'percentage', value: 20 },
             partnerSplit: 50,
             customerSplit: 50,
             minOrderAmount: 200,
@@ -517,6 +517,63 @@ describe('Apply Coupon Endpoint', () => {
 
       expect(response.status).toBe(400)
       expect(result.error).toContain('Minimum order value of 200')
+    })
+
+    it('should not enforce minimum order amount for fixed referral rules on apply', async () => {
+      const mockReferralCode = {
+        id: 'ref-1',
+        code: 'REF123',
+        isActive: true,
+        program: 'program-1',
+      }
+
+      const mockProgram = {
+        id: 'program-1',
+        isActive: true,
+        minOrderAmount: 200,
+        commissionRules: [
+          {
+            appliesTo: 'all',
+            totalCommission: { type: 'fixed' },
+            partnerSplit: 15,
+            customerSplit: 10,
+          },
+        ],
+      }
+
+      mockPayload.find.mockResolvedValue({
+        docs: [mockReferralCode],
+        totalDocs: 1,
+      })
+      mockPayload.findByID.mockImplementation((args: any) => {
+        if (args.collection === 'referral-programs' && args.id === 'program-1') {
+          return Promise.resolve(mockProgram)
+        }
+        if (args.collection === 'carts' && args.id === 'cart-123') {
+          return Promise.resolve({
+            id: 'cart-123',
+            subtotal: 100,
+            items: [{ id: 'i1', price: 100, quantity: 1, product: { id: 'p1' } }],
+          })
+        }
+        return Promise.resolve(null)
+      })
+
+      const handler = applyCouponHandler({
+        pluginConfig: referralPluginConfig,
+      })
+      const req = {
+        payload: mockPayload,
+        data: { code: 'REF123', cartID: 'cart-123' },
+      }
+
+      const response = await handler(req as any)
+      const result = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(result.success).toBe(true)
+      expect(result.customerDiscount).toBe(10)
+      expect(result.partnerCommission).toBe(15)
     })
   })
 
@@ -889,7 +946,7 @@ describe('Validate Coupon Endpoint', () => {
         commissionRules: [
           {
             appliesTo: 'all',
-            totalCommission: { type: 'fixed', value: 20 },
+            totalCommission: { type: 'percentage', value: 20 },
             partnerSplit: 50,
             customerSplit: 50,
             minOrderAmount: 200,
@@ -926,6 +983,61 @@ describe('Validate Coupon Endpoint', () => {
 
       expect(response.status).toBe(400)
       expect(result.error).toContain('Minimum order value of 200')
+    })
+
+    it('should not enforce minimum order amount for fixed referral rules on validate', async () => {
+      const mockReferralCode = {
+        id: 'ref-1',
+        code: 'REF123',
+        isActive: true,
+        program: 'program-1',
+      }
+
+      const mockProgram = {
+        id: 'program-1',
+        isActive: true,
+        minOrderAmount: 200,
+        commissionRules: [
+          {
+            appliesTo: 'all',
+            totalCommission: { type: 'fixed' },
+            partnerSplit: 15,
+            customerSplit: 10,
+          },
+        ],
+      }
+
+      mockPayload.find.mockResolvedValueOnce({
+        docs: [mockReferralCode],
+        totalDocs: 1,
+      })
+      mockPayload.findByID.mockImplementation((args: any) => {
+        if (args.collection === 'referral-programs') return Promise.resolve(mockProgram)
+        if (args.collection === 'carts') {
+          return Promise.resolve({
+            id: 'cart-123',
+            subtotal: 100,
+            items: [{ id: 'i1', price: 100, quantity: 1, product: { id: 'p1' } }],
+          })
+        }
+        return Promise.resolve(null)
+      })
+
+      const handler = validateCouponHandler({
+        pluginConfig: referralPluginConfig,
+      })
+      const req = {
+        payload: mockPayload,
+        data: { code: 'REF123', cartID: 'cart-123' },
+      }
+
+      const response = await handler(req as any)
+      const result = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(result.success).toBe(true)
+      expect(result.customerDiscount).toBe(10)
+      expect(result.partnerCommission).toBe(15)
     })
   })
 

@@ -9,7 +9,7 @@ type RuleData = {
   products?: unknown[]
   categories?: unknown[]
   tags?: unknown[]
-  totalCommission?: { type?: CommissionType }
+  totalCommission?: { type?: CommissionType; value?: number; maxAmount?: number }
   partnerSplit?: number
   customerSplit?: number
   partnerPercent?: number
@@ -20,10 +20,6 @@ type RuleData = {
 
 function toNumber(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? value : null
-}
-
-function toCents(value: number): number {
-  return Math.round(value * 100)
 }
 
 export const createReferralProgramsCollection = (
@@ -65,9 +61,9 @@ export const createReferralProgramsCollection = (
       }
 
       data.maxPartnerCommissionPerOrder =
-        maxPartnerCommissionPerOrder != null ? toCents(maxPartnerCommissionPerOrder) : null
+        maxPartnerCommissionPerOrder != null ? maxPartnerCommissionPerOrder : null
       data.maxCustomerDiscountPerOrder =
-        maxCustomerDiscountPerOrder != null ? toCents(maxCustomerDiscountPerOrder) : null
+        maxCustomerDiscountPerOrder != null ? maxCustomerDiscountPerOrder : null
       data.minOrderAmount = minOrderAmount ?? null
 
       data.commissionRules = data.commissionRules.map(
@@ -181,8 +177,8 @@ export const createReferralProgramsCollection = (
 
               partnerAmount = partnerAmountInput
               customerAmount = customerAmountInput
-              partnerSplit = toCents(partnerAmountInput)
-              customerSplit = toCents(customerAmountInput)
+              partnerSplit = partnerAmountInput
+              customerSplit = customerAmountInput
             } else if (hasLegacyFixedInputs) {
               if (legacyPartnerSplitInput == null || legacyPartnerSplitInput < 0) {
                 throw new APIError(
@@ -218,6 +214,12 @@ export const createReferralProgramsCollection = (
             appliesTo: appliesTo === 'categories' ? 'segments' : appliesTo,
             totalCommission: {
               type,
+              ...(typeof r.totalCommission.value === 'number'
+                ? { value: r.totalCommission.value }
+                : {}),
+              ...(typeof r.totalCommission.maxAmount === 'number'
+                ? { maxAmount: r.totalCommission.maxAmount }
+                : {}),
             },
             partnerPercent,
             customerPercent,
@@ -272,8 +274,7 @@ export const createReferralProgramsCollection = (
         type: 'number',
         min: 0,
         admin: {
-          description:
-            'Maximum commission per order for partner. Leave empty for no cap. Enter value in currency units (will be converted to cents).',
+          description: 'Maximum commission per order for partner. Leave empty for no cap.',
         },
       },
       {
@@ -281,8 +282,7 @@ export const createReferralProgramsCollection = (
         type: 'number',
         min: 0,
         admin: {
-          description:
-            'Maximum customer discount per order. Leave empty for no cap. Enter value in currency units (will be converted to cents).',
+          description: 'Maximum customer discount per order. Leave empty for no cap.',
         },
       },
       {
@@ -417,8 +417,7 @@ export const createReferralProgramsCollection = (
             min: 0,
             admin: {
               hidden: true,
-              description:
-                'Canonical storage field. Percentage mode: percent. Fixed mode: amount in cents.',
+              description: 'Canonical storage field. Percentage mode: percent. Fixed mode: amount.',
             },
           },
           {
@@ -427,8 +426,7 @@ export const createReferralProgramsCollection = (
             min: 0,
             admin: {
               hidden: true,
-              description:
-                'Canonical storage field. Percentage mode: percent. Fixed mode: amount in cents.',
+              description: 'Canonical storage field. Percentage mode: percent. Fixed mode: amount.',
             },
           },
         ],

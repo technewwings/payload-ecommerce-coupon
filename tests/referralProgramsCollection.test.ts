@@ -165,7 +165,7 @@ describe('Referral Programs Collection v2', () => {
     expect(result.commissionRules[0].minOrderAmount).toBeUndefined()
   })
 
-  it('should convert per-order max caps to cents', async () => {
+  it('should preserve per-order max caps as entered values', async () => {
     const result = await beforeChangeHook({
       data: {
         maxPartnerCommissionPerOrder: 40,
@@ -180,8 +180,26 @@ describe('Referral Programs Collection v2', () => {
       },
     })
 
-    expect(result.maxPartnerCommissionPerOrder).toBe(4000)
-    expect(result.maxCustomerDiscountPerOrder).toBe(2550)
+    expect(result.maxPartnerCommissionPerOrder).toBe(40)
+    expect(result.maxCustomerDiscountPerOrder).toBe(25.5)
+  })
+
+  it('should preserve fixed partner/customer amounts without cent conversion', async () => {
+    const result = await beforeChangeHook({
+      data: {
+        commissionRules: [
+          {
+            appliesTo: 'all',
+            totalCommission: { type: 'fixed' },
+            partnerAmount: 12.5,
+            customerAmount: 4.25,
+          },
+        ],
+      },
+    })
+
+    expect(result.commissionRules[0].partnerSplit).toBe(12.5)
+    expect(result.commissionRules[0].customerSplit).toBe(4.25)
   })
 
   it('should normalize missing top-level minOrderAmount and per-order max caps to null', async () => {
@@ -292,6 +310,24 @@ describe('Referral Programs Collection v2', () => {
     expect(result.commissionRules[0].splitWarning).toBe(
       'High total split configured: 60% (partner + customer).',
     )
+  })
+
+  it('should preserve totalCommission.value and maxAmount on save', async () => {
+    const result = await beforeChangeHook({
+      data: {
+        commissionRules: [
+          {
+            appliesTo: 'all',
+            totalCommission: { type: 'percentage', value: 18, maxAmount: 22 },
+            partnerPercent: 10,
+            customerPercent: 8,
+          },
+        ],
+      },
+    })
+
+    expect(result.commissionRules[0].totalCommission.value).toBe(18)
+    expect(result.commissionRules[0].totalCommission.maxAmount).toBe(22)
   })
 
   it('should not set splitWarning when percentage split total is 50 or less', async () => {
