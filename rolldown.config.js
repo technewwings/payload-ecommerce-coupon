@@ -12,5 +12,5 @@ export default {
       sourcemap: true,
     },
   ],
-  external: [],
+  external: ["payload", "@payloadcms/plugin-ecommerce"],
 };

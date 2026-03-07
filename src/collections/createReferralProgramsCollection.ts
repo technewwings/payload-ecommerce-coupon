@@ -9,7 +9,7 @@ type RuleData = {
   products?: unknown[];
   categories?: unknown[];
   tags?: unknown[];
-  totalCommission?: { type?: CommissionType; value?: number };
+  totalCommission?: { type?: CommissionType };
   partnerSplit?: number;
   customerSplit?: number;
   partnerPercent?: number;
@@ -75,22 +75,6 @@ export const createReferralProgramsCollection = (
           }
 
           const type = r.totalCommission.type;
-          const totalValue = toNumber(r.totalCommission.value);
-
-          if (type === "percentage") {
-            if (totalValue == null || totalValue < 0) {
-              throw new APIError(
-                `Commission rule ${index + 1}: Total Commission value must be a non-negative number`,
-                400,
-              );
-            }
-            if (totalValue > 100) {
-              throw new APIError(
-                `Commission rule ${index + 1}: Percentage Total Commission cannot exceed 100`,
-                400,
-              );
-            }
-          }
 
           const appliesTo = r.appliesTo ?? "all";
           if (appliesTo === "products" && (!r.products || r.products.length === 0)) {
@@ -193,10 +177,8 @@ export const createReferralProgramsCollection = (
                 );
               }
 
-              const legacyHasTotalValue = toNumber(r.totalCommission?.value) != null;
               const resolvedLegacyCustomerSplit =
-                legacyCustomerSplitInput ??
-                (legacyHasTotalValue ? 100 - legacyPartnerSplitInput : null);
+                legacyCustomerSplitInput ?? 100 - legacyPartnerSplitInput;
 
               if (resolvedLegacyCustomerSplit == null || resolvedLegacyCustomerSplit < 0) {
                 throw new APIError(
@@ -222,7 +204,6 @@ export const createReferralProgramsCollection = (
             appliesTo: appliesTo === "categories" ? "segments" : appliesTo,
             totalCommission: {
               type,
-              value: type === "percentage" ? totalValue : null,
             },
             partnerPercent,
             customerPercent,
