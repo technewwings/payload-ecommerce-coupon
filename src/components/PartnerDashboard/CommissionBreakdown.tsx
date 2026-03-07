@@ -1,36 +1,36 @@
-'use client'
+"use client";
 
-import React from 'react'
+import React from "react";
 
-import type { PartnerStats } from '../../types'
+import type { PartnerStats } from "../../types";
 
 export type CommissionBreakdownProps = {
-  stats: PartnerStats
-  currency: string
-}
+  stats: PartnerStats;
+  currency: string;
+};
 
 const formatCurrency = (amount: number, currency: string): string => {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
     currency,
     minimumFractionDigits: 2,
-  }).format(amount)
-}
+  }).format(amount);
+};
 
 const formatPercent = (value: number): string => {
-  if (!Number.isFinite(value)) return '0%'
-  return `${value.toFixed(1)}%`
-}
+  if (!Number.isFinite(value)) return "0%";
+  return `${value.toFixed(1)}%`;
+};
 
 export const CommissionBreakdown: React.FC<CommissionBreakdownProps> = ({ stats, currency }) => {
-  const totalEarnings = Math.max(stats.totalEarnings || 0, 0)
-  const paidEarnings = Math.max(stats.paidEarnings || 0, 0)
-  const pendingEarnings = Math.max(stats.pendingEarnings || 0, 0)
+  const totalEarnings = Math.max(stats.totalEarnings || 0, 0);
+  const paidEarnings = Math.max(stats.paidEarnings || 0, 0);
+  const pendingEarnings = Math.max(stats.pendingEarnings || 0, 0);
 
-  const paidPercent = totalEarnings > 0 ? (paidEarnings / totalEarnings) * 100 : 0
-  const pendingPercent = totalEarnings > 0 ? (pendingEarnings / totalEarnings) * 100 : 0
-  const unpaidOrOther = Math.max(totalEarnings - (paidEarnings + pendingEarnings), 0)
-  const otherPercent = totalEarnings > 0 ? (unpaidOrOther / totalEarnings) * 100 : 0
+  const paidPercent = totalEarnings > 0 ? (paidEarnings / totalEarnings) * 100 : 0;
+  const pendingPercent = totalEarnings > 0 ? (pendingEarnings / totalEarnings) * 100 : 0;
+  const unpaidOrOther = Math.max(totalEarnings - (paidEarnings + pendingEarnings), 0);
+  const otherPercent = totalEarnings > 0 ? (unpaidOrOther / totalEarnings) * 100 : 0;
 
   return (
     <div className="partner-widget partner-widget--commission-breakdown">
@@ -111,7 +111,7 @@ export const CommissionBreakdown: React.FC<CommissionBreakdownProps> = ({ stats,
         </div>
       </div>
     </div>
-  )
-}
+  );
+};
 
-export default CommissionBreakdown
+export default CommissionBreakdown;

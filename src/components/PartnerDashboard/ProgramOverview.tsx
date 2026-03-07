@@ -1,12 +1,12 @@
-'use client'
+"use client";
 
-import React from 'react'
+import React from "react";
 
-import type { PartnerDashboardData } from '../../types'
+import type { PartnerDashboardData } from "../../types";
 
 export type ProgramOverviewProps = {
-  program: PartnerDashboardData['program']
-}
+  program: PartnerDashboardData["program"];
+};
 
 export const ProgramOverview: React.FC<ProgramOverviewProps> = ({ program }) => {
   if (!program) {
@@ -19,7 +19,7 @@ export const ProgramOverview: React.FC<ProgramOverviewProps> = ({ program }) => 
           </div>
         </div>
       </div>
-    )
+    );
   }
 
   return (
@@ -42,7 +42,7 @@ export const ProgramOverview: React.FC<ProgramOverviewProps> = ({ program }) => 
         </div>
       </div>
     </div>
-  )
-}
+  );
+};
 
-export default ProgramOverview
+export default ProgramOverview;

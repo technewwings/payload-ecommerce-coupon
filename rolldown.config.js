@@ -1,16 +1,16 @@
 export default {
-  input: 'src/index.ts',
+  input: "src/index.ts",
   output: [
     {
-      file: 'dist/index.js',
-      format: 'cjs',
+      file: "dist/index.js",
+      format: "cjs",
       sourcemap: true,
     },
     {
-      file: 'dist/index.mjs',
-      format: 'es',
+      file: "dist/index.mjs",
+      format: "es",
       sourcemap: true,
     },
   ],
   external: [],
-}
+};
