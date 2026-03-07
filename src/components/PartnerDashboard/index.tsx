@@ -8,14 +8,16 @@ import { EarningsSummary } from './EarningsSummary'
 import { ReferralPerformance } from './ReferralPerformance'
 import { RecentReferrals } from './RecentReferrals'
 import { ReferralCodes } from './ReferralCodes'
-
-import './styles.css'
+import { ProgramOverview } from './ProgramOverview'
+import { CommissionBreakdown } from './CommissionBreakdown'
 
 export type PartnerDashboardProps = {
   showEarningsSummary?: boolean
   showReferralPerformance?: boolean
   showRecentReferrals?: boolean
   showReferralCodes?: boolean
+  showProgramOverview?: boolean
+  showCommissionBreakdown?: boolean
   apiEndpoint?: string
 }
 
@@ -24,6 +26,8 @@ export const PartnerDashboard: React.FC<PartnerDashboardProps> = ({
   showReferralPerformance = true,
   showRecentReferrals = true,
   showReferralCodes = true,
+  showProgramOverview = true,
+  showCommissionBreakdown = true,
   apiEndpoint = '/api/referrals/partner-stats',
 }) => {
   const [data, setData] = useState<PartnerDashboardData | null>(null)
@@ -133,6 +137,10 @@ export const PartnerDashboard: React.FC<PartnerDashboardProps> = ({
         {showReferralCodes && data.referralCodes.length > 0 && (
           <ReferralCodes codes={data.referralCodes} currency={currency} />
         )}
+
+        {showProgramOverview && <ProgramOverview program={data.program} />}
+
+        {showCommissionBreakdown && <CommissionBreakdown stats={data.stats} currency={currency} />}
       </div>
     </div>
   )

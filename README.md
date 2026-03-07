@@ -206,6 +206,123 @@ import { useCouponCode, validateCouponCode, usePartnerStats } from '@wtree/paylo
 - `validateCouponCode({ code, cartValue?, cartID?, customerEmail? })`
 - `usePartnerStats()`
 
+### PartnerDashboard UI component
+
+The package also exports ready-to-use partner dashboard UI components:
+
+```ts
+import {
+  PartnerDashboard,
+  EarningsSummary,
+  ReferralPerformance,
+  RecentReferrals,
+  ReferralCodes,
+  ProgramOverview,
+  CommissionBreakdown,
+} from '@wtree/payload-ecommerce-coupon'
+import '@wtree/payload-ecommerce-coupon/dist/styles.css'
+```
+
+> The dashboard components are client-side React components. Use them in your frontend app (for example, a Next.js client component).
+
+#### Quick usage
+
+```tsx
+'use client'
+
+import { PartnerDashboard } from '@wtree/payload-ecommerce-coupon'
+import '@wtree/payload-ecommerce-coupon/dist/styles.css'
+
+export default function PartnerPage() {
+  return <PartnerDashboard apiEndpoint="/api/referrals/partner-stats" />
+}
+```
+
+#### PartnerDashboard props
+
+```ts
+type PartnerDashboardProps = {
+  showEarningsSummary?: boolean
+  showReferralPerformance?: boolean
+  showRecentReferrals?: boolean
+  showReferralCodes?: boolean
+  showProgramOverview?: boolean
+  showCommissionBreakdown?: boolean
+  apiEndpoint?: string
+}
+```
+
+Example with custom widget visibility:
+
+```tsx
+<PartnerDashboard
+  apiEndpoint="/api/referrals/partner-stats"
+  showEarningsSummary
+  showReferralPerformance
+  showRecentReferrals={false}
+  showReferralCodes
+  showProgramOverview
+  showCommissionBreakdown
+/>
+```
+
+#### Theming and style-guide compatibility
+
+The `PartnerDashboard` styles are tokenized with CSS variables so your app can keep its own design system and branding.
+
+By default, dashboard typography inherits from the host app (`font-family: inherit`) and colors use overridable tokens.
+
+Basic override example:
+
+```css
+.partner-dashboard {
+  --pd-color-text: var(--app-text-color);
+  --pd-color-text-muted: var(--app-text-muted);
+  --pd-color-surface: var(--app-surface);
+  --pd-color-surface-muted: var(--app-surface-muted);
+  --pd-color-border: var(--app-border);
+  --pd-color-primary: var(--app-primary);
+  --pd-color-primary-strong: var(--app-primary-strong);
+  --pd-color-success: var(--app-success);
+  --pd-color-warning: var(--app-warning);
+  --pd-color-danger: var(--app-danger);
+}
+```
+
+You can also set global aliases once:
+
+```css
+:root {
+  --color-text: #111827;
+  --color-text-muted: #6b7280;
+  --color-surface: #ffffff;
+  --color-surface-muted: #f9fafb;
+  --color-border: #e5e7eb;
+  --color-primary: #2563eb;
+  --color-primary-strong: #1d4ed8;
+  --color-primary-soft: #dbeafe;
+  --color-success: #059669;
+  --color-warning: #d97706;
+  --color-danger: #dc2626;
+}
+```
+
+Common dashboard tokens you may override:
+
+- Layout/spacing: `--pd-space-*`, `--pd-grid-min-column`, `--pd-referrals-status-col-width`
+- Typography: `--pd-font-family`, `--pd-font-size-*`, `--pd-font-weight-*`
+- Surfaces/borders: `--pd-color-bg`, `--pd-color-surface`, `--pd-color-surface-muted`, `--pd-color-border`
+- Semantic colors: `--pd-color-primary`, `--pd-color-success`, `--pd-color-warning`, `--pd-color-danger`
+- Widget accents:
+  - `--pd-color-earnings-total-*`
+  - `--pd-color-earnings-pending-*`
+  - `--pd-color-earnings-paid-*`
+  - `--pd-color-status-pending-*`
+  - `--pd-color-status-paid-*`
+  - `--pd-color-status-cancelled-*`
+
+This keeps plugin UI behavior consistent while respecting your product’s style guide.
+
 ---
 
 ## Configuration overview
@@ -361,6 +478,13 @@ Main exports include:
 - `useCouponCode`
 - `validateCouponCode`
 - `usePartnerStats`
+- `PartnerDashboard`
+- `EarningsSummary`
+- `ReferralPerformance`
+- `RecentReferrals`
+- `ReferralCodes`
+- `ProgramOverview`
+- `CommissionBreakdown`
 - `getCartTotalWithDiscounts`
 - `recordCouponUsageForOrder`
 - full TypeScript types for plugin options/policies/integration

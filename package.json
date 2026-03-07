@@ -39,7 +39,7 @@
     }
   },
   "scripts": {
-    "build": "bun run clean && rolldown -c && tsc --declaration --emitDeclarationOnly --outDir dist",
+    "build": "bun run clean && rolldown -c && tsc --declaration --emitDeclarationOnly --outDir dist && bun scripts/copy-styles.mjs",
     "clean": "rm -rf dist",
     "dev": "rolldown -c --watch",
     "test": "bun test",
