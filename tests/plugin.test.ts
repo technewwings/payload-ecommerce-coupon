@@ -84,7 +84,10 @@ describe('Coupon Plugin', () => {
     })
 
     it('should add referral collections when referrals enabled', async () => {
-      const plugin = payloadEcommerceCoupon({ enabled: true, enableReferrals: true })
+      const plugin = payloadEcommerceCoupon({
+        enabled: true,
+        enableReferrals: true,
+      })
       const testConfig = { collections: [] } as any
       const result = await plugin(testConfig)
       expect(result.collections).toHaveLength(2)
@@ -131,7 +134,10 @@ describe('Coupon Plugin', () => {
     })
 
     it('should add endpoints for referral mode', async () => {
-      const plugin = payloadEcommerceCoupon({ enabled: true, enableReferrals: true })
+      const plugin = payloadEcommerceCoupon({
+        enabled: true,
+        enableReferrals: true,
+      })
       const testConfig = {} as any
       const result = await plugin(testConfig)
       expect(result.endpoints).toHaveLength(3)
@@ -147,6 +153,17 @@ describe('Coupon Plugin', () => {
       const testConfig = {} as any
       const result = await plugin(testConfig)
       expect(result.endpoints).toBeUndefined()
+    })
+
+    it('should register collection-level coupon endpoints to avoid route conflicts', async () => {
+      const plugin = payloadEcommerceCoupon({ enabled: true })
+      const result = await plugin({ collections: [] } as any)
+      const couponsCollection = result.collections?.find((c: any) => c.slug === 'coupons')
+
+      expect(couponsCollection).toBeDefined()
+      expect(couponsCollection?.endpoints?.map((e: any) => e.path)).toEqual(
+        expect.arrayContaining(['/apply', '/validate']),
+      )
     })
   })
 
@@ -203,7 +220,10 @@ describe('Coupon Plugin', () => {
     })
 
     it('should create appliedReferralCode field for referral mode', async () => {
-      const plugin = payloadEcommerceCoupon({ enableReferrals: true, autoIntegrate: true })
+      const plugin = payloadEcommerceCoupon({
+        enableReferrals: true,
+        autoIntegrate: true,
+      })
       const testConfig = {
         collections: [{ slug: 'carts', fields: [] }],
       } as any

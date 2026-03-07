@@ -1,4 +1,4 @@
-import type { Endpoint, PayloadHandler } from 'payload'
+import { addDataAndFileToRequest, type Endpoint, type PayloadHandler } from 'payload'
 import type { SanitizedCouponPluginOptions } from '../types'
 import {
   calculateCommissionAndDiscount,
@@ -33,6 +33,31 @@ function writeField(doc: Record<string, unknown>, field: string, value: unknown)
 
 function normalizeCode(value: unknown): string {
   return typeof value === 'string' ? value.trim().toUpperCase() : ''
+}
+
+async function ensureRequestData(req: any): Promise<Record<string, unknown>> {
+  if (req?.data && typeof req.data === 'object') return req.data as Record<string, unknown>
+
+  try {
+    await addDataAndFileToRequest(req)
+  } catch (_error) {
+    // Fallback for non-standard test/mocked requests where payload parser cannot run.
+  }
+
+  if (req?.data && typeof req.data === 'object') return req.data as Record<string, unknown>
+
+  try {
+    const parsed = await req?.json?.()
+    if (parsed && typeof parsed === 'object') {
+      req.data = parsed
+      return parsed as Record<string, unknown>
+    }
+  } catch (_error) {
+    // Ignore malformed/empty body; validation below will return proper 400 errors.
+  }
+
+  req.data = {}
+  return req.data
 }
 
 async function findByNormalizedCode({
@@ -91,10 +116,11 @@ export const applyCouponHandler =
     const { payload } = req
     const fields = pluginConfig.integration.fields
     const collections = pluginConfig.integration.collections
+    const data = await ensureRequestData(req)
 
-    const rawCode = req?.data?.code
-    const cartID = req?.data?.cartID
-    const customerEmail = req?.data?.customerEmail
+    const rawCode = data?.code
+    const cartID = data?.cartID
+    const customerEmail = data?.customerEmail
 
     const normalizedCode = normalizeCode(rawCode)
 
@@ -245,7 +271,10 @@ async function handleCouponCode({
     const email = typeof customerEmail === 'string' ? customerEmail.trim() : ''
     if (!email) {
       return Response.json(
-        { success: false, error: 'Customer email is required for this coupon.' },
+        {
+          success: false,
+          error: 'Customer email is required for this coupon.',
+        },
         { status: 400 },
       )
     }
@@ -255,7 +284,11 @@ async function handleCouponCode({
       where: {
         and: [
           { [fields.orderAppliedCouponField]: { equals: coupon.id } },
-          { [pluginConfig.orderIntegration.orderCustomerEmailField]: { equals: email } },
+          {
+            [pluginConfig.orderIntegration.orderCustomerEmailField]: {
+              equals: email,
+            },
+          },
           {
             [pluginConfig.orderIntegration.orderPaymentStatusField]: {
               equals: pluginConfig.orderIntegration.orderPaidStatusValue,
@@ -268,7 +301,10 @@ async function handleCouponCode({
 
     if (ordersQuery.totalDocs >= coupon.perCustomerLimit) {
       return Response.json(
-        { success: false, error: 'You have reached the maximum uses for this coupon.' },
+        {
+          success: false,
+          error: 'You have reached the maximum uses for this coupon.',
+        },
         { status: 400 },
       )
     }
