@@ -40,7 +40,7 @@ async function ensureRequestData(req: any): Promise<Record<string, unknown>> {
 
   try {
     await addDataAndFileToRequest(req)
-  } catch (_error) {
+  } catch {
     // Fallback for non-standard test/mocked requests where payload parser cannot run.
   }
 
@@ -52,7 +52,7 @@ async function ensureRequestData(req: any): Promise<Record<string, unknown>> {
       req.data = parsed
       return parsed as Record<string, unknown>
     }
-  } catch (_error) {
+  } catch {
     // Ignore malformed/empty body; validation below will return proper 400 errors.
   }
 
