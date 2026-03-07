@@ -4,11 +4,11 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Version to release (e.g., 1.0.1, 1.1.0, 2.0.0)"
+        description: 'Version to release (e.g., 1.0.1, 1.1.0, 2.0.0)'
         required: true
         type: string
       release_type:
-        description: "Type of release"
+        description: 'Type of release'
         required: true
         type: choice
         options:
@@ -38,8 +38,8 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "20.x"
-          registry-url: "https://registry.npmjs.org"
+          node-version: '20.x'
+          registry-url: 'https://registry.npmjs.org'
 
       - name: Configure Git
         run: |

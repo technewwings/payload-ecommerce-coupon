@@ -34,13 +34,13 @@ export default buildConfig({
 
 #### Core Options
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `enabled` | `boolean` | `true` | Enable/disable the entire plugin |
-| `enableReferrals` | `boolean` | `false` | Enable referral system (creates referral collections) |
-| `allowStackWithOtherCoupons` | `boolean` | `false` | Allow multiple coupons on same cart |
-| `defaultCurrency` | `string` | `'USD'` | Default currency code |
-| `autoIntegrate` | `boolean` | `true` | Auto-add fields to carts/orders collections |
+| Option                       | Type      | Default | Description                                           |
+| ---------------------------- | --------- | ------- | ----------------------------------------------------- |
+| `enabled`                    | `boolean` | `true`  | Enable/disable the entire plugin                      |
+| `enableReferrals`            | `boolean` | `false` | Enable referral system (creates referral collections) |
+| `allowStackWithOtherCoupons` | `boolean` | `false` | Allow multiple coupons on same cart                   |
+| `defaultCurrency`            | `string`  | `'USD'` | Default currency code                                 |
+| `autoIntegrate`              | `boolean` | `true`  | Auto-add fields to carts/orders collections           |
 
 #### Collections Configuration
 
@@ -136,11 +136,11 @@ Validate a coupon or referral code without applying it.
 }
 ```
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `code` | `string` | Yes | Coupon or referral code |
-| `cartValue` | `number` | No | Cart value for discount preview |
-| `cartID` | `string` | No | Cart ID for referral calculation |
+| Field       | Type     | Required | Description                      |
+| ----------- | -------- | -------- | -------------------------------- |
+| `code`      | `string` | Yes      | Coupon or referral code          |
+| `cartValue` | `number` | No       | Cart value for discount preview  |
+| `cartID`    | `string` | No       | Cart ID for referral calculation |
 
 **Response (Coupon):**
 
@@ -168,7 +168,7 @@ Validate a coupon or referral code without applying it.
     "description": "Get $15.50 discount with this referral code"
   },
   "partnerCommission": 36.75,
-  "customerDiscount": 15.50,
+  "customerDiscount": 15.5,
   "currency": "USD"
 }
 ```
@@ -196,11 +196,11 @@ Apply a coupon or referral code to a cart.
 }
 ```
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `code` | `string` | Yes | Coupon or referral code |
-| `cartID` | `string` | Yes | Cart ID to apply code to |
-| `customerEmail` | `string` | No | Customer email for tracking |
+| Field           | Type     | Required | Description                 |
+| --------------- | -------- | -------- | --------------------------- |
+| `code`          | `string` | Yes      | Coupon or referral code     |
+| `cartID`        | `string` | Yes      | Cart ID to apply code to    |
+| `customerEmail` | `string` | No       | Customer email for tracking |
 
 **Response (Coupon):**
 
@@ -228,24 +228,24 @@ Apply a coupon or referral code to a cart.
     "code": "REF-ABC123"
   },
   "partnerCommission": 36.75,
-  "customerDiscount": 15.50,
+  "customerDiscount": 15.5,
   "currency": "USD"
 }
 ```
 
 **Error Responses:**
 
-| Status | Error | Description |
-|--------|-------|-------------|
-| 400 | "Code and cart ID are required" | Missing required fields |
-| 400 | "A code has already been applied" | Single code per cart enforced |
-| 400 | "Coupon is not yet active" | Before activeFrom date |
-| 400 | "Coupon has expired" | After activeUntil date |
-| 400 | "Coupon usage limit exceeded" | Max uses reached |
-| 400 | "Minimum order value required" | Cart below minimum |
-| 404 | "Invalid coupon code" | Code not found |
-| 404 | "Cart not found" | Cart ID invalid |
-| 500 | "Internal server error" | Server error |
+| Status | Error                             | Description                   |
+| ------ | --------------------------------- | ----------------------------- |
+| 400    | "Code and cart ID are required"   | Missing required fields       |
+| 400    | "A code has already been applied" | Single code per cart enforced |
+| 400    | "Coupon is not yet active"        | Before activeFrom date        |
+| 400    | "Coupon has expired"              | After activeUntil date        |
+| 400    | "Coupon usage limit exceeded"     | Max uses reached              |
+| 400    | "Minimum order value required"    | Cart below minimum            |
+| 404    | "Invalid coupon code"             | Code not found                |
+| 404    | "Cart not found"                  | Cart ID invalid               |
+| 500    | "Internal server error"           | Server error                  |
 
 ### GET /api/referrals/partner-stats
 
@@ -264,9 +264,9 @@ Cookie: payload-token=<auth-token>
   "success": true,
   "data": {
     "stats": {
-      "totalEarnings": 1250.50,
-      "pendingEarnings": 350.00,
-      "paidEarnings": 900.50,
+      "totalEarnings": 1250.5,
+      "pendingEarnings": 350.0,
+      "paidEarnings": 900.5,
       "totalReferrals": 45,
       "successfulReferrals": 38,
       "conversionRate": 84.44,
@@ -274,8 +274,8 @@ Cookie: payload-token=<auth-token>
         {
           "id": "order-123",
           "code": "REF-ABC123",
-          "orderValue": 150.00,
-          "commission": 15.00,
+          "orderValue": 150.0,
+          "commission": 15.0,
           "date": "2024-01-15T10:30:00Z",
           "status": "paid"
         }
@@ -283,7 +283,7 @@ Cookie: payload-token=<auth-token>
       "monthlyEarnings": [
         {
           "month": "Jan 2024",
-          "earnings": 250.00,
+          "earnings": 250.0,
           "referrals": 8
         }
       ]
@@ -293,7 +293,7 @@ Cookie: payload-token=<auth-token>
         "id": "code-123",
         "code": "REF-ABC123",
         "usageCount": 25,
-        "totalEarnings": 750.00,
+        "totalEarnings": 750.0,
         "isActive": true
       }
     ],
@@ -310,11 +310,11 @@ Cookie: payload-token=<auth-token>
 
 **Error Responses:**
 
-| Status | Error | Description |
-|--------|-------|-------------|
-| 401 | "Authentication required" | Not logged in |
-| 403 | "Partner access required" | User not a partner |
-| 500 | "Failed to fetch partner stats" | Server error |
+| Status | Error                           | Description        |
+| ------ | ------------------------------- | ------------------ |
+| 401    | "Authentication required"       | Not logged in      |
+| 403    | "Partner access required"       | User not a partner |
+| 500    | "Failed to fetch partner stats" | Server error       |
 
 ---
 
@@ -342,11 +342,11 @@ if (result.success) {
 
 **Parameters:**
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `code` | `string` | Yes | Coupon or referral code |
-| `cartID` | `string` | No | Cart ID |
-| `customerEmail` | `string` | No | Customer email |
+| Field           | Type     | Required | Description             |
+| --------------- | -------- | -------- | ----------------------- |
+| `code`          | `string` | Yes      | Coupon or referral code |
+| `cartID`        | `string` | No       | Cart ID                 |
+| `customerEmail` | `string` | No       | Customer email          |
 
 **Returns:** `Promise<ApplyCouponResponse>`
 
@@ -366,11 +366,11 @@ if (result.success) {
 
 **Parameters:**
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `code` | `string` | Yes | Code to validate |
-| `cartValue` | `number` | No | Cart value for preview |
-| `cartID` | `string` | No | Cart ID for referral calc |
+| Field       | Type     | Required | Description               |
+| ----------- | -------- | -------- | ------------------------- |
+| `code`      | `string` | Yes      | Code to validate          |
+| `cartValue` | `number` | No       | Cart value for preview    |
+| `cartID`    | `string` | No       | Cart ID for referral calc |
 
 **Returns:** `Promise<ApplyCouponResponse>`
 
@@ -391,9 +391,9 @@ if (result.success) {
 
 **Parameters:**
 
-| Field | Type | Required | Default | Description |
-|-------|------|----------|---------|-------------|
-| `apiEndpoint` | `string` | No | `/api/referrals/partner-stats` | API endpoint |
+| Field         | Type     | Required | Default                        | Description  |
+| ------------- | -------- | -------- | ------------------------------ | ------------ |
+| `apiEndpoint` | `string` | No       | `/api/referrals/partner-stats` | API endpoint |
 
 **Returns:** `Promise<PartnerStatsResponse>`
 
@@ -498,21 +498,21 @@ Created when `enableReferrals: false` or `referralConfig.allowBothSystems: true`
 
 **Fields:**
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `code` | `text` | Yes | Unique coupon code |
-| `description` | `text` | No | Admin description |
-| `type` | `select` | Yes | 'percentage' or 'fixed' |
-| `value` | `number` | Yes | Discount value |
-| `maxDiscountAmount` | `number` | No | Max discount cap |
-| `usageLimit` | `number` | No | Total usage limit |
-| `perCustomerLimit` | `number` | No | Per-customer limit |
-| `activeFrom` | `date` | No | Start date |
-| `activeUntil` | `date` | No | End date |
-| `minOrderValue` | `number` | No | Minimum order value |
-| `maxOrderValue` | `number` | No | Maximum order value |
-| `usageCount` | `number` | Auto | Current usage count |
-| `createdBy` | `relationship` | Auto | Creator user |
+| Field               | Type           | Required | Description             |
+| ------------------- | -------------- | -------- | ----------------------- |
+| `code`              | `text`         | Yes      | Unique coupon code      |
+| `description`       | `text`         | No       | Admin description       |
+| `type`              | `select`       | Yes      | 'percentage' or 'fixed' |
+| `value`             | `number`       | Yes      | Discount value          |
+| `maxDiscountAmount` | `number`       | No       | Max discount cap        |
+| `usageLimit`        | `number`       | No       | Total usage limit       |
+| `perCustomerLimit`  | `number`       | No       | Per-customer limit      |
+| `activeFrom`        | `date`         | No       | Start date              |
+| `activeUntil`       | `date`         | No       | End date                |
+| `minOrderValue`     | `number`       | No       | Minimum order value     |
+| `maxOrderValue`     | `number`       | No       | Maximum order value     |
+| `usageCount`        | `number`       | Auto     | Current usage count     |
+| `createdBy`         | `relationship` | Auto     | Creator user            |
 
 ### Referral Programs Collection
 
@@ -520,21 +520,21 @@ Created when `enableReferrals: true`.
 
 **Fields:**
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `name` | `text` | Yes | Program name |
-| `description` | `textarea` | No | Program description |
-| `isActive` | `checkbox` | No | Active status |
-| `referrerReward` | `group` | Yes | Partner reward config |
-| `refereeReward` | `group` | Yes | Customer reward config |
-| `commissionRules` | `array` | No | Product-specific rules |
-| `minOrderValue` | `number` | No | Minimum order value |
-| `maxReferralsPerUser` | `number` | No | Max referrals per partner |
-| `referralCodePrefix` | `text` | No | Code prefix |
-| `activeFrom` | `date` | No | Start date |
-| `activeUntil` | `date` | No | End date |
-| `totalReferrals` | `number` | Auto | Total referral count |
-| `totalRewardsPaid` | `number` | Auto | Total rewards paid |
+| Field                 | Type       | Required | Description               |
+| --------------------- | ---------- | -------- | ------------------------- |
+| `name`                | `text`     | Yes      | Program name              |
+| `description`         | `textarea` | No       | Program description       |
+| `isActive`            | `checkbox` | No       | Active status             |
+| `referrerReward`      | `group`    | Yes      | Partner reward config     |
+| `refereeReward`       | `group`    | Yes      | Customer reward config    |
+| `commissionRules`     | `array`    | No       | Product-specific rules    |
+| `minOrderValue`       | `number`   | No       | Minimum order value       |
+| `maxReferralsPerUser` | `number`   | No       | Max referrals per partner |
+| `referralCodePrefix`  | `text`     | No       | Code prefix               |
+| `activeFrom`          | `date`     | No       | Start date                |
+| `activeUntil`         | `date`     | No       | End date                  |
+| `totalReferrals`      | `number`   | Auto     | Total referral count      |
+| `totalRewardsPaid`    | `number`   | Auto     | Total rewards paid        |
 
 ### Referral Codes Collection
 
@@ -542,35 +542,35 @@ Created when `enableReferrals: true`.
 
 **Fields:**
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `code` | `text` | Yes | Unique referral code |
-| `program` | `relationship` | Yes | Associated program |
-| `referrer` | `relationship` | Yes | Partner user |
-| `isActive` | `checkbox` | No | Active status |
-| `usageCount` | `number` | Auto | Usage count |
-| `usageLimit` | `number` | No | Max uses |
-| `expiresAt` | `date` | No | Expiration date |
-| `successfulReferralsCount` | `number` | Auto | Successful referrals |
-| `totalEarnings` | `number` | Auto | Total earnings |
-| `pendingEarnings` | `number` | Auto | Pending earnings |
-| `paidEarnings` | `number` | Auto | Paid earnings |
-| `metadata` | `json` | No | Additional data |
+| Field                      | Type           | Required | Description          |
+| -------------------------- | -------------- | -------- | -------------------- |
+| `code`                     | `text`         | Yes      | Unique referral code |
+| `program`                  | `relationship` | Yes      | Associated program   |
+| `referrer`                 | `relationship` | Yes      | Partner user         |
+| `isActive`                 | `checkbox`     | No       | Active status        |
+| `usageCount`               | `number`       | Auto     | Usage count          |
+| `usageLimit`               | `number`       | No       | Max uses             |
+| `expiresAt`                | `date`         | No       | Expiration date      |
+| `successfulReferralsCount` | `number`       | Auto     | Successful referrals |
+| `totalEarnings`            | `number`       | Auto     | Total earnings       |
+| `pendingEarnings`          | `number`       | Auto     | Pending earnings     |
+| `paidEarnings`             | `number`       | Auto     | Paid earnings        |
+| `metadata`                 | `json`         | No       | Additional data      |
 
 ---
 
 ## Error Codes
 
-| Code | Description |
-|------|-------------|
-| `INVALID_CODE` | Code not found |
-| `CODE_EXPIRED` | Code has expired |
-| `CODE_NOT_ACTIVE` | Code not yet active |
-| `USAGE_LIMIT_EXCEEDED` | Max uses reached |
-| `MIN_ORDER_NOT_MET` | Below minimum order value |
-| `MAX_ORDER_EXCEEDED` | Above maximum order value |
-| `CODE_ALREADY_APPLIED` | Code already on cart |
-| `SINGLE_CODE_ENFORCED` | Only one code allowed |
-| `CART_NOT_FOUND` | Cart ID invalid |
-| `AUTH_REQUIRED` | Authentication needed |
-| `PARTNER_ACCESS_REQUIRED` | Partner role needed |
+| Code                      | Description               |
+| ------------------------- | ------------------------- |
+| `INVALID_CODE`            | Code not found            |
+| `CODE_EXPIRED`            | Code has expired          |
+| `CODE_NOT_ACTIVE`         | Code not yet active       |
+| `USAGE_LIMIT_EXCEEDED`    | Max uses reached          |
+| `MIN_ORDER_NOT_MET`       | Below minimum order value |
+| `MAX_ORDER_EXCEEDED`      | Above maximum order value |
+| `CODE_ALREADY_APPLIED`    | Code already on cart      |
+| `SINGLE_CODE_ENFORCED`    | Only one code allowed     |
+| `CART_NOT_FOUND`          | Cart ID invalid           |
+| `AUTH_REQUIRED`           | Authentication needed     |
+| `PARTNER_ACCESS_REQUIRED` | Partner role needed       |

@@ -5,6 +5,7 @@ This guide explains how to set up and customize the partner dashboard for your r
 ## Overview
 
 The partner dashboard provides partners with:
+
 - **Earnings Summary** - Total, pending, and paid earnings
 - **Referral Performance** - Conversion rates and monthly trends
 - **Recent Referrals** - Latest referral activity
@@ -13,6 +14,7 @@ The partner dashboard provides partners with:
 ## Prerequisites
 
 1. Enable referrals in your plugin configuration:
+
 ```typescript
 payloadEcommerceCoupon({
   enableReferrals: true,
@@ -126,7 +128,7 @@ payloadEcommerceCoupon({
   access: {
     // Check single role field
     isPartner: ({ req }) => req.user?.role === 'partner',
-    
+
     // Or check multiple roles
     isPartner: ({ req }) => {
       const user = req.user
@@ -135,7 +137,7 @@ payloadEcommerceCoupon({
       if (Array.isArray(user.roles) && user.roles.includes('partner')) return true
       return false
     },
-    
+
     isAdmin: ({ req }) => {
       const user = req.user
       if (!user) return false
@@ -212,17 +214,14 @@ export default function CustomPartnerDashboard() {
         <EarningsSummary stats={data.stats} currency={currency} />
         <ReferralPerformance stats={data.stats} />
       </div>
-      
+
       <div className="dashboard-row">
         <ReferralCodes codes={data.referralCodes} currency={currency} />
       </div>
-      
+
       {data.stats.recentReferrals.length > 0 && (
         <div className="dashboard-row">
-          <RecentReferrals 
-            referrals={data.stats.recentReferrals} 
-            currency={currency} 
-          />
+          <RecentReferrals referrals={data.stats.recentReferrals} currency={currency} />
         </div>
       )}
     </div>
@@ -241,7 +240,7 @@ export default function FullyCustomDashboard() {
   const [stats, setStats] = useState(null)
 
   useEffect(() => {
-    usePartnerStats().then(result => {
+    usePartnerStats().then((result) => {
       if (result.success) setStats(result.data)
     })
   }, [])
@@ -269,12 +268,10 @@ export default function FullyCustomDashboard() {
       {/* Referral Codes */}
       <div className="codes-section">
         <h2>Your Referral Codes</h2>
-        {stats.referralCodes.map(code => (
+        {stats.referralCodes.map((code) => (
           <div key={code.id} className="code-item">
             <code>{code.code}</code>
-            <button onClick={() => navigator.clipboard.writeText(code.code)}>
-              Copy
-            </button>
+            <button onClick={() => navigator.clipboard.writeText(code.code)}>Copy</button>
             <span>{code.usageCount} uses</span>
           </div>
         ))}
@@ -349,9 +346,7 @@ function TailwindDashboard() {
     <div className="grid grid-cols-1 md:grid-cols-3 gap-6 p-6">
       <div className="bg-white rounded-xl shadow-lg p-6">
         <h3 className="text-gray-500 text-sm font-medium">Total Earnings</h3>
-        <p className="text-3xl font-bold text-indigo-600">
-          ${stats.totalEarnings.toFixed(2)}
-        </p>
+        <p className="text-3xl font-bold text-indigo-600">${stats.totalEarnings.toFixed(2)}</p>
       </div>
       {/* More cards... */}
     </div>
@@ -451,40 +446,40 @@ type PartnerStatsResponse = {
 
 #### PartnerDashboard
 
-| Prop | Type | Default | Description |
-|------|------|---------|-------------|
-| showEarningsSummary | boolean | true | Show earnings widget |
-| showReferralPerformance | boolean | true | Show performance widget |
-| showRecentReferrals | boolean | true | Show recent referrals |
-| showReferralCodes | boolean | true | Show referral codes |
-| apiEndpoint | string | '/api/referrals/partner-stats' | API endpoint |
+| Prop                    | Type    | Default                        | Description             |
+| ----------------------- | ------- | ------------------------------ | ----------------------- |
+| showEarningsSummary     | boolean | true                           | Show earnings widget    |
+| showReferralPerformance | boolean | true                           | Show performance widget |
+| showRecentReferrals     | boolean | true                           | Show recent referrals   |
+| showReferralCodes       | boolean | true                           | Show referral codes     |
+| apiEndpoint             | string  | '/api/referrals/partner-stats' | API endpoint            |
 
 #### EarningsSummary
 
-| Prop | Type | Required | Description |
-|------|------|----------|-------------|
-| stats | PartnerStats | Yes | Partner statistics |
-| currency | string | Yes | Currency code |
+| Prop     | Type         | Required | Description        |
+| -------- | ------------ | -------- | ------------------ |
+| stats    | PartnerStats | Yes      | Partner statistics |
+| currency | string       | Yes      | Currency code      |
 
 #### ReferralPerformance
 
-| Prop | Type | Required | Description |
-|------|------|----------|-------------|
-| stats | PartnerStats | Yes | Partner statistics |
+| Prop  | Type         | Required | Description        |
+| ----- | ------------ | -------- | ------------------ |
+| stats | PartnerStats | Yes      | Partner statistics |
 
 #### RecentReferrals
 
-| Prop | Type | Required | Description |
-|------|------|----------|-------------|
-| referrals | Array | Yes | Recent referral data |
-| currency | string | Yes | Currency code |
+| Prop      | Type   | Required | Description          |
+| --------- | ------ | -------- | -------------------- |
+| referrals | Array  | Yes      | Recent referral data |
+| currency  | string | Yes      | Currency code        |
 
 #### ReferralCodes
 
-| Prop | Type | Required | Description |
-|------|------|----------|-------------|
-| codes | Array | Yes | Referral codes data |
-| currency | string | Yes | Currency code |
+| Prop     | Type   | Required | Description         |
+| -------- | ------ | -------- | ------------------- |
+| codes    | Array  | Yes      | Referral codes data |
+| currency | string | Yes      | Currency code       |
 
 ## Security Considerations
 
@@ -496,15 +491,18 @@ type PartnerStatsResponse = {
 ## Troubleshooting
 
 ### "Partner access required" error
+
 - Ensure the user has the partner role
 - Check your `isPartner` access control function
 
 ### Dashboard shows no data
+
 - Verify the partner has created referral codes
 - Check that the referral program is active
 - Ensure orders have been placed with the partner's codes
 
 ### Earnings not updating
+
 - Commission is calculated when codes are applied
 - Earnings are tracked per referral code
 - Check that orders are being properly linked to referral codes

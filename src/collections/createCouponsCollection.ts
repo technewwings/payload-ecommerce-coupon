@@ -1,18 +1,18 @@
-import type { CollectionConfig } from "payload";
+import type { CollectionConfig } from 'payload'
 
-import type { SanitizedCouponPluginOptions } from "../types";
+import type { SanitizedCouponPluginOptions } from '../types'
 
 export const createCouponsCollection = (
   pluginConfig: SanitizedCouponPluginOptions,
 ): CollectionConfig => {
-  const { collections, access, defaultCurrency, adminGroups, integration } = pluginConfig;
-  const usersSlug = integration.collections.usersSlug;
+  const { collections, access, defaultCurrency, adminGroups, integration } = pluginConfig
+  const usersSlug = integration.collections.usersSlug
 
   return {
     slug: collections.couponsSlug,
     admin: {
-      useAsTitle: "code",
-      defaultColumns: ["code", "type", "value", "activeFrom", "activeUntil"],
+      useAsTitle: 'code',
+      defaultColumns: ['code', 'type', 'value', 'activeFrom', 'activeUntil'],
       group: adminGroups.couponsGroup,
     },
     access: {
@@ -23,47 +23,47 @@ export const createCouponsCollection = (
     },
     fields: [
       {
-        name: "code",
-        type: "text",
+        name: 'code',
+        type: 'text',
         required: true,
         unique: true,
         admin: {
-          description: "The coupon code that customers will enter",
+          description: 'The coupon code that customers will enter',
         },
       },
       {
-        name: "normalizedCode",
-        type: "text",
+        name: 'normalizedCode',
+        type: 'text',
         unique: true,
         index: true,
         admin: {
           hidden: true,
-          description: "Uppercased, trimmed code used for fast case-insensitive lookups",
+          description: 'Uppercased, trimmed code used for fast case-insensitive lookups',
         },
       },
       {
-        name: "description",
-        type: "text",
+        name: 'description',
+        type: 'text',
         admin: {
-          description: "Optional description for admin reference",
+          description: 'Optional description for admin reference',
         },
       },
       {
-        name: "type",
-        type: "select",
+        name: 'type',
+        type: 'select',
         required: true,
         options: [
-          { label: "Percentage", value: "percentage" },
-          { label: "Fixed Amount", value: "fixed" },
+          { label: 'Percentage', value: 'percentage' },
+          { label: 'Fixed Amount', value: 'fixed' },
         ],
-        defaultValue: "percentage",
+        defaultValue: 'percentage',
         admin: {
-          description: "Whether this is a percentage or fixed amount discount",
+          description: 'Whether this is a percentage or fixed amount discount',
         },
       },
       {
-        name: "value",
-        type: "number",
+        name: 'value',
+        type: 'number',
         required: true,
         admin: {
           description: `If percentage, 10 = 10%. If fixed, interpreted in ${defaultCurrency} (smallest currency units)`,
@@ -71,100 +71,100 @@ export const createCouponsCollection = (
         },
       },
       {
-        name: "maxDiscountAmount",
-        type: "number",
+        name: 'maxDiscountAmount',
+        type: 'number',
         admin: {
           description: `Maximum discount amount in ${defaultCurrency} (smallest currency unit). Leave empty for no cap.`,
         },
       },
       {
-        name: "usageLimit",
-        type: "number",
+        name: 'usageLimit',
+        type: 'number',
         admin: {
           description:
-            "Total times this coupon can be used across all customers. Empty = unlimited.",
+            'Total times this coupon can be used across all customers. Empty = unlimited.',
         },
       },
       {
-        name: "perCustomerLimit",
-        type: "number",
+        name: 'perCustomerLimit',
+        type: 'number',
         admin: {
-          description: "Times a single customer can use this coupon. Empty = unlimited.",
+          description: 'Times a single customer can use this coupon. Empty = unlimited.',
         },
       },
       {
-        name: "activeFrom",
-        type: "date",
+        name: 'activeFrom',
+        type: 'date',
         admin: {
           description:
-            "Coupon becomes active from this date. Leave empty for immediate activation.",
+            'Coupon becomes active from this date. Leave empty for immediate activation.',
         },
       },
       {
-        name: "activeUntil",
-        type: "date",
+        name: 'activeUntil',
+        type: 'date',
         admin: {
-          description: "Coupon expires after this date. Leave empty for no expiration.",
+          description: 'Coupon expires after this date. Leave empty for no expiration.',
         },
       },
       {
-        name: "minOrderValue",
-        type: "number",
+        name: 'minOrderValue',
+        type: 'number',
         admin: {
           description: `Minimum order value required in ${defaultCurrency} (smallest currency units)`,
         },
       },
       {
-        name: "maxOrderValue",
-        type: "number",
+        name: 'maxOrderValue',
+        type: 'number',
         admin: {
           description: `Maximum order value allowed in ${defaultCurrency} (smallest currency units)`,
         },
       },
       {
-        name: "usageCount",
-        type: "number",
+        name: 'usageCount',
+        type: 'number',
         defaultValue: 0,
         admin: {
-          description: "How many times this coupon has been used",
+          description: 'How many times this coupon has been used',
           readOnly: true,
         },
       },
       {
-        name: "createdBy",
-        type: "relationship",
+        name: 'createdBy',
+        type: 'relationship',
         relationTo: usersSlug,
         admin: {
           readOnly: true,
-          position: "sidebar",
+          position: 'sidebar',
         },
       },
     ],
     hooks: {
       beforeValidate: [
         ({ data }) => {
-          if (data && typeof data.code === "string") {
-            data.code = data.code.trim();
-            data.normalizedCode = data.code.toUpperCase();
+          if (data && typeof data.code === 'string') {
+            data.code = data.code.trim()
+            data.normalizedCode = data.code.toUpperCase()
           }
-          return data;
+          return data
         },
       ],
       beforeChange: [
         ({ operation, req, data }) => {
-          if (data && typeof data.code === "string") {
-            data.code = data.code.trim();
-            data.normalizedCode = data.code.toUpperCase();
+          if (data && typeof data.code === 'string') {
+            data.code = data.code.trim()
+            data.normalizedCode = data.code.toUpperCase()
           }
 
-          if (operation === "create" && req.user && !data.createdBy) {
-            data.createdBy = (req.user as { id?: string | number }).id;
+          if (operation === 'create' && req.user && !data.createdBy) {
+            data.createdBy = (req.user as { id?: string | number }).id
           }
 
-          return data;
+          return data
         },
       ],
     },
     timestamps: true,
-  };
-};
+  }
+}

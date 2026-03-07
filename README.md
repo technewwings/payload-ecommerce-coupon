@@ -362,10 +362,28 @@ type CouponPluginOptions = {
 
   // Preferred policy-first API
   policies?: {
-    canApplyCoupon?: (ctx: { req: unknown; user?: unknown; payload?: unknown }) => boolean | Promise<boolean>
-    canApplyReferral?: (ctx: { req: unknown; user?: unknown; payload?: unknown }) => boolean | Promise<boolean>
-    canViewPartnerStats?: (ctx: { req: unknown; user?: unknown; payload?: unknown; requestedPartnerID?: string | number }) => boolean | Promise<boolean>
-    canRecordOrderUsage?: (ctx: { req: unknown; user?: unknown; payload?: unknown; order: unknown }) => boolean | Promise<boolean>
+    canApplyCoupon?: (ctx: {
+      req: unknown
+      user?: unknown
+      payload?: unknown
+    }) => boolean | Promise<boolean>
+    canApplyReferral?: (ctx: {
+      req: unknown
+      user?: unknown
+      payload?: unknown
+    }) => boolean | Promise<boolean>
+    canViewPartnerStats?: (ctx: {
+      req: unknown
+      user?: unknown
+      payload?: unknown
+      requestedPartnerID?: string | number
+    }) => boolean | Promise<boolean>
+    canRecordOrderUsage?: (ctx: {
+      req: unknown
+      user?: unknown
+      payload?: unknown
+      order: unknown
+    }) => boolean | Promise<boolean>
   }
 
   // Integration-driven mapping
@@ -404,7 +422,12 @@ type CouponPluginOptions = {
       getCartSubtotal?: (cart: unknown) => number
       getCartTotal?: (cart: unknown) => number
       isOrderPaid?: (order: unknown) => boolean
-      getProductUnitPrice?: (args: { item: unknown; product: unknown; variant?: unknown; currencyCode?: string }) => number
+      getProductUnitPrice?: (args: {
+        item: unknown
+        product: unknown
+        variant?: unknown
+        currencyCode?: string
+      }) => number
     }
   }
 
@@ -448,6 +471,7 @@ If you’re upgrading from older configs:
 ## Troubleshooting
 
 ### Build/lint mismatch after changes
+
 Run:
 
 ```bash
@@ -457,12 +481,15 @@ bun test --runInBand
 ```
 
 ### Code applies but usage not incrementing
+
 Expected behavior until order completion. Call record-order-usage on paid/completed order.
 
 ### Partner stats forbidden
+
 Adjust `policies.canViewPartnerStats` to match your auth model.
 
 ### Per-customer limit not enforced
+
 Pass `customerEmail` on validate/apply for coupons that define per-customer limits, and ensure order integration fields map to your schema.
 
 ---
