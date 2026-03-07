@@ -246,4 +246,23 @@ describe("calculateCommissionAndDiscount", () => {
     expect(result.partnerCommission).toBe(0);
     expect(result.customerDiscount).toBe(0);
   });
+
+  it("should apply top-level maxAmount cap to fixed direct-mode splits", () => {
+    const cartItems = [{ id: "1", price: 100, quantity: 2, product: { id: "p1" } }];
+    const program = {
+      maxAmount: 10,
+      commissionRules: [
+        {
+          appliesTo: "all",
+          totalCommission: { type: "fixed" },
+          partnerSplit: 7,
+          customerSplit: 5,
+        },
+      ],
+    };
+
+    const result = calculateCommissionAndDiscount({ cartItems, program });
+    expect(result.partnerCommission).toBe(11);
+    expect(result.customerDiscount).toBe(8);
+  });
 });

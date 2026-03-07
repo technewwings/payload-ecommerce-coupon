@@ -234,4 +234,59 @@ describe("Referral Programs Collection v2", () => {
       }),
     ).toThrow("Max Amount must be a non-negative number");
   });
+
+  it("should reject percentage rules when partnerPercent + customerPercent exceeds 100", () => {
+    expect(() =>
+      beforeChangeHook({
+        data: {
+          commissionRules: [
+            {
+              appliesTo: "all",
+              totalCommission: { type: "percentage", value: 20 },
+              partnerPercent: 60,
+              customerPercent: 50,
+            },
+          ],
+        },
+      }),
+    ).toThrow("Partner percentage + Customer percentage cannot exceed 100");
+  });
+
+  it("should set splitWarning when percentage split total is greater than 50", async () => {
+    const result = await beforeChangeHook({
+      data: {
+        commissionRules: [
+          {
+            appliesTo: "all",
+            totalCommission: { type: "percentage", value: 20 },
+            partnerPercent: 40,
+            customerPercent: 20,
+          },
+        ],
+      },
+    });
+
+    expect(result.commissionRules[0].partnerPercent).toBe(40);
+    expect(result.commissionRules[0].customerPercent).toBe(20);
+    expect(result.commissionRules[0].splitWarning).toBe(
+      "High total split configured: 60% (partner + customer).",
+    );
+  });
+
+  it("should not set splitWarning when percentage split total is 50 or less", async () => {
+    const result = await beforeChangeHook({
+      data: {
+        commissionRules: [
+          {
+            appliesTo: "all",
+            totalCommission: { type: "percentage", value: 20 },
+            partnerPercent: 30,
+            customerPercent: 20,
+          },
+        ],
+      },
+    });
+
+    expect(result.commissionRules[0].splitWarning).toBeNull();
+  });
 });

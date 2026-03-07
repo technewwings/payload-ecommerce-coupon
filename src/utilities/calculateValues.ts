@@ -79,20 +79,35 @@ function calculateItemRewardByRule({
   if (rule.totalCommission) {
     if (!allowedTypes.has(rule.totalCommission.type)) return null;
 
-    // for fixed‑type commissions we allow two modes:
-    // 1. legacy/percentage‑style: a `value` exists and splits are treated as
-    //    percentages of the per‑item pot (maintains backward compatibility)
-    // 2. new direct mode: no `value` provided, both partner/customer splits are
-    //    literal amounts per unit.  This is the behaviour requested by the
-    //    product team when fixed type is selected.
+    const resolvedMaxAmount =
+      typeof maxAmount === "number" && Number.isFinite(maxAmount)
+        ? maxAmount
+        : typeof rule.totalCommission.maxAmount === "number" &&
+            Number.isFinite(rule.totalCommission.maxAmount)
+          ? rule.totalCommission.maxAmount
+          : null;
+
+    // Fixed direct mode (new): partner/customer are literal per-unit amounts.
+    // Apply max cap consistently to the combined per-line payout.
     if (rule.totalCommission.type === "fixed" && rule.totalCommission.value == null) {
-      const partnerAmt = typeof rule.partnerSplit === "number" ? rule.partnerSplit : null;
-      const customerAmt = typeof rule.customerSplit === "number" ? rule.customerSplit : null;
-      if (partnerAmt == null || customerAmt == null) return null;
-      return {
-        partner: partnerAmt * quantity,
-        customer: customerAmt * quantity,
-      };
+      const partnerAmtPerUnit = typeof rule.partnerSplit === "number" ? rule.partnerSplit : null;
+      const customerAmtPerUnit = typeof rule.customerSplit === "number" ? rule.customerSplit : null;
+      if (partnerAmtPerUnit == null || customerAmtPerUnit == null) return null;
+
+      let partner = partnerAmtPerUnit * quantity;
+      let customer = customerAmtPerUnit * quantity;
+
+      if (resolvedMaxAmount != null) {
+        const maxPotForLine = resolvedMaxAmount * quantity;
+        const totalPot = partner + customer;
+        if (totalPot > maxPotForLine && totalPot > 0) {
+          const ratio = maxPotForLine / totalPot;
+          partner = Math.floor(partner * ratio);
+          customer = Math.floor(customer * ratio);
+        }
+      }
+
+      return { partner, customer };
     }
 
     const splits = getRuleSplits(rule);
@@ -104,14 +119,6 @@ function calculateItemRewardByRule({
     } else {
       totalPot = rule.totalCommission.value * quantity;
     }
-
-    const resolvedMaxAmount =
-      typeof maxAmount === "number" && Number.isFinite(maxAmount)
-        ? maxAmount
-        : typeof rule.totalCommission.maxAmount === "number" &&
-            Number.isFinite(rule.totalCommission.maxAmount)
-          ? rule.totalCommission.maxAmount
-          : null;
 
     if (resolvedMaxAmount != null) {
       const maxPotForLine = resolvedMaxAmount * quantity;
