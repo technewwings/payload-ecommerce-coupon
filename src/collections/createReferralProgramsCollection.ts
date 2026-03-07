@@ -210,8 +210,8 @@ export const createReferralProgramsCollection = (
   return {
     slug: collections.referralProgramsSlug,
     admin: {
-      useAsTitle: "id",
-      defaultColumns: ["id", "commissionRules", "isActive"],
+      useAsTitle: "name",
+      defaultColumns: ["id", "name", "commissionRules", "isActive"],
       group: adminGroups.referralsGroup,
     },
     access: {
@@ -224,6 +224,14 @@ export const createReferralProgramsCollection = (
       beforeChange,
     },
     fields: [
+      {
+        name: "name",
+        type: "text",
+        required: true,
+        admin: {
+          description: "Name of the referral program",
+        },
+      },
       {
         name: "isActive",
         type: "checkbox",

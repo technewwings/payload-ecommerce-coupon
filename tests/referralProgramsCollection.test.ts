@@ -23,7 +23,7 @@ describe("Referral Programs Collection v2", () => {
 
   it("should remove old top-level fields from admin schema", () => {
     const names = (collection.fields || []).map((f: any) => f.name);
-    expect(names).not.toContain("name");
+    expect(names).toContain("name");
     expect(names).toContain("isActive");
     expect(names).toContain("maxAmount");
     expect(names).toContain("minOrderAmount");
