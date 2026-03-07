@@ -16,6 +16,7 @@ const RECALCULATE_HOOK_KEY = '__payloadEcommerceCouponRecalculateHook__'
 type GenericCollection = {
   slug: string
   fields?: Array<Record<string, unknown>>
+  endpoints?: Array<Record<string, unknown>>
   hooks?: {
     beforeChange?: Array<unknown>
     [key: string]: unknown
@@ -27,6 +28,79 @@ const asArray = <T>(value: T[] | null | undefined): T[] => (Array.isArray(value)
 
 const hasNamedField = (collection: GenericCollection, fieldName: string): boolean =>
   asArray(collection.fields).some((f) => f?.name === fieldName)
+
+const normalizePath = (path: string): string => {
+  if (!path) return '/'
+  const withLeadingSlash = path.startsWith('/') ? path : `/${path}`
+  return withLeadingSlash.replace(/\/+$/, '') || '/'
+}
+
+const toCollectionEndpointPath = ({
+  endpointPath,
+  collectionSlug,
+}: {
+  endpointPath: string
+  collectionSlug: string
+}): string | null => {
+  const normalizedEndpointPath = normalizePath(endpointPath)
+  const normalizedCollectionPath = normalizePath(`/${collectionSlug}`)
+
+  if (!normalizedEndpointPath.startsWith(`${normalizedCollectionPath}/`)) return null
+  const relative = normalizedEndpointPath.slice(normalizedCollectionPath.length)
+  return relative.startsWith('/') ? relative : `/${relative}`
+}
+
+const ensureCouponCollectionEndpoints = ({
+  collection,
+  pluginConfig,
+}: {
+  collection: GenericCollection
+  pluginConfig: ReturnType<typeof sanitizePluginConfig>
+}): GenericCollection => {
+  const couponsSlug = pluginConfig.collections.couponsSlug
+  const applyPath = toCollectionEndpointPath({
+    endpointPath: pluginConfig.endpoints.applyCoupon,
+    collectionSlug: couponsSlug,
+  })
+  const validatePath = toCollectionEndpointPath({
+    endpointPath: pluginConfig.endpoints.validateCoupon,
+    collectionSlug: couponsSlug,
+  })
+
+  if (!applyPath && !validatePath) return collection
+
+  const endpoints = asArray(collection.endpoints)
+  const endpointKeys = new Set(
+    endpoints.map((e: any) => `${(e?.method || 'get').toLowerCase()}:${e?.path || ''}`),
+  )
+
+  if (validatePath) {
+    const validateKey = `post:${validatePath}`
+    if (!endpointKeys.has(validateKey)) {
+      endpointKeys.add(validateKey)
+      endpoints.push({
+        path: validatePath,
+        method: 'post',
+        handler: validateCouponEndpoint({ pluginConfig }).handler,
+      })
+    }
+  }
+
+  if (applyPath) {
+    const applyKey = `post:${applyPath}`
+    if (!endpointKeys.has(applyKey)) {
+      endpointKeys.add(applyKey)
+      endpoints.push({
+        path: applyPath,
+        method: 'post',
+        handler: applyCouponEndpoint({ pluginConfig }).handler,
+      })
+    }
+  }
+
+  collection.endpoints = endpoints
+  return collection
+}
 
 const addFieldsToCollection = (
   config: Config,
@@ -164,6 +238,10 @@ export const payloadEcommerceCouponPlugin =
             defaultCollection: couponsCollection,
           })
         }
+        couponsCollection = ensureCouponCollectionEndpoints({
+          collection: couponsCollection,
+          pluginConfig,
+        })
         collectionsToAdd.push(couponsCollection)
       }
     } else {
@@ -173,6 +251,10 @@ export const payloadEcommerceCouponPlugin =
           defaultCollection: couponsCollection,
         })
       }
+      couponsCollection = ensureCouponCollectionEndpoints({
+        collection: couponsCollection,
+        pluginConfig,
+      })
       collectionsToAdd.push(couponsCollection)
     }
 
@@ -280,17 +362,26 @@ export const payloadEcommerceCouponPlugin =
             name: orderAppliedReferralCodeField,
             type: 'relationship',
             relationTo: pluginConfig.collections.referralCodesSlug,
-            admin: { description: 'Referral code applied to this order', readOnly: true },
+            admin: {
+              description: 'Referral code applied to this order',
+              readOnly: true,
+            },
           },
           {
             name: orderPartnerCommissionField,
             type: 'number',
-            admin: { description: 'Partner commission amount for this order', readOnly: true },
+            admin: {
+              description: 'Partner commission amount for this order',
+              readOnly: true,
+            },
           },
           {
             name: orderCustomerDiscountField,
             type: 'number',
-            admin: { description: 'Customer discount amount for this order', readOnly: true },
+            admin: {
+              description: 'Customer discount amount for this order',
+              readOnly: true,
+            },
           },
         ]
 
@@ -303,12 +394,18 @@ export const payloadEcommerceCouponPlugin =
               name: orderAppliedCouponField,
               type: 'relationship',
               relationTo: pluginConfig.collections.couponsSlug,
-              admin: { description: 'Coupon applied to this order', readOnly: true },
+              admin: {
+                description: 'Coupon applied to this order',
+                readOnly: true,
+              },
             },
             {
               name: orderDiscountAmountField,
               type: 'number',
-              admin: { description: 'Discount amount from coupon', readOnly: true },
+              admin: {
+                description: 'Discount amount from coupon',
+                readOnly: true,
+              },
             },
           )
         }
@@ -337,12 +434,18 @@ export const payloadEcommerceCouponPlugin =
             name: orderAppliedCouponField,
             type: 'relationship',
             relationTo: pluginConfig.collections.couponsSlug,
-            admin: { description: 'Coupon applied to this order', readOnly: true },
+            admin: {
+              description: 'Coupon applied to this order',
+              readOnly: true,
+            },
           },
           {
             name: orderDiscountAmountField,
             type: 'number',
-            admin: { description: 'Discount amount from coupon', readOnly: true },
+            admin: {
+              description: 'Discount amount from coupon',
+              readOnly: true,
+            },
           },
         ]
 
