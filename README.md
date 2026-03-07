@@ -4,779 +4,369 @@
 [![License](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](./LICENSE)
 [![Node Version](https://img.shields.io/node/v/@wtree/payload-ecommerce-coupon?style=flat-square)](https://nodejs.org)
 
-Production-ready coupon and referral system plugin for **Payload CMS** with seamless integration to the **@payloadcms/plugin-ecommerce** package.
+Production-ready coupon and referral plugin for **Payload CMS** + **@payloadcms/plugin-ecommerce** with a **policy-first**, **integration-driven** architecture.
 
-## 🚀 Features
+---
 
-### **System Modes**
+## Why this version
 
-- **Coupon Mode** (`enableReferrals: false`) – Traditional discount codes
-- **Referral Mode** (`enableReferrals: true`) – Partner commissions + customer discounts
-- **Hybrid Mode** (`enableReferrals: true` + `referralConfig.allowBothSystems: true`) – Both systems active
+This release removes hard assumptions and gives you explicit control:
 
-### **Coupon Mode Features**
+- **Policy-first access** (no required role shape)
+- **Integration-driven mapping** for collection slugs, field names, and data resolvers
+- **Deterministic code validation/apply flow** with normalized code lookup
+- **Dependency-free runtime** (beyond Payload + Payload Ecommerce peer deps)
+- **Usage accounting on order placement** (not on cart apply)
 
-- ✅ **Flexible Discounts** – Percentage or fixed amount discounts (all amounts rounded to 2 decimals)
-- ✅ **Usage Controls** – Global usage limit; usage is counted when an **order is placed** (not on apply)
-- ✅ **Per-customer limit** – Optional limit per customer (requires `customerEmail` when applying)
-- ✅ **Conditions** – Minimum/maximum order values (top-level fields), product restrictions
-- ✅ **Auto-Application** – Seamless cart integration; cart total is reduced when a code is applied
+---
 
-### **Referral Mode Features**
+## Features
 
-- ✅ **Commission Rules** – **Required.** At least one rule per program. Each rule supports:
-  - **Direct Basis**: Separate Reward (Partner) and Referee Reward (Customer).
-  - **Shared Basis**: Define a total "pot" (e.g., 20% of order) and split it (e.g., 50/50) between partner and customer.
-- ✅ **Rule-level Minimum Order** – Optional `minOrderAmount` per commission rule, validated on apply/validate/recalculate
-- ✅ **Fixed-only Mode** – Restrict `totalCommission.type` to fixed only via `referralConfig.allowedTotalCommissionTypes: ['fixed']`
-- ✅ **Referrer/Referee inside each rule** – Partner gets commission, customer gets discount; type (percentage/fixed), value, and optional max cap per rule.
-- ✅ **Partner Tracking** – Commission earnings and referral performance (credited when order is placed)
-- ✅ **Auto-Generated Codes** – Unique referral codes for each partner
-- ✅ **Partner Dashboard** – Ready-to-use React components for partner stats
-- ✅ **Single Code Per Cart** – Enforce one code (coupon or referral) per order
+### System modes
 
-### **Core Features**
+- **Coupon Mode** (`enableReferrals: false`)
+- **Referral Mode** (`enableReferrals: true`)
+- **Hybrid Mode** (`enableReferrals: true` + `referralConfig.allowBothSystems: true`)
 
-- ✅ **REST API** – Validate, apply, and record usage when order is placed
-- ✅ **Frontend Hooks** – `useCouponCode()`, `usePartnerStats()`, `validateCouponCode()` for React/Next.js
-- ✅ **Auto-Integration** – Extends carts/orders automatically
-- ✅ **Usage on Order** – Coupon/referral usage and partner earnings are recorded when an order is placed (not when code is applied)
-- ✅ **Cart total helper** – `getCartTotalWithDiscounts(cart)` for host app cart hooks so totals respect discounts
-- ✅ **Automatic Cart Recalculation** – Hook ensures commissions and discounts are recalculated whenever cart items change
-- ✅ **Type-Safe** – Full TypeScript support
-- ✅ **Access Control** – Role-based permissions with partner role support
-- ✅ **Custom Admin Groups** – Separate "Coupons" and "Referrals" categories
-- ✅ **Production-Ready** – Comprehensive testing and error handling
+### Coupon capabilities
 
-## 📦 Installation
+- Percentage and fixed discounts
+- Global usage limits
+- Optional per-customer limits
+- Min/max order rules
+- Code normalization (`trim + uppercase`) with fallback lookups
+- Discount totals rounded to 2 decimals
+
+### Referral capabilities
+
+- Program/rule-driven commissions and customer discounts
+- Rule min-order enforcement
+- Fixed-only or mixed commission type support
+- Partner stats endpoint
+- Optional single code per cart across systems
+
+### Core plugin behavior
+
+- Auto-adds collections and endpoints (configurable)
+- Auto-integrates cart/order fields (configurable)
+- Recalculate hook support for cart totals/discounts/commissions
+- Server utility for usage recording at order completion
+- Frontend helpers for validate/apply/stats
+
+---
+
+## Requirements
+
+### Runtime requirements
+
+- `node >= 18.0.0`
+- `payload ^3.79.0` (peer dependency)
+- `@payloadcms/plugin-ecommerce ^3.79.0` (peer dependency)
+
+### Project assumptions
+
+Your app should include (or map via integration config):
+
+- cart collection
+- order collection
+- product collection
+- user collection
+- category + tag collections (if used by referral rules)
+
+### Recommended
+
+- Node 20 LTS for production
+- Payload and ecommerce plugin versions aligned within the same major/minor range
+
+---
+
+## Installation
 
 ```bash
 npm install @wtree/payload-ecommerce-coupon
 ```
 
-### Requirements
+or
 
-- `payload@^3.0.0` (Payload CMS)
-- `@payloadcms/plugin-ecommerce@>=3.0.0` (required peer dependency)
-- `node@>=18.0.0`
+```bash
+bun add @wtree/payload-ecommerce-coupon
+```
 
-## 🔧 Quick Start
+---
 
-### 1. Register the Plugin
+## Quick start
 
-In your `payload.config.ts`:
+### 1) Register plugin
 
-```typescript
-import { buildConfig } from "payload";
-import { ecommercePlugin } from "@payloadcms/plugin-ecommerce";
-import { payloadEcommerceCoupon } from "@wtree/payload-ecommerce-coupon";
+```ts
+import { buildConfig } from 'payload'
+import { ecommercePlugin } from '@payloadcms/plugin-ecommerce'
+import { payloadEcommerceCoupon } from '@wtree/payload-ecommerce-coupon'
 
 export default buildConfig({
   plugins: [
     ecommercePlugin({
-      // your ecommerce configuration
+      // ecommerce config
     }),
     payloadEcommerceCoupon({
       enabled: true,
-      enableReferrals: true, // Enable referral system
-      defaultCurrency: "USD",
+      enableReferrals: true,
+      defaultCurrency: 'USD',
 
-      // Referral-specific configuration
       referralConfig: {
-        allowBothSystems: false, // Set true to allow both coupons and referrals
-        singleCodePerCart: true, // Only one code per order
-        defaultPartnerSplit: 70, // 70% to partner
-        defaultCustomerSplit: 30, // 30% discount to customer
-        // Set fixed-only mode for production partner programs
-        allowedTotalCommissionTypes: ["fixed"], // Default: ["fixed", "percentage"]
+        allowBothSystems: false,
+        singleCodePerCart: true,
+        defaultPartnerSplit: 70,
+        defaultCustomerSplit: 30,
+        allowedTotalCommissionTypes: ['fixed', 'percentage'],
       },
 
-      // Custom admin panel groups
-      adminGroups: {
-        couponsGroup: "Coupons",
-        referralsGroup: "Referrals",
+      // Policy-first access gates
+      policies: {
+        canApplyCoupon: ({ req }) => Boolean(req),
+        canApplyReferral: ({ req }) => Boolean(req),
+        canViewPartnerStats: ({ user }) => Boolean(user),
+        canRecordOrderUsage: ({ user }) => Boolean(user),
       },
 
-      // Partner dashboard configuration
-      partnerDashboard: {
-        enabled: true,
-        showEarningsSummary: true,
-        showReferralPerformance: true,
-        showRecentReferrals: true,
-        showCommissionBreakdown: true,
+      // Integration mapping (override defaults if your schema differs)
+      integration: {
+        collections: {
+          cartsSlug: 'carts',
+          ordersSlug: 'orders',
+          productsSlug: 'products',
+          usersSlug: 'users',
+          categoriesSlug: 'categories',
+          tagsSlug: 'tags',
+        },
+        fields: {
+          cartItemsField: 'items',
+          cartSubtotalField: 'subtotal',
+          cartTotalField: 'total',
+          cartAppliedCouponField: 'appliedCoupon',
+          cartAppliedReferralCodeField: 'appliedReferralCode',
+          cartDiscountAmountField: 'discountAmount',
+          cartCustomerDiscountField: 'customerDiscount',
+          cartPartnerCommissionField: 'partnerCommission',
+          orderAppliedCouponField: 'appliedCoupon',
+          orderAppliedReferralCodeField: 'appliedReferralCode',
+          orderDiscountAmountField: 'discountAmount',
+          orderCustomerDiscountField: 'customerDiscount',
+          orderPartnerCommissionField: 'partnerCommission',
+          orderCustomerEmailField: 'customerEmail',
+          orderPaymentStatusField: 'paymentStatus',
+          orderCreatedAtField: 'createdAt',
+          productPriceField: 'price',
+          productCurrencyCodeField: 'currencyCode',
+        },
       },
-
-      // Access control
-      access: {
-        canUseCoupons: () => true,
-        canUseReferrals: () => true,
-        isAdmin: ({ req }) => req.user?.role === "admin",
-        isPartner: ({ req }) => req.user?.role === "partner",
-      },
-
-      // Optional: role resolver for custom user schemas
-      // roleConfig: {
-      //   roleFieldPaths: ["role", "roles", "account.roles"],
-      //   adminRoleValues: ["admin"],
-      //   partnerRoleValues: ["partner", "affiliate"],
-      // },
-
-      // Optional: for per-customer coupon limit (defaults shown)
-      // orderIntegration: {
-      //   ordersSlug: 'orders',
-      //   orderCustomerEmailField: 'customerEmail',
-      //   orderPaymentStatusField: 'paymentStatus',
-      //   orderPaidStatusValue: 'paid',
-      // },
     }),
   ],
-});
+})
 ```
 
-### 2. Database Migration
+---
 
-After adding the plugin, run your Payload migration to create the new collections:
+## Usage lifecycle (important)
 
-```bash
-npm run payload migrate
+### Validate/apply does **not** increment usage
+
+- `POST /api/coupons/validate` checks code validity and returns computed values
+- `POST /api/coupons/apply` applies code to cart and updates discount/commission fields
+
+### Usage is recorded when order is placed
+
+Call usage recording when an order is paid/completed:
+
+- Endpoint: `POST /api/coupons/record-order-usage` with `{ "orderId": "..." }`
+- Or utility: `recordCouponUsageForOrder(payload, order, pluginConfig)`
+
+This keeps usage and earnings accounting accurate and idempotent for order lifecycle events.
+
+---
+
+## Endpoints
+
+Default paths (customizable via `endpoints` config):
+
+- `POST /api/coupons/validate`
+- `POST /api/coupons/apply`
+- `GET /api/referrals/partner-stats`
+- `POST /api/coupons/record-order-usage` (when enabled)
+
+---
+
+## Frontend helpers
+
+```ts
+import { useCouponCode, validateCouponCode, usePartnerStats } from '@wtree/payload-ecommerce-coupon'
 ```
 
-This will create collections for:
+- `useCouponCode({ code, cartID, customerEmail? })`
+- `validateCouponCode({ code, cartValue?, cartID?, customerEmail? })`
+- `usePartnerStats()`
 
-- **Coupons** – Manage discount codes (in "Coupons" group)
-- **Referral Programs** – Set up partner commission structures (in "Referrals" group)
-- **Referral Codes** – Track generated referral links (in "Referrals" group)
+---
 
-### 3. Setting Up Partner Role
+## Configuration overview
 
-To enable the partner dashboard and role-based access, add a `role` or `roles` field to your Users collection (or configure custom paths with `roleConfig`):
+```ts
+type CouponPluginOptions = {
+  enabled?: boolean
+  enableReferrals?: boolean
+  allowStackWithOtherCoupons?: boolean
+  defaultCurrency?: string
+  autoIntegrate?: boolean
 
-```typescript
-// collections/Users.ts
-import type { CollectionConfig } from "payload";
+  collections?: {
+    couponsSlug?: string
+    referralProgramsSlug?: string
+    referralCodesSlug?: string
+    referralPartnersSlug?: string
+    couponsCollectionOverride?: (params: { defaultCollection: any }) => any | Promise<any>
+    referralProgramsCollectionOverride?: (params: { defaultCollection: any }) => any | Promise<any>
+    referralCodesCollectionOverride?: (params: { defaultCollection: any }) => any | Promise<any>
+  }
 
-export const Users: CollectionConfig = {
-  slug: "users",
-  auth: true,
-  fields: [
-    {
-      name: "role",
-      type: "select",
-      options: [
-        { label: "Admin", value: "admin" },
-        { label: "Partner", value: "partner" },
-        { label: "Customer", value: "customer" },
-      ],
-      defaultValue: "customer",
-      required: true,
-    },
-    // Or use multiple roles
-    {
-      name: "roles",
-      type: "select",
-      hasMany: true,
-      options: [
-        { label: "Admin", value: "admin" },
-        { label: "Partner", value: "partner" },
-        { label: "Customer", value: "customer" },
-      ],
-      defaultValue: ["customer"],
-    },
-  ],
-};
-```
+  endpoints?: {
+    applyCoupon?: string
+    validateCoupon?: string
+    partnerStats?: string
+    recordOrderUsage?: string
+  }
 
-If your user schema stores roles in a custom structure, configure:
+  // Legacy access support
+  access?: {
+    canUseCoupons?: any
+    canUseReferrals?: any
+    isAdmin?: any
+    isPartner?: any
+  }
 
-```typescript
-roleConfig: {
-  roleFieldPaths: ["role", "roles", "profile.accountRoles"],
-  adminRoleValues: ["admin"],
-  partnerRoleValues: ["partner", "affiliate"],
-}
-```
+  // Preferred policy-first API
+  policies?: {
+    canApplyCoupon?: (ctx: { req: unknown; user?: unknown; payload?: unknown }) => boolean | Promise<boolean>
+    canApplyReferral?: (ctx: { req: unknown; user?: unknown; payload?: unknown }) => boolean | Promise<boolean>
+    canViewPartnerStats?: (ctx: { req: unknown; user?: unknown; payload?: unknown; requestedPartnerID?: string | number }) => boolean | Promise<boolean>
+    canRecordOrderUsage?: (ctx: { req: unknown; user?: unknown; payload?: unknown; order: unknown }) => boolean | Promise<boolean>
+  }
 
-### 4. Record Usage When Order Is Placed
-
-Coupon and referral **usage is not counted when a code is applied** to the cart. It is counted only when an **order is placed successfully** (e.g. paid). You must call the plugin when converting cart to order:
-
-**Option A – Call the API** (e.g. from your Orders collection `afterChange` hook when `paymentStatus === 'paid'`):
-
-```bash
-POST /api/coupons/record-order-usage
-Content-Type: application/json
-{ "orderId": "your-order-id" }
-```
-
-**Option B – Use the server utility** (in your Payload config or Orders hook):
-
-```typescript
-import { recordCouponUsageForOrder } from "@wtree/payload-ecommerce-coupon";
-
-// In your Orders collection afterChange hook, when order is paid/completed:
-if (doc.paymentStatus === "paid" && (doc.appliedCoupon || doc.appliedReferralCode)) {
-  await recordCouponUsageForOrder(payload, doc, pluginConfig);
-}
-```
-
-- **Coupon:** increments the coupon’s `usageCount`.
-- **Referral:** increments the referral code’s `usageCount` and `successfulReferralsCount`, and adds `order.partnerCommission` to the referral code’s `totalEarnings` and `pendingEarnings` (referrer gets commission; referee discount is already on the order).
-
-### 4.5 Coupon usage rules and cart total
-
-**Usage rule**
-
-- A customer can use a coupon until the coupon’s **global usage limit** or **expiry date** (usage is counted when the order is placed, not when the code is applied).
-- **Optional per-customer limit:** If you set **Per customer limit** on a coupon, the customer must provide their email when applying (e.g. `customerEmail` in the apply request). The coupon is rejected once they have that many **paid** orders with that coupon. You can pass `customerEmail` when validating so the UI can show “limit reached” before apply.
-
-**Monetary values**
-
-- All discount, commission, and total values are rounded to **2 decimal places**.
-
-**Cart total in your app**
-
-- The plugin writes the reduced `total` when a code is applied. If your host app recalculates the cart total (e.g. in a `beforeChange` hook when items change), use the formula **total = subtotal − discountAmount − customerDiscount** so the discount is not overwritten. Use the provided helper in your Carts collection:
-
-```typescript
-import { getCartTotalWithDiscounts } from "@wtree/payload-ecommerce-coupon";
-
-// In your Carts collection beforeChange hook, after setting items/subtotal:
-data.total = getCartTotalWithDiscounts(data);
-```
-
-- **Optional config** for per-customer limit: `orderIntegration` with `ordersSlug`, `orderCustomerEmailField`, `orderPaymentStatusField`, `orderPaidStatusValue` (defaults: `'orders'`, `'customerEmail'`, `'paymentStatus'`, `'paid'`).
-
-**Server utilities (for host app)**
-
-- `getCartTotalWithDiscounts(cart)` – Returns `roundTo2(subtotal - discountAmount - customerDiscount)`. Use in your Carts `beforeChange` (or wherever you compute total) so the displayed total always reflects coupon/referral discounts.
-- `recordCouponUsageForOrder(payload, order, pluginConfig)` – Call when an order is paid to increment coupon/referral usage and credit partner earnings (see step 4 above).
-
-### 5. Frontend Integration
-
-#### Apply Coupon/Referral Code
-
-```typescript
-import { useCouponCode } from '@wtree/payload-ecommerce-coupon'
-
-function CheckoutComponent() {
-  const [code, setCode] = useState('')
-  const [cartId, setCartId] = useState('your-cart-id')
-
-  const applyCode = async () => {
-    const result = await useCouponCode({
-      code,
-      cartID: cartId,
-      // When a coupon has per-customer limit, pass customerEmail so the limit can be enforced
-      // customerEmail: customerEmailFromAuthOrForm,
-    })
-
-    if (result.success) {
-      if (result.coupon) {
-        console.log('Coupon applied! Discount:', result.discount)
-      } else if (result.referralCode) {
-        console.log('Referral applied!')
-        console.log('Your discount:', result.customerDiscount)
-        console.log('Partner commission:', result.partnerCommission)
-      }
-    } else {
-      console.error('Error:', result.error)
+  // Integration-driven mapping
+  integration?: {
+    collections?: {
+      cartsSlug?: string
+      ordersSlug?: string
+      productsSlug?: string
+      usersSlug?: string
+      categoriesSlug?: string
+      tagsSlug?: string
+    }
+    fields?: {
+      cartItemsField?: string
+      cartSubtotalField?: string
+      cartTotalField?: string
+      cartAppliedCouponField?: string
+      cartAppliedReferralCodeField?: string
+      cartDiscountAmountField?: string
+      cartCustomerDiscountField?: string
+      cartPartnerCommissionField?: string
+      orderAppliedCouponField?: string
+      orderAppliedReferralCodeField?: string
+      orderDiscountAmountField?: string
+      orderCustomerDiscountField?: string
+      orderPartnerCommissionField?: string
+      orderCustomerEmailField?: string
+      orderPaymentStatusField?: string
+      orderCreatedAtField?: string
+      productPriceField?: string
+      productCurrencyCodeField?: string
+    }
+    resolvers?: {
+      getUserID?: (args: { req: unknown; user?: unknown }) => string | number | null | undefined
+      getCartItems?: (cart: unknown) => any[]
+      getCartSubtotal?: (cart: unknown) => number
+      getCartTotal?: (cart: unknown) => number
+      isOrderPaid?: (order: unknown) => boolean
+      getProductUnitPrice?: (args: { item: unknown; product: unknown; variant?: unknown; currencyCode?: string }) => number
     }
   }
 
-  return (
-    <div>
-      <input
-        value={code}
-        onChange={(e) => setCode(e.target.value)}
-        placeholder="Enter coupon or referral code"
-      />
-      <button onClick={applyCode}>Apply Code</button>
-    </div>
-  )
-}
-```
-
-#### Partner Dashboard
-
-Use the `usePartnerStats` hook to build a custom dashboard, or use the pre-built dashboard components when available from the package. See [Partner Dashboard docs](./docs/partner-dashboard.md).
-
-```typescript
-import { usePartnerStats } from '@wtree/payload-ecommerce-coupon'
-
-// Build custom dashboard with the hook
-function CustomPartnerDashboard() {
-  const [data, setData] = useState(null)
-
-  useEffect(() => {
-    const fetchStats = async () => {
-      const result = await usePartnerStats()
-      if (result.success) {
-        setData(result.data)
-      }
-    }
-    fetchStats()
-  }, [])
-
-  if (!data) return <div>Loading...</div>
-
-  return (
-    <div>
-      <h2>Your Earnings</h2>
-      <p>Total: ${data.stats.totalEarnings}</p>
-      <p>Pending: ${data.stats.pendingEarnings}</p>
-      <p>Paid: ${data.stats.paidEarnings}</p>
-
-      <h2>Your Referral Codes</h2>
-      {data.referralCodes.map(code => (
-        <div key={code.id}>
-          <span>{code.code}</span>
-          <span>Uses: {code.usageCount}</span>
-        </div>
-      ))}
-    </div>
-  )
-}
-```
-
-## 👨‍💼 Admin Usage Guide
-
-### **Choosing Your Mode**
-
-#### **Coupon Mode** (`enableReferrals: false`)
-
-Best for traditional discount campaigns, seasonal sales, and customer loyalty programs.
-
-#### **Referral Mode** (`enableReferrals: true`)
-
-Best for affiliate marketing, partner programs, and customer acquisition through referrals.
-
-#### **Hybrid Mode** (`enableReferrals: true` + `allowBothSystems: true`)
-
-Best when you need both traditional coupons AND partner referrals, but want to enforce only one code per order.
-
-### **Setting Up Coupon Mode**
-
-1. **Navigate to Admin Panel** → Go to "Coupons" collection (under "Coupons" group)
-2. **Create New Coupon**:
-   - **Code**: `WELCOME10` (unique identifier)
-   - **Type**: `Percentage` or `Fixed Amount`
-   - **Value**: `10` (10% or $10)
-   - **Description**: "Welcome discount for new customers"
-   - **Active From/Until**: Set validity period
-   - **Usage Limit**: Maximum uses (optional)
-   - **Per Customer Limit**: Uses per customer (optional)
-   - **Min/Max Order Value**: Order value constraints
-
-### **Setting Up Referral Mode**
-
-1. **Navigate to Admin Panel** → Go to "Referral Programs" (under "Referrals" group)
-2. **Create Referral Program** with **Commission Rules** (required – at least one). Each rule has:
-   - **Name**: e.g. "Default" or "Electronics"
-   - **Applies To**: All Products, Specific Categories, or Specific Products
-   - **Referrer Reward** (inside the rule): Commission for the partner. Type: Percentage of Order or Fixed Amount. Value: e.g. 65 = 65% of order value. Optional Max Reward.
-   - **Referee Reward** (inside the rule): Discount for the customer. Type: Percentage Discount or Fixed Amount. Value: e.g. 30 = 30% off. Optional Max Reward.
-
-   There are no outer Referrer Reward / Referee Reward fields – only **Commission Rules**, and each rule contains its own Referrer Reward and Referee Reward.
-
-### **Commission and Discount (Referrer / Referee)**
-
-- **Referrer (partner)** receives **commission** – credited to the referral code’s `totalEarnings` and `pendingEarnings` when the order is placed (via record-order-usage).
-- **Referee (customer)** receives a **discount** – applied to the order; stored on cart/order as `customerDiscount`.
-
-#### **Example: Commission Rules with Split**
-
-- **Order Total**: $100 (Electronics category)
-- **Total Commission**: 15% = $15
-- **Partner Share**: 70% of $15 = $10.50 (commission to referrer)
-- **Customer Discount**: 30% of $15 = $4.50 (discount to referee)
-
-### **Managing Partners**
-
-1. **Create Partner Account**: Set user role to "partner"
-2. **Generate Referral Code**: Partners can create codes in "Referral Codes" collection
-3. **Track Performance**: View usage count, earnings, and successful referrals
-4. **Payout Management**: Track pending vs paid earnings
-
-## 🌐 REST API Endpoints
-
-### **Coupon/Referral Endpoints**
-
-#### POST /api/coupons/validate
-
-Validate a code without applying it. Optionally pass `customerEmail` to check per-customer limit for coupons that have one.
-
-```bash
-curl -X POST http://localhost:3000/api/coupons/validate \
-  -H "Content-Type: application/json" \
-  -d '{"code": "WELCOME10", "cartValue": 5000}'
-
-# With per-customer limit check:
-# -d '{"code": "WELCOME10", "cartValue": 5000, "customerEmail": "user@example.com"}'
-```
-
-#### POST /api/coupons/apply
-
-Apply a code to a cart. **Does not** increment usage; usage is recorded when you call the record-order-usage endpoint for a placed order. For coupons with **per-customer limit**, include `customerEmail` so the limit can be enforced.
-
-```bash
-curl -X POST http://localhost:3000/api/coupons/apply \
-  -H "Content-Type: application/json" \
-  -d '{"code": "WELCOME10", "cartID": "cart-123"}'
-
-# With per-customer limit (required when coupon has per-customer limit):
-# -d '{"code": "WELCOME10", "cartID": "cart-123", "customerEmail": "user@example.com"}'
-```
-
-#### POST /api/coupons/record-order-usage
-
-Record coupon and referral usage for a successfully placed order. Call this once per order when the order is paid/completed (e.g. from your Orders `afterChange` hook).
-
-**Request body:** `{ "orderId": "string" }`
-
-```bash
-curl -X POST http://localhost:3000/api/coupons/record-order-usage \
-  -H "Content-Type: application/json" \
-  -d '{"orderId": "order-123"}'
-```
-
-**Response:** `{ "success": true, "recordedCoupon": boolean, "recordedReferral": boolean }`
-
-### **Partner Stats Endpoint**
-
-#### GET /api/referrals/partner-stats
-
-Get partner dashboard data (requires authentication).
-
-```bash
-curl -X GET http://localhost:3000/api/referrals/partner-stats \
-  -H "Cookie: payload-token=your-auth-token"
-```
-
-**Response:**
-
-```json
-{
-  "success": true,
-  "data": {
-    "stats": {
-      "totalEarnings": 1250.50,
-      "pendingEarnings": 350.00,
-      "paidEarnings": 900.50,
-      "totalReferrals": 45,
-      "successfulReferrals": 38,
-      "conversionRate": 84.44,
-      "recentReferrals": [...],
-      "monthlyEarnings": [...]
-    },
-    "referralCodes": [...],
-    "program": {
-      "name": "Partner Program",
-      "commissionRate": 10,
-      "customerDiscount": 5
-    }
-  },
-  "currency": "USD"
-}
-```
-
-## ⚙️ Configuration
-
-### **Core Options**
-
-```typescript
-export type CouponPluginOptions = {
-  enabled?: boolean; // Enable/disable the plugin (default: true)
-  enableReferrals?: boolean; // Enable referral system (default: false)
-  allowStackWithOtherCoupons?: boolean; // Allow multiple coupons (default: false)
-  defaultCurrency?: string; // Currency code (default: 'USD')
-  autoIntegrate?: boolean; // Auto-extend carts/orders (default: true)
-
-  collections?: {
-    couponsSlug?: string; // Default: 'coupons'
-    referralProgramsSlug?: string; // Default: 'referral-programs'
-    referralCodesSlug?: string; // Default: 'referral-codes'
-
-    /** Override the default coupons collection configuration */
-    couponsCollectionOverride?: (params: { defaultCollection: any }) => any | Promise<any>;
-
-    /** Override the default referral programs collection configuration */
-    referralProgramsCollectionOverride?: (params: { defaultCollection: any }) => any | Promise<any>;
-
-    /** Override the default referral codes collection configuration */
-    referralCodesCollectionOverride?: (params: { defaultCollection: any }) => any | Promise<any>;
-  };
-
-  endpoints?: {
-    applyCoupon?: string; // Default: '/coupons/apply'
-    validateCoupon?: string; // Default: '/coupons/validate'
-    partnerStats?: string; // Default: '/referrals/partner-stats'
-    recordOrderUsage?: string; // Default: '/coupons/record-order-usage'
-  };
-
-  access?: {
-    canUseCoupons?: Access; // Who can use coupons
-    canUseReferrals?: Access; // Who can use referrals
-    isAdmin?: Access; // Who can manage codes/programs
-    isPartner?: Access; // Who has partner access
-  };
-
   referralConfig?: {
-    allowBothSystems?: boolean; // Allow coupons + referrals (default: false)
-    singleCodePerCart?: boolean; // One code per order (default: true)
-    defaultPartnerSplit?: number; // Default partner % (default: 70)
-    defaultCustomerSplit?: number; // Default customer % (default: 30)
-  };
+    allowBothSystems?: boolean
+    singleCodePerCart?: boolean
+    defaultPartnerSplit?: number
+    defaultCustomerSplit?: number
+    allowedTotalCommissionTypes?: Array<'fixed' | 'percentage'>
+  }
 
-  adminGroups?: {
-    couponsGroup?: string; // Admin group for coupons (default: 'Coupons')
-    referralsGroup?: string; // Admin group for referrals (default: 'Referrals')
-  };
-
-  partnerDashboard?: {
-    enabled?: boolean; // Enable dashboard (default: true)
-    showEarningsSummary?: boolean; // Show earnings widget (default: true)
-    showReferralPerformance?: boolean; // Show performance widget (default: true)
-    showRecentReferrals?: boolean; // Show recent referrals (default: true)
-    showCommissionBreakdown?: boolean; // Show breakdown (default: true)
-  };
-
-  /** Optional: for per-customer coupon limit (query paid orders by customer) */
   orderIntegration?: {
-    ordersSlug?: string; // Default: 'orders'
-    orderCustomerEmailField?: string; // Default: 'customerEmail'
-    orderPaymentStatusField?: string; // Default: 'paymentStatus'
-    orderPaidStatusValue?: string; // Default: 'paid'
-  };
-};
+    ordersSlug?: string
+    orderCustomerEmailField?: string
+    orderPaymentStatusField?: string
+    orderPaidStatusValue?: string
+  }
+
+  roleConfig?: {
+    roleFieldPaths?: string[]
+    adminRoleValues?: string[]
+    partnerRoleValues?: string[]
+    customRoleResolver?: (user: unknown) => string[]
+  }
+}
 ```
 
-### **Collection Overrides**
+---
 
-You can override the default collection configurations to customize fields, hooks, or other collection settings. This allows you to extend or modify the plugin's behavior without forking the code.
+## Migration notes (from role-assumption setups)
 
-```typescript
-payloadEcommerceCoupon({
-  collections: {
-    // Override coupons collection
-    couponsCollectionOverride: async ({ defaultCollection }) => {
-      return {
-        ...defaultCollection,
-        fields: [
-          ...defaultCollection.fields,
-          // Add custom field to coupons
-          {
-            name: "customField",
-            type: "text",
-            label: "Custom Field",
-          },
-        ],
-        hooks: {
-          ...defaultCollection.hooks,
-          // Add custom hook
-          beforeChange: [
-            ...(defaultCollection.hooks?.beforeChange || []),
-            async ({ data, req, operation }) => {
-              // Custom beforeChange logic
-              return data;
-            },
-          ],
-        },
-      };
-    },
+If you’re upgrading from older configs:
 
-    // Override referral programs collection
-    referralProgramsCollectionOverride: ({ defaultCollection }) => {
-      return {
-        ...defaultCollection,
-        admin: {
-          ...defaultCollection.admin,
-          defaultColumns: ["name", "isActive", "totalReferrals"],
-        },
-      };
-    },
+1. Prefer `policies` over role-specific assumptions.
+2. Set `integration.collections` and `integration.fields` if your schema uses custom slugs/field names.
+3. Ensure order completion flow calls usage recording.
+4. Validate endpoint paths if you previously relied on custom routes.
 
-    // Override referral codes collection
-    referralCodesCollectionOverride: async ({ defaultCollection }) => {
-      return {
-        ...defaultCollection,
-        fields: [
-          ...defaultCollection.fields,
-          {
-            name: "customCodeField",
-            type: "select",
-            label: "Custom Code Type",
-            options: ["standard", "premium"],
-            defaultValue: "standard",
-          },
-        ],
-      };
-    },
-  },
-});
-```
+---
 
-### **Access Control Examples**
+## Troubleshooting
 
-```typescript
-payloadEcommerceCoupon({
-  access: {
-    // Anyone can use coupons
-    canUseCoupons: () => true,
-
-    // Only authenticated users can use referrals
-    canUseReferrals: ({ req }) => Boolean(req.user),
-
-    // Only admins can manage
-    isAdmin: ({ req }) => req.user?.role === "admin",
-
-    // Partner role check (supports both single role and array)
-    isPartner: ({ req }) => {
-      const user = req.user;
-      if (!user) return false;
-      if (user.role === "partner") return true;
-      if (Array.isArray(user.roles) && user.roles.includes("partner")) return true;
-      return false;
-    },
-  },
-});
-```
-
-## 📦 API Reference
-
-### **Exported Functions**
-
-```typescript
-import {
-  payloadEcommerceCoupon,
-
-  // Collection creation functions
-  createCouponsCollection,
-  createReferralCodesCollection,
-  createReferralProgramsCollection,
-
-  // Frontend hooks
-  useCouponCode,
-  validateCouponCode,
-  usePartnerStats,
-
-  // Server-only: record usage when order is placed
-  recordCouponUsageForOrder,
-} from "@wtree/payload-ecommerce-coupon";
-```
-
-Dashboard components (`PartnerDashboard`, `EarningsSummary`, `ReferralPerformance`, `RecentReferrals`, `ReferralCodes`) are available from the package source; see [Partner Dashboard docs](./docs/partner-dashboard.md) for usage.
-
-### **Collection Creation Functions**
-
-You can use the collection creation functions directly in your Payload config to customize collections before they're added to the config.
-
-```typescript
-import { buildConfig } from "payload";
-import { ecommercePlugin } from "@payloadcms/plugin-ecommerce";
-import { payloadEcommerceCoupon, createCouponsCollection } from "@wtree/payload-ecommerce-coupon";
-
-export default buildConfig({
-  plugins: [
-    ecommercePlugin({
-      // your ecommerce configuration
-    }),
-    payloadEcommerceCoupon({
-      // plugin configuration
-    }),
-  ],
-  collections: [
-    // The plugin adds collections automatically; use overrides in plugin config to customize
-  ],
-});
-```
-
-## 🎨 Partner Dashboard
-
-The plugin provides hooks and (when using the source) React components for partner dashboards. Use `usePartnerStats()` to fetch stats; for pre-built dashboard components and styling, see [Partner Dashboard documentation](./docs/partner-dashboard.md).
-
-## 🔧 Troubleshooting
-
-### **Common Issues**
-
-#### **"A code has already been applied to this cart"**
-
-This occurs when `singleCodePerCart: true` and a code is already applied.
-
-- Solution: Remove the existing code before applying a new one, or set `singleCodePerCart: false`
-
-#### **Partner can't see their referral codes**
-
-- Ensure the user has `role: 'partner'` or `roles: ['partner']`
-- Check the `isPartner` access control function
-
-#### **Usage count or partner earnings not updating**
-
-- Usage is **not** incremented when a code is applied to the cart. Call **record-order-usage** (or `recordCouponUsageForOrder`) when an order is placed/paid. See [Record usage when order is placed](#4-record-usage-when-order-is-placed).
-
-#### **Commission not calculating correctly**
-
-- Ensure at least one **Commission Rule** exists and each rule has **Referrer Reward** and **Referee Reward** set
-- Verify cart has valid `subtotal` or `total` and items match rule’s appliesTo (all / categories / products)
-
-## 📋 Future Features (Roadmap)
-
-The following features are planned for future releases:
-
-| Feature                | Status     | Description                                                      |
-| ---------------------- | ---------- | ---------------------------------------------------------------- |
-| Multi-tier commissions | 🔜 Planned | Support for tiered commission rates based on performance         |
-| Automatic payouts      | 🔜 Planned | Integration with payment providers for automatic partner payouts |
-| Referral analytics     | 🔜 Planned | Advanced analytics and reporting dashboard                       |
-| Email notifications    | 🔜 Planned | Automated emails for referral events                             |
-| Custom code generation | 🔜 Planned | Allow partners to create custom branded codes                    |
-| Fraud detection        | 🔜 Planned | Automatic detection of suspicious referral patterns              |
-| Bulk code import       | 🔜 Planned | Import coupons/codes from CSV                                    |
-| A/B testing            | 🔜 Planned | Test different commission structures                             |
-
-### **Comparison with Other Solutions**
-
-| Feature                 | This Plugin | ReferralCandy | Refersion | Custom Build |
-| ----------------------- | ----------- | ------------- | --------- | ------------ |
-| Payload CMS Integration | ✅ Native   | ❌            | ❌        | ⚠️ Manual    |
-| Coupon System           | ✅          | ❌            | ❌        | ⚠️ Manual    |
-| Referral System         | ✅          | ✅            | ✅        | ⚠️ Manual    |
-| Partner Dashboard       | ✅          | ✅            | ✅        | ⚠️ Manual    |
-| Commission Rules        | ✅          | ⚠️ Limited    | ✅        | ⚠️ Manual    |
-| Single Code Enforcement | ✅          | ❌            | ❌        | ⚠️ Manual    |
-| TypeScript Support      | ✅          | ❌            | ❌        | ⚠️ Varies    |
-| Self-Hosted             | ✅          | ❌            | ❌        | ✅           |
-| Monthly Cost            | Free        | $49+          | $89+      | Dev Time     |
-
-## 🧪 Testing
+### Build/lint mismatch after changes
+Run:
 
 ```bash
-# Run all tests
-npm test
-
-# Watch mode
-npm run test:watch
-
-# Coverage report
-npm run test:coverage
+bun run lint
+bun run build
+bun test --runInBand
 ```
 
-## 📚 Documentation
+### Code applies but usage not incrementing
+Expected behavior until order completion. Call record-order-usage on paid/completed order.
 
-- [API Reference](./docs/api.md)
-- [Compatibility Matrix](./COMPATIBILITY.md)
-- [Contributing Guide](./CONTRIBUTING.md)
+### Partner stats forbidden
+Adjust `policies.canViewPartnerStats` to match your auth model.
 
-## 🔗 Links
+### Per-customer limit not enforced
+Pass `customerEmail` on validate/apply for coupons that define per-customer limits, and ensure order integration fields map to your schema.
 
-- **GitHub**: https://github.com/technewwings/payload-ecommerce-coupon
-- **NPM**: https://npmjs.com/package/@wtree/payload-ecommerce-coupon
-- **Payload CMS**: https://payloadcms.com
-- **Payload Dashboard Docs**: https://payloadcms.com/docs/custom-components/dashboard
+---
 
-## 📄 License
+## Exports
 
-MIT License © 2026 wtree. See [LICENSE](./LICENSE) for details.
+Main exports include:
 
-## 🤝 Contributing
+- `payloadEcommerceCoupon` (plugin)
+- `createCouponsCollection`
+- `createReferralCodesCollection`
+- `createReferralProgramsCollection`
+- `useCouponCode`
+- `validateCouponCode`
+- `usePartnerStats`
+- `getCartTotalWithDiscounts`
+- `recordCouponUsageForOrder`
+- full TypeScript types for plugin options/policies/integration
 
-Contributions are welcome! See [CONTRIBUTING.md](./CONTRIBUTING.md) for guidelines.
+---
+
+## License
+
+MIT

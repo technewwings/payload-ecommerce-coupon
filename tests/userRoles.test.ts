@@ -86,16 +86,16 @@ describe('userRoles utilities', () => {
   describe('userHasAnyRole / isAdminUser / isPartnerUser', () => {
     it('matches roles case-insensitively', () => {
       const user = { role: 'PaRtNeR' }
-      expect(userHasAnyRole({ user, roleConfig: defaultRoleConfig, targetRoles: ['partner'] })).toBe(
-        true,
-      )
+      expect(
+        userHasAnyRole({ user, roleConfig: defaultRoleConfig, targetRoles: ['partner'] }),
+      ).toBe(true)
     })
 
     it('returns false when user has no target roles', () => {
       const user = { roles: ['customer'] }
-      expect(userHasAnyRole({ user, roleConfig: defaultRoleConfig, targetRoles: ['partner'] })).toBe(
-        false,
-      )
+      expect(
+        userHasAnyRole({ user, roleConfig: defaultRoleConfig, targetRoles: ['partner'] }),
+      ).toBe(false)
     })
 
     it('detects admin role with default config', () => {

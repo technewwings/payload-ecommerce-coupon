@@ -5,7 +5,8 @@ import type { SanitizedCouponPluginOptions } from '../types'
 export const createCouponsCollection = (
   pluginConfig: SanitizedCouponPluginOptions,
 ): CollectionConfig => {
-  const { collections, access, defaultCurrency, adminGroups } = pluginConfig
+  const { collections, access, defaultCurrency, adminGroups, integration } = pluginConfig
+  const usersSlug = integration.collections.usersSlug
 
   return {
     slug: collections.couponsSlug,
@@ -28,6 +29,16 @@ export const createCouponsCollection = (
         unique: true,
         admin: {
           description: 'The coupon code that customers will enter',
+        },
+      },
+      {
+        name: 'normalizedCode',
+        type: 'text',
+        unique: true,
+        index: true,
+        admin: {
+          hidden: true,
+          description: 'Uppercased, trimmed code used for fast case-insensitive lookups',
         },
       },
       {
@@ -122,7 +133,7 @@ export const createCouponsCollection = (
       {
         name: 'createdBy',
         type: 'relationship',
-        relationTo: 'users',
+        relationTo: usersSlug,
         admin: {
           readOnly: true,
           position: 'sidebar',
@@ -130,11 +141,26 @@ export const createCouponsCollection = (
       },
     ],
     hooks: {
+      beforeValidate: [
+        ({ data }) => {
+          if (data && typeof data.code === 'string') {
+            data.code = data.code.trim()
+            data.normalizedCode = data.code.toUpperCase()
+          }
+          return data
+        },
+      ],
       beforeChange: [
         ({ operation, req, data }) => {
-          if (operation === 'create' && req.user) {
-            data.createdBy = req.user.id
+          if (data && typeof data.code === 'string') {
+            data.code = data.code.trim()
+            data.normalizedCode = data.code.toUpperCase()
           }
+
+          if (operation === 'create' && req.user && !data.createdBy) {
+            data.createdBy = (req.user as { id?: string | number }).id
+          }
+
           return data
         },
       ],

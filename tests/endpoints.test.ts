@@ -147,7 +147,7 @@ describe('Apply Coupon Endpoint', () => {
       expect(mockPayload.find).toHaveBeenCalledWith({
         collection: 'coupons',
         limit: 1,
-        where: { code: { equals: 'TEST10' } },
+        where: { normalizedCode: { equals: 'TEST10' } },
       })
       expect(response.status).toBe(200)
       expect(result.success).toBe(true)
@@ -317,8 +317,7 @@ describe('Apply Coupon Endpoint', () => {
       expect(mockPayload.find).toHaveBeenCalledWith({
         collection: 'referral-codes',
         limit: 1,
-        depth: 1,
-        where: { code: { equals: 'REF123' } },
+        where: { normalizedCode: { equals: 'REF123' } },
       })
       expect(response.status).toBe(200)
       expect(result.success).toBe(true)

@@ -11,10 +11,9 @@ type Args = {
   pluginConfig: SanitizedCouponPluginOptions
 }
 
-// Debug Capture
-const globalDebugLogs: string[] = []
+type RelationValue = string | number | { id?: string | number } | null | undefined
 
-const getRelationId = (value: any): string | number | null => {
+function relationId(value: RelationValue): string | number | null {
   if (value == null) return null
   if (typeof value === 'string' || typeof value === 'number') return value
   if (typeof value === 'object' && (typeof value.id === 'string' || typeof value.id === 'number')) {
@@ -23,15 +22,83 @@ const getRelationId = (value: any): string | number | null => {
   return null
 }
 
+function readField<T = unknown>(doc: unknown, field: string): T | undefined {
+  if (!doc || typeof doc !== 'object') return undefined
+  return (doc as Record<string, unknown>)[field] as T | undefined
+}
+
+function writeField(doc: Record<string, unknown>, field: string, value: unknown): void {
+  doc[field] = value
+}
+
+function normalizeCode(value: unknown): string {
+  return typeof value === 'string' ? value.trim().toUpperCase() : ''
+}
+
+async function findByNormalizedCode({
+  payload,
+  collection,
+  normalizedCode,
+}: {
+  payload: any
+  collection: string
+  normalizedCode: string
+}): Promise<any | null> {
+  const exactQuery = await payload.find({
+    collection,
+    where: {
+      normalizedCode: { equals: normalizedCode },
+    },
+    limit: 1,
+  })
+
+  if (exactQuery?.docs?.[0]) return exactQuery.docs[0]
+
+  const lowerQuery = await payload.find({
+    collection,
+    where: {
+      code: { equals: normalizedCode.toLowerCase() },
+    },
+    limit: 1,
+  })
+
+  if (lowerQuery?.docs?.[0]) return lowerQuery.docs[0]
+
+  const upperQuery = await payload.find({
+    collection,
+    where: {
+      code: { equals: normalizedCode.toUpperCase() },
+    },
+    limit: 1,
+  })
+
+  if (upperQuery?.docs?.[0]) return upperQuery.docs[0]
+
+  const exactCodeQuery = await payload.find({
+    collection,
+    where: {
+      code: { equals: normalizedCode },
+    },
+    limit: 1,
+  })
+
+  return exactCodeQuery?.docs?.[0] ?? null
+}
+
 export const applyCouponHandler =
   ({ pluginConfig }: Args): PayloadHandler =>
   async (req) => {
-    globalDebugLogs.length = 0 // Reset logs
     const { payload } = req
-    const { code: rawCode, cartID, customerEmail } = req.data || {}
-    const code = typeof rawCode === 'string' ? rawCode.trim() : rawCode
+    const fields = pluginConfig.integration.fields
+    const collections = pluginConfig.integration.collections
 
-    if (!code || !cartID) {
+    const rawCode = req?.data?.code
+    const cartID = req?.data?.cartID
+    const customerEmail = req?.data?.customerEmail
+
+    const normalizedCode = normalizeCode(rawCode)
+
+    if (!normalizedCode || !cartID) {
       return Response.json(
         {
           success: false,
@@ -41,133 +108,123 @@ export const applyCouponHandler =
       )
     }
 
+    const allowCoupon = await Promise.resolve(
+      pluginConfig.policies.canApplyCoupon({ req, user: req?.user, payload }),
+    )
+
+    const allowReferral = await Promise.resolve(
+      pluginConfig.policies.canApplyReferral({ req, user: req?.user, payload }),
+    )
+
+    if (!allowCoupon && !(pluginConfig.enableReferrals && allowReferral)) {
+      return Response.json({ success: false, error: 'Forbidden' }, { status: 403 })
+    }
+
     try {
-      // Find the cart first to check for existing codes
-      const cartQuery = await payload.findByID({
-        collection: 'carts',
+      const cart = await payload.findByID({
+        collection: collections.cartsSlug,
         id: cartID,
         depth: 2,
       })
 
-      if (!cartQuery) {
+      if (!cart) {
         return Response.json({ success: false, error: 'Cart not found' }, { status: 404 })
       }
 
-      // Check if single code per cart is enforced
-      if (pluginConfig.referralConfig.singleCodePerCart) {
-        const hasExistingCoupon = cartQuery.appliedCoupon
-        const hasExistingReferral = cartQuery.appliedReferralCode
+      const cartAppliedCoupon = relationId(
+        readField(cart, fields.cartAppliedCouponField) as RelationValue,
+      )
+      const cartAppliedReferral = relationId(
+        readField(cart, fields.cartAppliedReferralCodeField) as RelationValue,
+      )
 
-        if (hasExistingCoupon || hasExistingReferral) {
-          return Response.json(
-            {
-              success: false,
-              error:
-                'A code has already been applied to this cart. Only one code can be used per order.',
-            },
-            { status: 400 },
-          )
-        }
+      if (
+        pluginConfig.referralConfig.singleCodePerCart &&
+        (cartAppliedCoupon || cartAppliedReferral)
+      ) {
+        return Response.json(
+          {
+            success: false,
+            error:
+              'A code has already been applied to this cart. Only one code can be used per order.',
+          },
+          { status: 400 },
+        )
       }
 
-      if (pluginConfig.enableReferrals) {
-        // Try referral code first
+      if (pluginConfig.enableReferrals && allowReferral) {
         const referralResult = await handleReferralCode({
           payload,
-          code,
+          cart,
           cartID,
-          cart: cartQuery,
-          customerEmail,
+          normalizedCode,
           pluginConfig,
         })
 
-        // If referral code not found and both systems allowed, try coupon
         if (
           !referralResult.ok &&
           referralResult.status === 404 &&
-          pluginConfig.referralConfig.allowBothSystems
+          pluginConfig.referralConfig.allowBothSystems &&
+          allowCoupon
         ) {
           return await handleCouponCode({
             payload,
-            code,
+            cart,
             cartID,
-            cart: cartQuery,
+            normalizedCode,
             customerEmail,
             pluginConfig,
           })
         }
 
         return referralResult
-      } else {
-        // Coupon mode: handle coupons
-        return await handleCouponCode({
-          payload,
-          code,
-          cartID,
-          cart: cartQuery,
-          customerEmail,
-          pluginConfig,
-        })
       }
+
+      if (!allowCoupon) {
+        return Response.json({ success: false, error: 'Forbidden' }, { status: 403 })
+      }
+
+      return await handleCouponCode({
+        payload,
+        cart,
+        cartID,
+        normalizedCode,
+        customerEmail,
+        pluginConfig,
+      })
     } catch (error) {
       console.error('Code application error:', error)
       return Response.json({ success: false, error: 'Internal server error' }, { status: 500 })
     }
   }
 
-// Handle coupon application
 async function handleCouponCode({
   payload,
-  code,
-  cartID,
   cart,
+  cartID,
+  normalizedCode,
   customerEmail,
   pluginConfig,
 }: {
   payload: any
-  code: string
-  cartID: string
   cart: any
+  cartID: string
+  normalizedCode: string
   customerEmail?: string
   pluginConfig: SanitizedCouponPluginOptions
 }) {
-  // Find the coupon
-  // Find the coupon (Case insensitive check: Exact -> Lower -> Upper)
-  let couponQuery = await payload.find({
+  const fields = pluginConfig.integration.fields
+  const resolvers = pluginConfig.integration.resolvers
+  const coupon = await findByNormalizedCode({
+    payload,
     collection: pluginConfig.collections.couponsSlug,
-    where: {
-      code: { equals: code },
-    },
-    limit: 1,
+    normalizedCode,
   })
 
-  if (!couponQuery.docs.length) {
-    couponQuery = await payload.find({
-      collection: pluginConfig.collections.couponsSlug,
-      where: {
-        code: { equals: code.toLowerCase() },
-      },
-      limit: 1,
-    })
-  }
-
-  if (!couponQuery.docs.length) {
-    couponQuery = await payload.find({
-      collection: pluginConfig.collections.couponsSlug,
-      where: {
-        code: { equals: code.toUpperCase() },
-      },
-      limit: 1,
-    })
-  }
-
-  if (!couponQuery.docs.length) {
+  if (!coupon) {
     return Response.json({ success: false, error: 'Invalid coupon code' }, { status: 404 })
   }
 
-  const coupon = couponQuery.docs[0]
-
-  // Check if coupon is active
   const now = new Date()
   const activeFrom = coupon.activeFrom ? new Date(coupon.activeFrom) : null
   const activeUntil = coupon.activeUntil ? new Date(coupon.activeUntil) : null
@@ -180,12 +237,10 @@ async function handleCouponCode({
     return Response.json({ success: false, error: 'Coupon has expired' }, { status: 400 })
   }
 
-  // Check usage limits
   if (coupon.usageLimit && coupon.usageCount >= coupon.usageLimit) {
     return Response.json({ success: false, error: 'Coupon usage limit exceeded' }, { status: 400 })
   }
 
-  // Per-customer limit: require customer email and count paid orders with this coupon for this customer
   if (coupon.perCustomerLimit != null && coupon.perCustomerLimit > 0) {
     const email = typeof customerEmail === 'string' ? customerEmail.trim() : ''
     if (!email) {
@@ -194,19 +249,23 @@ async function handleCouponCode({
         { status: 400 },
       )
     }
-    const { ordersSlug, orderCustomerEmailField, orderPaymentStatusField, orderPaidStatusValue } =
-      pluginConfig.orderIntegration
+
     const ordersQuery = await payload.find({
-      collection: ordersSlug,
+      collection: pluginConfig.orderIntegration.ordersSlug,
       where: {
         and: [
-          { appliedCoupon: { equals: coupon.id } },
-          { [orderCustomerEmailField]: { equals: email } },
-          { [orderPaymentStatusField]: { equals: orderPaidStatusValue } },
+          { [fields.orderAppliedCouponField]: { equals: coupon.id } },
+          { [pluginConfig.orderIntegration.orderCustomerEmailField]: { equals: email } },
+          {
+            [pluginConfig.orderIntegration.orderPaymentStatusField]: {
+              equals: pluginConfig.orderIntegration.orderPaidStatusValue,
+            },
+          },
         ],
       },
       limit: 0,
     })
+
     if (ordersQuery.totalDocs >= coupon.perCustomerLimit) {
       return Response.json(
         { success: false, error: 'You have reached the maximum uses for this coupon.' },
@@ -215,18 +274,19 @@ async function handleCouponCode({
     }
   }
 
-  // Check if coupon already applied to this cart
-  if (getRelationId(cart.appliedCoupon) === coupon.id) {
+  const existingCouponId = relationId(
+    readField(cart, fields.cartAppliedCouponField) as RelationValue,
+  )
+  if (existingCouponId === coupon.id) {
     return Response.json(
       { success: false, error: 'Coupon already applied to this cart' },
       { status: 400 },
     )
   }
 
-  // Calculate discount based on cart total
-  const cartTotal = cart.subtotal || cart.total || 0
+  const cartSubtotal = Number(resolvers.getCartSubtotal(cart)) || 0
+  const cartTotal = Number(resolvers.getCartTotal(cart)) || cartSubtotal || 0
 
-  // Check minimum order value
   if (coupon.minOrderValue && cartTotal < coupon.minOrderValue) {
     return Response.json(
       {
@@ -237,7 +297,6 @@ async function handleCouponCode({
     )
   }
 
-  // Check maximum order value
   if (coupon.maxOrderValue && cartTotal > coupon.maxOrderValue) {
     return Response.json(
       {
@@ -249,17 +308,17 @@ async function handleCouponCode({
   }
 
   const discountAmount = calculateCouponDiscount({ coupon, cartTotal })
-  const total = roundTo2(Math.max(0, cartTotal - discountAmount))
+  const nextTotal = roundTo2(Math.max(0, cartTotal - discountAmount))
 
-  // Apply coupon to cart (usage is counted when order is placed via recordCouponUsageForOrder)
+  const data: Record<string, unknown> = {}
+  writeField(data, fields.cartAppliedCouponField, coupon.id)
+  writeField(data, fields.cartDiscountAmountField, discountAmount)
+  writeField(data, fields.cartTotalField, nextTotal)
+
   await payload.update({
-    collection: 'carts',
+    collection: pluginConfig.integration.collections.cartsSlug,
     id: cartID,
-    data: {
-      appliedCoupon: coupon.id,
-      discountAmount,
-      total,
-    },
+    data,
   })
 
   return Response.json({
@@ -272,76 +331,43 @@ async function handleCouponCode({
     },
     discount: discountAmount,
     currency: pluginConfig.defaultCurrency,
-    debug: globalDebugLogs,
   })
 }
 
-// Handle referral code application
 async function handleReferralCode({
   payload,
-  code,
-  cartID,
   cart,
-  customerEmail: _customerEmail,
+  cartID,
+  normalizedCode,
   pluginConfig,
 }: {
   payload: any
-  code: string
-  cartID: string
   cart: any
-  customerEmail?: string
+  cartID: string
+  normalizedCode: string
   pluginConfig: SanitizedCouponPluginOptions
 }) {
-  // Find the referral code
-  // Find the referral code (Case insensitive check: Exact -> Lower -> Upper)
-  let referralQuery = await payload.find({
+  const fields = pluginConfig.integration.fields
+  const resolvers = pluginConfig.integration.resolvers
+
+  const referralCode = await findByNormalizedCode({
+    payload,
     collection: pluginConfig.collections.referralCodesSlug,
-    where: {
-      code: { equals: code },
-    },
-    limit: 1,
-    depth: 1,
+    normalizedCode,
   })
 
-  if (!referralQuery.docs.length) {
-    referralQuery = await payload.find({
-      collection: pluginConfig.collections.referralCodesSlug,
-      where: {
-        code: { equals: code.toLowerCase() },
-      },
-      limit: 1,
-      depth: 1,
-    })
-  }
-
-  if (!referralQuery.docs.length) {
-    referralQuery = await payload.find({
-      collection: pluginConfig.collections.referralCodesSlug,
-      where: {
-        code: { equals: code.toUpperCase() },
-      },
-      limit: 1,
-      depth: 1,
-    })
-  }
-
-  if (!referralQuery.docs.length) {
+  if (!referralCode) {
     return Response.json({ success: false, error: 'Invalid referral code' }, { status: 404 })
   }
 
-  const referralCode = referralQuery.docs[0]
-
-  // Check if referral code is active
   if (!referralCode.isActive) {
     return Response.json({ success: false, error: 'Referral code is not active' }, { status: 400 })
   }
 
-  // Check expiration
   if (referralCode.expiresAt && new Date() > new Date(referralCode.expiresAt)) {
     return Response.json({ success: false, error: 'Referral code has expired' }, { status: 400 })
   }
 
-  // Check usage limit
   if (referralCode.usageLimit && referralCode.usageCount >= referralCode.usageLimit) {
     return Response.json(
       { success: false, error: 'Referral code usage limit exceeded' },
@@ -349,9 +375,10 @@ async function handleReferralCode({
     )
   }
 
-  // Get the referral program
   const programId =
-    typeof referralCode.program === 'string' ? referralCode.program : referralCode.program?.id
+    typeof referralCode.program === 'string' || typeof referralCode.program === 'number'
+      ? referralCode.program
+      : referralCode.program?.id
 
   const program = await payload.findByID({
     collection: pluginConfig.collections.referralProgramsSlug,
@@ -365,16 +392,21 @@ async function handleReferralCode({
     )
   }
 
-  // Check if referral code already applied to this cart
-  if (getRelationId(cart.appliedReferralCode) === referralCode.id) {
+  const existingReferralId = relationId(
+    readField(cart, fields.cartAppliedReferralCodeField) as RelationValue,
+  )
+
+  if (existingReferralId === referralCode.id) {
     return Response.json(
       { success: false, error: 'Referral code already applied to this cart' },
       { status: 400 },
     )
   }
 
-  // Calculate commission and discount
-  const cartTotal = cart.subtotal || cart.total || 0
+  const cartItems = resolvers.getCartItems(cart)
+  const cartTotal =
+    Number(resolvers.getCartTotal(cart)) || Number(resolvers.getCartSubtotal(cart)) || 0
+
   const minOrderAmount = getProgramMinimumOrderAmount({
     program,
     allowedTotalCommissionTypes: pluginConfig.referralConfig.allowedTotalCommissionTypes,
@@ -390,30 +422,28 @@ async function handleReferralCode({
     )
   }
 
-  // Calculate based on commission rules
   const { partnerCommission, customerDiscount } = calculateCommissionAndDiscount({
-    cartItems: cart.items || [],
+    cartItems,
     program,
     currencyCode: pluginConfig.defaultCurrency,
     cartTotal,
     allowedTotalCommissionTypes: pluginConfig.referralConfig.allowedTotalCommissionTypes,
   })
 
-  // Round commission and discount
   const roundedPartnerCommission = roundTo2(partnerCommission)
   const roundedCustomerDiscount = roundTo2(customerDiscount)
-  const total = roundTo2(Math.max(0, cartTotal - roundedCustomerDiscount))
+  const nextTotal = roundTo2(Math.max(0, cartTotal - roundedCustomerDiscount))
 
-  // Apply referral to cart
+  const data: Record<string, unknown> = {}
+  writeField(data, fields.cartAppliedReferralCodeField, referralCode.id)
+  writeField(data, fields.cartPartnerCommissionField, roundedPartnerCommission)
+  writeField(data, fields.cartCustomerDiscountField, roundedCustomerDiscount)
+  writeField(data, fields.cartTotalField, nextTotal)
+
   await payload.update({
-    collection: 'carts',
+    collection: pluginConfig.integration.collections.cartsSlug,
     id: cartID,
-    data: {
-      appliedReferralCode: referralCode.id,
-      partnerCommission: roundedPartnerCommission,
-      customerDiscount: roundedCustomerDiscount,
-      total,
-    },
+    data,
   })
 
   return Response.json({
@@ -425,7 +455,6 @@ async function handleReferralCode({
     partnerCommission: roundedPartnerCommission,
     customerDiscount: roundedCustomerDiscount,
     currency: pluginConfig.defaultCurrency,
-    debug: globalDebugLogs,
   })
 }
 

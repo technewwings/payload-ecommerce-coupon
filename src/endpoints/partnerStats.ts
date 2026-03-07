@@ -7,42 +7,89 @@ type Args = {
   pluginConfig: SanitizedCouponPluginOptions
 }
 
+type RelationValue = string | number | { id?: string | number } | null | undefined
+
+function relationId(value: RelationValue): string | number | null {
+  if (value == null) return null
+  if (typeof value === 'string' || typeof value === 'number') return value
+  if (typeof value === 'object' && (typeof value.id === 'string' || typeof value.id === 'number')) {
+    return value.id
+  }
+  return null
+}
+
+function readField<T = unknown>(doc: unknown, field: string): T | undefined {
+  if (!doc || typeof doc !== 'object') return undefined
+  return (doc as Record<string, unknown>)[field] as T | undefined
+}
+
+function asNumber(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : 0
+}
+
+function asString(value: unknown): string {
+  return typeof value === 'string' ? value : ''
+}
+
+function toStatsStatus(value: unknown): 'pending' | 'paid' | 'cancelled' {
+  if (value === 'paid') return 'paid'
+  if (value === 'cancelled') return 'cancelled'
+  return 'pending'
+}
+
 export const partnerStatsHandler =
   ({ pluginConfig }: Args): PayloadHandler =>
   async (req) => {
     const { payload, user } = req
+    const fields = pluginConfig.integration.fields
+    const collections = pluginConfig.integration.collections
 
     if (!user) {
       return Response.json({ success: false, error: 'Authentication required' }, { status: 401 })
     }
 
-    const typedUser = user as { id: string }
+    const typedUser = user as { id?: string | number }
+    const userID = pluginConfig.integration.resolvers.getUserID({ req, user })
 
-    // Check if user is a partner
+    if (userID == null) {
+      return Response.json(
+        { success: false, error: 'Unable to resolve user identity' },
+        { status: 403 },
+      )
+    }
+
     const isPartner =
       isPartnerUser({ user: typedUser, roleConfig: pluginConfig.roleConfig }) ||
-      pluginConfig.access.isPartner?.({ req } as any)
+      (await Promise.resolve(pluginConfig.access.isPartner?.({ req } as any)))
+
     const isAdmin =
       isAdminUser({ user: typedUser, roleConfig: pluginConfig.roleConfig }) ||
-      pluginConfig.access.isAdmin?.({ req } as any)
+      (await Promise.resolve(pluginConfig.access.isAdmin?.({ req } as any)))
 
-    if (!isPartner && !isAdmin) {
+    const policyAllowed = await Promise.resolve(
+      pluginConfig.policies.canViewPartnerStats({
+        req,
+        user,
+        payload,
+        requestedPartnerID: userID,
+      }),
+    )
+
+    if (!policyAllowed && !isAdmin && !isPartner) {
       return Response.json({ success: false, error: 'Partner access required' }, { status: 403 })
     }
 
     try {
-      // Get partner's referral codes
       const referralCodesQuery = await payload.find({
         collection: pluginConfig.collections.referralCodesSlug,
         where: {
-          partner: { equals: typedUser.id },
+          partner: { equals: userID },
         },
         limit: 100,
       })
 
-      const referralCodes = referralCodesQuery.docs
+      const referralCodes = Array.isArray(referralCodesQuery?.docs) ? referralCodesQuery.docs : []
 
-      // Calculate stats
       let totalEarnings = 0
       let pendingEarnings = 0
       let paidEarnings = 0
@@ -50,55 +97,66 @@ export const partnerStatsHandler =
       let successfulReferrals = 0
 
       const referralCodeData = referralCodes.map((code: any) => {
-        totalEarnings += code.totalEarnings || 0
-        pendingEarnings += code.pendingEarnings || 0
-        paidEarnings += code.paidEarnings || 0
-        totalReferrals += code.usageCount || 0
-        successfulReferrals += code.successfulReferralsCount || 0
+        totalEarnings += asNumber(code?.totalEarnings)
+        pendingEarnings += asNumber(code?.pendingEarnings)
+        paidEarnings += asNumber(code?.paidEarnings)
+        totalReferrals += asNumber(code?.usageCount)
+        successfulReferrals += asNumber(code?.successfulReferralsCount)
 
         return {
-          id: code.id,
-          code: code.code,
-          usageCount: code.usageCount || 0,
-          totalEarnings: code.totalEarnings || 0,
-          isActive: code.isActive,
+          id: String(code?.id ?? ''),
+          code: asString(code?.code),
+          usageCount: asNumber(code?.usageCount),
+          totalEarnings: asNumber(code?.totalEarnings),
+          isActive: Boolean(code?.isActive),
         }
       })
 
-      // Calculate conversion rate
       const conversionRate = totalReferrals > 0 ? (successfulReferrals / totalReferrals) * 100 : 0
-
-      // Get recent referrals (from orders with this partner's referral codes)
       const recentReferrals: PartnerStats['recentReferrals'] = []
 
-      // Try to get orders with applied referral codes
       try {
-        const ordersQuery = await payload.find({
-          collection: 'orders',
-          where: {
-            appliedReferralCode: {
-              in: referralCodes.map((c: any) => c.id),
-            },
-          },
-          limit: 10,
-          sort: '-createdAt',
-        })
+        const referralCodeIDs = referralCodes
+          .map((c: any) => relationId(c?.id as RelationValue))
+          .filter((id): id is string | number => id != null)
 
-        for (const order of ordersQuery.docs as any[]) {
-          recentReferrals.push({
-            id: order.id,
-            code: referralCodes.find((c: any) => c.id === order.appliedReferralCode)?.code || '',
-            orderValue: order.total || 0,
-            commission: order.partnerCommission || 0,
-            date: order.createdAt,
-            status: order.paymentStatus === 'paid' ? 'paid' : 'pending',
+        if (referralCodeIDs.length > 0) {
+          const ordersQuery = await payload.find({
+            collection: collections.ordersSlug,
+            where: {
+              [fields.orderAppliedReferralCodeField]: {
+                in: referralCodeIDs,
+              },
+            },
+            limit: 10,
+            sort: `-${fields.orderCreatedAtField}`,
           })
+
+          for (const order of (ordersQuery?.docs || []) as any[]) {
+            const orderReferralRelation = readField(order, fields.orderAppliedReferralCodeField)
+            const orderReferralID = relationId(orderReferralRelation as RelationValue)
+
+            const matchedCode = referralCodes.find(
+              (c: any) => relationId(c?.id as RelationValue) === orderReferralID,
+            )
+
+            const paymentStatus = readField(order, fields.orderPaymentStatusField)
+            const createdAt = readField(order, fields.orderCreatedAtField)
+
+            recentReferrals.push({
+              id: String(order?.id ?? ''),
+              code: asString(matchedCode?.code),
+              orderValue: asNumber(readField(order, fields.cartTotalField) ?? order?.total),
+              commission: asNumber(readField(order, fields.orderPartnerCommissionField)),
+              date: asString(createdAt),
+              status: toStatsStatus(paymentStatus),
+            })
+          }
         }
       } catch {
-        // Orders collection might not exist or have different structure
+        // Host app may not expose expected order structure.
       }
 
-      // Calculate monthly earnings (last 6 months)
       const monthlyEarnings: PartnerStats['monthlyEarnings'] = []
       const now = new Date()
 
@@ -106,8 +164,6 @@ export const partnerStatsHandler =
         const monthDate = new Date(now.getFullYear(), now.getMonth() - i, 1)
         const monthName = monthDate.toLocaleString('default', { month: 'short', year: 'numeric' })
 
-        // This would need actual order data to calculate properly
-        // For now, we'll provide placeholder structure
         monthlyEarnings.push({
           month: monthName,
           earnings: 0,
@@ -115,39 +171,42 @@ export const partnerStatsHandler =
         })
       }
 
-      // Get the partner's active program
       let program: PartnerDashboardData['program'] = null
 
       if (referralCodes.length > 0) {
         const firstCode = referralCodes[0] as any
-        if (firstCode.program) {
+        const programID = relationId(firstCode?.program as RelationValue)
+
+        if (programID != null) {
           try {
             const programData = await payload.findByID({
               collection: pluginConfig.collections.referralProgramsSlug,
-              id: typeof firstCode.program === 'string' ? firstCode.program : firstCode.program.id,
+              id: programID,
             })
 
             if (programData) {
               const typedProgram = programData as any
-              const firstRule = typedProgram.commissionRules?.[0]
+              const firstRule = typedProgram?.commissionRules?.[0]
+
               const partnerSplit =
-                firstRule?.partnerSplit ??
-                firstRule?.referrerSplit ??
-                firstRule?.split?.partnerPercentage ??
-                0
+                asNumber(firstRule?.partnerSplit) ||
+                asNumber(firstRule?.referrerSplit) ||
+                asNumber(firstRule?.split?.partnerPercentage)
+
               const customerSplit =
-                firstRule?.customerSplit ??
-                firstRule?.refereeSplit ??
-                firstRule?.split?.customerPercentage ??
-                100 - partnerSplit
+                asNumber(firstRule?.customerSplit) ||
+                asNumber(firstRule?.refereeSplit) ||
+                asNumber(firstRule?.split?.customerPercentage) ||
+                Math.max(0, 100 - partnerSplit)
+
               program = {
-                name: typedProgram.name,
+                name: asString(typedProgram?.name),
                 commissionRate: partnerSplit,
                 customerDiscount: customerSplit,
               }
             }
           } catch {
-            // Program might not exist
+            // Program lookup failed or removed.
           }
         }
       }

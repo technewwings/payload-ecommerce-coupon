@@ -8,13 +8,13 @@ export type CouponPluginCollections = {
 }
 
 export type CouponPluginAccess = {
-  /** Access control for coupon operations */
+  /** Legacy: Access control for coupon operations */
   canUseCoupons?: Access
-  /** Access control for referral operations */
+  /** Legacy: Access control for referral operations */
   canUseReferrals?: Access
-  /** Access control for admin operations */
+  /** Legacy: Access control for admin operations */
   isAdmin?: Access
-  /** Access control for partner operations */
+  /** Legacy: Access control for partner operations */
   isPartner?: Access
 }
 
@@ -81,6 +81,90 @@ export type PartnerDashboardConfig = {
   showCommissionBreakdown?: boolean
 }
 
+export type PolicyContext = {
+  req: unknown
+  user?: unknown
+  payload?: unknown
+}
+
+export type PartnerStatsPolicyContext = PolicyContext & {
+  requestedPartnerID?: string | number
+}
+
+export type RecordOrderUsagePolicyContext = PolicyContext & {
+  order: unknown
+}
+
+export type CouponPluginPolicies = {
+  /** Assumption-free policy gate for applying/using coupon codes */
+  canApplyCoupon?: (context: PolicyContext) => boolean | Promise<boolean>
+  /** Assumption-free policy gate for applying/using referral codes */
+  canApplyReferral?: (context: PolicyContext) => boolean | Promise<boolean>
+  /** Assumption-free policy gate for viewing partner stats */
+  canViewPartnerStats?: (context: PartnerStatsPolicyContext) => boolean | Promise<boolean>
+  /** Assumption-free policy gate for recording order usage */
+  canRecordOrderUsage?: (context: RecordOrderUsagePolicyContext) => boolean | Promise<boolean>
+}
+
+export type PluginIntegrationCollections = {
+  cartsSlug?: string
+  ordersSlug?: string
+  productsSlug?: string
+  usersSlug?: string
+  categoriesSlug?: string
+  tagsSlug?: string
+}
+
+export type PluginIntegrationFields = {
+  /** Cart/order field names */
+  cartItemsField?: string
+  cartSubtotalField?: string
+  cartTotalField?: string
+  cartAppliedCouponField?: string
+  cartAppliedReferralCodeField?: string
+  cartDiscountAmountField?: string
+  cartCustomerDiscountField?: string
+  cartPartnerCommissionField?: string
+  orderAppliedCouponField?: string
+  orderAppliedReferralCodeField?: string
+  orderDiscountAmountField?: string
+  orderCustomerDiscountField?: string
+  orderPartnerCommissionField?: string
+  /** Order lifecycle and ownership */
+  orderCustomerEmailField?: string
+  orderPaymentStatusField?: string
+  orderCreatedAtField?: string
+  /** Product-related mapping */
+  productPriceField?: string
+  productCurrencyCodeField?: string
+}
+
+export type PluginIntegrationResolvers = {
+  /** Resolve user identity without role assumptions */
+  getUserID?: (args: { req: unknown; user?: unknown }) => string | number | null | undefined
+  /** Resolve cart items from a cart document */
+  getCartItems?: (cart: unknown) => any[]
+  /** Resolve cart subtotal from a cart document */
+  getCartSubtotal?: (cart: unknown) => number
+  /** Resolve cart total from a cart document */
+  getCartTotal?: (cart: unknown) => number
+  /** Resolve if an order is paid/completed */
+  isOrderPaid?: (order: unknown) => boolean
+  /** Resolve product unit price */
+  getProductUnitPrice?: (args: {
+    item: unknown
+    product: unknown
+    variant?: unknown
+    currencyCode?: string
+  }) => number
+}
+
+export type PluginIntegrationConfig = {
+  collections?: PluginIntegrationCollections
+  fields?: PluginIntegrationFields
+  resolvers?: PluginIntegrationResolvers
+}
+
 export type CouponPluginOptions = {
   enabled?: boolean
   enableReferrals?: boolean
@@ -97,6 +181,10 @@ export type CouponPluginOptions = {
   endpoints?: CouponPluginEndpoints
   autoIntegrate?: boolean
   access?: CouponPluginAccess
+  /** Assumption-free policy callbacks */
+  policies?: CouponPluginPolicies
+  /** Assumption-free integration mapping and resolvers */
+  integration?: PluginIntegrationConfig
   /** Referral program specific configuration */
   referralConfig?: ReferralProgramConfig
   /** Admin panel group configuration */
@@ -105,7 +193,7 @@ export type CouponPluginOptions = {
   partnerDashboard?: PartnerDashboardConfig
   /** Order integration for per-customer coupon limit */
   orderIntegration?: OrderIntegrationConfig
-  /** Role resolution configuration for access checks and user filtering */
+  /** Role resolution configuration for access checks and user filtering (legacy-compatible) */
   roleConfig?: RoleConfig
 }
 
@@ -118,6 +206,17 @@ export type SanitizedCouponPluginOptions = {
   endpoints: Required<CouponPluginEndpoints>
   autoIntegrate: boolean
   access: Required<CouponPluginAccess>
+  policies: {
+    canApplyCoupon: (context: PolicyContext) => boolean | Promise<boolean>
+    canApplyReferral: (context: PolicyContext) => boolean | Promise<boolean>
+    canViewPartnerStats: (context: PartnerStatsPolicyContext) => boolean | Promise<boolean>
+    canRecordOrderUsage: (context: RecordOrderUsagePolicyContext) => boolean | Promise<boolean>
+  }
+  integration: {
+    collections: Required<PluginIntegrationCollections>
+    fields: Required<PluginIntegrationFields>
+    resolvers: Required<PluginIntegrationResolvers>
+  }
   referralConfig: Required<ReferralProgramConfig>
   adminGroups: Required<AdminGroupConfig>
   partnerDashboard: Required<PartnerDashboardConfig>

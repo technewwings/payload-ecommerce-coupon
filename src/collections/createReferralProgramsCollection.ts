@@ -30,8 +30,10 @@ function toCents(value: number): number {
 export const createReferralProgramsCollection = (
   pluginConfig: SanitizedCouponPluginOptions,
 ): CollectionConfig => {
-  const { collections, access, defaultCurrency, adminGroups, referralConfig } = pluginConfig
+  const { collections, access, defaultCurrency, adminGroups, referralConfig, integration } =
+    pluginConfig
   const allowedTotalCommissionTypes = referralConfig.allowedTotalCommissionTypes
+  const relationSlugs = integration.collections
 
   const beforeChange: NonNullable<CollectionConfig['hooks']>['beforeChange'] = [
     ({ data }: { data: Record<string, unknown> }) => {
@@ -158,9 +160,6 @@ export const createReferralProgramsCollection = (
                 )
               }
 
-              // Legacy fallback behavior:
-              // - If only partnerSplit is provided for fixed-with-value rules, derive customer as 100 - partner
-              // - If customerSplit is provided, use it directly
               const legacyHasTotalValue = toNumber(r.totalCommission?.value) != null
               const resolvedLegacyCustomerSplit =
                 legacyCustomerSplitInput ??
@@ -172,7 +171,6 @@ export const createReferralProgramsCollection = (
                 )
               }
 
-              // Backward compatibility: legacy payloads already provide canonical fixed values.
               partnerSplit = legacyPartnerSplitInput
               customerSplit = resolvedLegacyCustomerSplit
               partnerAmount = null
@@ -276,7 +274,7 @@ export const createReferralProgramsCollection = (
           {
             name: 'products',
             type: 'relationship',
-            relationTo: 'products',
+            relationTo: relationSlugs.productsSlug,
             hasMany: true,
             admin: {
               condition: (_: unknown, siblingData: { appliesTo?: string }) =>
@@ -287,7 +285,7 @@ export const createReferralProgramsCollection = (
           {
             name: 'categories',
             type: 'relationship',
-            relationTo: 'categories',
+            relationTo: relationSlugs.categoriesSlug,
             hasMany: true,
             admin: {
               condition: (_: unknown, siblingData: { appliesTo?: string }) =>
@@ -298,7 +296,7 @@ export const createReferralProgramsCollection = (
           {
             name: 'tags',
             type: 'relationship',
-            relationTo: 'tags',
+            relationTo: relationSlugs.tagsSlug,
             hasMany: true,
             admin: {
               condition: (_: unknown, siblingData: { appliesTo?: string }) =>
@@ -346,7 +344,6 @@ export const createReferralProgramsCollection = (
               },
             ],
           },
-
           {
             name: 'partnerPercent',
             type: 'number',
@@ -399,7 +396,6 @@ export const createReferralProgramsCollection = (
               ],
             },
           },
-
           {
             name: 'partnerAmount',
             type: 'number',
@@ -426,7 +422,6 @@ export const createReferralProgramsCollection = (
               description: `Fixed customer discount amount per item in ${defaultCurrency}. Stored as cents internally.`,
             },
           },
-
           {
             name: 'partnerSplit',
             type: 'number',
@@ -447,7 +442,6 @@ export const createReferralProgramsCollection = (
                 'Canonical storage field. Percentage mode: percent. Fixed mode: amount in cents.',
             },
           },
-
           {
             name: 'minOrderAmount',
             type: 'number',

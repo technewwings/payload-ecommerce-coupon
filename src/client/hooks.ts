@@ -1,11 +1,57 @@
 import type { ApplyCouponHook, ApplyCouponResponse, PartnerDashboardData } from '../types'
 
+type EndpointInput =
+  | string
+  | {
+      applyCoupon?: string
+      validateCoupon?: string
+      partnerStats?: string
+      baseURL?: string
+    }
+
+const DEFAULT_ENDPOINTS = {
+  applyCoupon: '/api/coupons/apply',
+  validateCoupon: '/api/coupons/validate',
+  partnerStats: '/api/referrals/partner-stats',
+} as const
+
+function normalizePath(path: string): string {
+  if (!path) return ''
+  return path.startsWith('/') ? path : `/${path}`
+}
+
+function withBaseURL(path: string, baseURL?: string): string {
+  if (!baseURL) return path
+  const trimmedBase = baseURL.endsWith('/') ? baseURL.slice(0, -1) : baseURL
+  const normalizedPath = normalizePath(path)
+  return `${trimmedBase}${normalizedPath}`
+}
+
+function resolveEndpoints(input?: EndpointInput) {
+  if (typeof input === 'string') {
+    return {
+      ...DEFAULT_ENDPOINTS,
+      partnerStats: input,
+    }
+  }
+
+  const baseURL = input?.baseURL
+  return {
+    applyCoupon: withBaseURL(input?.applyCoupon || DEFAULT_ENDPOINTS.applyCoupon, baseURL),
+    validateCoupon: withBaseURL(input?.validateCoupon || DEFAULT_ENDPOINTS.validateCoupon, baseURL),
+    partnerStats: withBaseURL(input?.partnerStats || DEFAULT_ENDPOINTS.partnerStats, baseURL),
+  }
+}
+
 /**
- * Apply a coupon code to a cart
- * @param options - Coupon code, cart ID, and customer email
- * @returns Response with success status, discount amount, and coupon details
+ * Apply a coupon/referral code to a cart
+ * @param options - Code, cart ID, and optional customerEmail
+ * @param endpointConfig - Optional endpoint override config
  */
-export async function useCouponCode(options: ApplyCouponHook): Promise<ApplyCouponResponse> {
+export async function useCouponCode(
+  options: ApplyCouponHook,
+  endpointConfig?: EndpointInput,
+): Promise<ApplyCouponResponse> {
   const { code, cartID, customerEmail } = options
 
   if (!code) {
@@ -16,8 +62,10 @@ export async function useCouponCode(options: ApplyCouponHook): Promise<ApplyCoup
     }
   }
 
+  const endpoints = resolveEndpoints(endpointConfig)
+
   try {
-    const response = await fetch('/api/coupons/apply', {
+    const response = await fetch(endpoints.applyCoupon, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ code, cartID, customerEmail }),
@@ -37,11 +85,12 @@ export async function useCouponCode(options: ApplyCouponHook): Promise<ApplyCoup
     const referralData = data.referralCode as Record<string, unknown> | undefined
 
     return {
-      success: data.success as boolean,
-      message: data.message as string,
+      success: Boolean(data.success),
+      message: (data.message as string) || 'Code applied',
       discount: (data.discount as number) || (data.customerDiscount as number),
       partnerCommission: data.partnerCommission as number,
       customerDiscount: data.customerDiscount as number,
+
       coupon: couponData
         ? {
             code: (couponData.code as string) || '',
@@ -62,15 +111,19 @@ export async function useCouponCode(options: ApplyCouponHook): Promise<ApplyCoup
 }
 
 /**
- * Validate a coupon code without applying it
- * @param code - Coupon code to validate
- * @param cartValue - Optional cart value in smallest currency unit
- * @returns Response with validation result and coupon details
+ * Validate a coupon/referral code without applying it
+ * @param code - Code to validate
+ * @param cartValue - Optional cart value
+ * @param cartID - Optional cart ID
+ * @param customerEmail - Optional customer email (for per-customer limits)
+ * @param endpointConfig - Optional endpoint override config
  */
 export async function validateCouponCode(
   code: string,
   cartValue?: number,
   cartID?: string,
+  customerEmail?: string,
+  endpointConfig?: EndpointInput,
 ): Promise<ApplyCouponResponse> {
   if (!code) {
     return {
@@ -80,11 +133,13 @@ export async function validateCouponCode(
     }
   }
 
+  const endpoints = resolveEndpoints(endpointConfig)
+
   try {
-    const response = await fetch('/api/coupons/validate', {
+    const response = await fetch(endpoints.validateCoupon, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ code, cartValue, cartID }),
+      body: JSON.stringify({ code, cartValue, cartID, customerEmail }),
     })
 
     const data = (await response.json()) as Record<string, unknown>
@@ -101,8 +156,8 @@ export async function validateCouponCode(
     const referralData = data.referralCode as Record<string, unknown> | undefined
 
     return {
-      success: data.success as boolean,
-      message: data.message as string,
+      success: Boolean(data.success),
+      message: (data.message as string) || 'Code is valid',
       coupon: couponData
         ? {
             code: (couponData.code as string) || '',
@@ -135,14 +190,15 @@ export type PartnerStatsResponse = {
 
 /**
  * Fetch partner dashboard statistics
- * @param apiEndpoint - Optional custom API endpoint (default: /api/referrals/partner-stats)
- * @returns Response with partner stats, referral codes, and program info
+ * @param endpointConfig - Optional endpoint override config
  */
 export async function usePartnerStats(
-  apiEndpoint: string = '/api/referrals/partner-stats',
+  endpointConfig?: EndpointInput,
 ): Promise<PartnerStatsResponse> {
+  const endpoints = resolveEndpoints(endpointConfig)
+
   try {
-    const response = await fetch(apiEndpoint, {
+    const response = await fetch(endpoints.partnerStats, {
       method: 'GET',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
@@ -158,7 +214,7 @@ export async function usePartnerStats(
     }
 
     return {
-      success: data.success as boolean,
+      success: Boolean(data.success),
       data: data.data as PartnerDashboardData,
       currency: data.currency as string,
     }

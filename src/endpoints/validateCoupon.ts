@@ -11,14 +11,84 @@ type Args = {
   pluginConfig: SanitizedCouponPluginOptions
 }
 
+type RelationValue = string | number | { id?: string | number } | null | undefined
+
+function relationId(value: RelationValue): string | number | null {
+  if (value == null) return null
+  if (typeof value === 'string' || typeof value === 'number') return value
+  if (typeof value === 'object' && (typeof value.id === 'string' || typeof value.id === 'number')) {
+    return value.id
+  }
+  return null
+}
+
+function normalizeCode(value: unknown): string {
+  return typeof value === 'string' ? value.trim().toUpperCase() : ''
+}
+
+async function findByNormalizedCode({
+  payload,
+  collection,
+  normalizedCode,
+}: {
+  payload: any
+  collection: string
+  normalizedCode: string
+}): Promise<any | null> {
+  const normalizedQuery = await payload.find({
+    collection,
+    where: {
+      normalizedCode: { equals: normalizedCode },
+    },
+    limit: 1,
+  })
+
+  if (normalizedQuery?.docs?.length) return normalizedQuery.docs[0]
+
+  const lowerQuery = await payload.find({
+    collection,
+    where: {
+      code: { equals: normalizedCode.toLowerCase() },
+    },
+    limit: 1,
+  })
+
+  if (lowerQuery?.docs?.length) return lowerQuery.docs[0]
+
+  const upperQuery = await payload.find({
+    collection,
+    where: {
+      code: { equals: normalizedCode.toUpperCase() },
+    },
+    limit: 1,
+  })
+
+  if (upperQuery?.docs?.length) return upperQuery.docs[0]
+
+  const exactQuery = await payload.find({
+    collection,
+    where: {
+      code: { equals: normalizedCode },
+    },
+    limit: 1,
+  })
+
+  return exactQuery?.docs?.[0] ?? null
+}
+
 export const validateCouponHandler =
   ({ pluginConfig }: Args): PayloadHandler =>
   async (req) => {
     const { payload } = req
-    const { code: rawCode, cartValue, cartID, customerEmail } = req.data || {}
-    const code = typeof rawCode === 'string' ? rawCode.trim() : rawCode
 
-    if (!code) {
+    const rawCode = req?.data?.code
+    const cartValue = req?.data?.cartValue
+    const cartID = req?.data?.cartID
+    const customerEmail = req?.data?.customerEmail
+
+    const normalizedCode = normalizeCode(rawCode)
+
+    if (!normalizedCode) {
       return Response.json(
         {
           success: false,
@@ -30,75 +100,67 @@ export const validateCouponHandler =
 
     try {
       if (pluginConfig.enableReferrals) {
-        // Referral mode: validate referral codes
-        return await validateReferralCode({ payload, code, cartID, pluginConfig })
-      } else {
-        // Coupon mode: validate coupons
-        return await validateCouponCode({
+        const canApplyReferral = await Promise.resolve(
+          pluginConfig.policies.canApplyReferral({ req, user: req?.user, payload }),
+        )
+
+        if (!canApplyReferral) {
+          return Response.json({ success: false, error: 'Forbidden' }, { status: 403 })
+        }
+
+        return await validateReferralCode({
           payload,
-          code,
-          cartValue,
-          customerEmail,
+          normalizedCode,
+          cartID,
           pluginConfig,
         })
       }
+
+      const canApplyCoupon = await Promise.resolve(
+        pluginConfig.policies.canApplyCoupon({ req, user: req?.user, payload }),
+      )
+
+      if (!canApplyCoupon) {
+        return Response.json({ success: false, error: 'Forbidden' }, { status: 403 })
+      }
+
+      return await validateCouponCode({
+        payload,
+        normalizedCode,
+        cartValue,
+        customerEmail,
+        pluginConfig,
+      })
     } catch (error) {
       console.error('Code validation error:', error)
       return Response.json({ success: false, error: 'Internal server error' }, { status: 500 })
     }
   }
 
-// Validate coupon code (existing logic)
 async function validateCouponCode({
   payload,
-  code,
+  normalizedCode,
   cartValue,
   customerEmail,
   pluginConfig,
 }: {
   payload: any
-  code: string
+  normalizedCode: string
   cartValue?: number
   customerEmail?: string
   pluginConfig: SanitizedCouponPluginOptions
 }) {
-  // Find the coupon
-  // Find the coupon (Case insensitive check: Exact -> Lower -> Upper)
-  let coupon = await payload.find({
+  const fields = pluginConfig.integration.fields
+  const couponData = await findByNormalizedCode({
+    payload,
     collection: pluginConfig.collections.couponsSlug,
-    where: {
-      code: { equals: code },
-    },
-    limit: 1,
+    normalizedCode,
   })
 
-  if (!coupon.docs.length) {
-    coupon = await payload.find({
-      collection: pluginConfig.collections.couponsSlug,
-      where: {
-        code: { equals: code.toLowerCase() },
-      },
-      limit: 1,
-    })
-  }
-
-  if (!coupon.docs.length) {
-    coupon = await payload.find({
-      collection: pluginConfig.collections.couponsSlug,
-      where: {
-        code: { equals: code.toUpperCase() },
-      },
-      limit: 1,
-    })
-  }
-
-  if (!coupon.docs.length) {
+  if (!couponData) {
     return Response.json({ success: false, error: 'Invalid coupon code' }, { status: 404 })
   }
 
-  const couponData = coupon.docs[0]
-
-  // Check if coupon is active
   const now = new Date()
   const activeFrom = couponData.activeFrom ? new Date(couponData.activeFrom) : null
   const activeUntil = couponData.activeUntil ? new Date(couponData.activeUntil) : null
@@ -111,12 +173,10 @@ async function validateCouponCode({
     return Response.json({ success: false, error: 'Coupon has expired' }, { status: 400 })
   }
 
-  // Check usage limits
   if (couponData.usageLimit && couponData.usageCount >= couponData.usageLimit) {
     return Response.json({ success: false, error: 'Coupon usage limit exceeded' }, { status: 400 })
   }
 
-  // Optional: per-customer limit (when customer identifier provided)
   if (
     couponData.perCustomerLimit != null &&
     couponData.perCustomerLimit > 0 &&
@@ -124,19 +184,22 @@ async function validateCouponCode({
     customerEmail.trim().length > 0
   ) {
     const email = customerEmail.trim()
-    const { ordersSlug, orderCustomerEmailField, orderPaymentStatusField, orderPaidStatusValue } =
-      pluginConfig.orderIntegration
     const ordersQuery = await payload.find({
-      collection: ordersSlug,
+      collection: pluginConfig.orderIntegration.ordersSlug,
       where: {
         and: [
-          { appliedCoupon: { equals: couponData.id } },
-          { [orderCustomerEmailField]: { equals: email } },
-          { [orderPaymentStatusField]: { equals: orderPaidStatusValue } },
+          { [fields.orderAppliedCouponField]: { equals: couponData.id } },
+          { [pluginConfig.orderIntegration.orderCustomerEmailField]: { equals: email } },
+          {
+            [pluginConfig.orderIntegration.orderPaymentStatusField]: {
+              equals: pluginConfig.orderIntegration.orderPaidStatusValue,
+            },
+          },
         ],
       },
       limit: 0,
     })
+
     if (ordersQuery.totalDocs >= couponData.perCustomerLimit) {
       return Response.json(
         { success: false, error: 'You have reached the maximum uses for this coupon.' },
@@ -145,7 +208,6 @@ async function validateCouponCode({
     }
   }
 
-  // Check minimum/maximum order value (top-level fields, same as apply endpoint)
   if (cartValue !== undefined) {
     const minOrderValue = couponData.minOrderValue
     const maxOrderValue = couponData.maxOrderValue
@@ -171,7 +233,6 @@ async function validateCouponCode({
     }
   }
 
-  // Calculate discount preview (2 decimal standard)
   let discount = 0
   if (cartValue !== undefined) {
     if (couponData.type === 'percentage') {
@@ -198,65 +259,38 @@ async function validateCouponCode({
   })
 }
 
-// Validate referral code (new logic)
 async function validateReferralCode({
   payload,
-  code,
+  normalizedCode,
   cartID,
   pluginConfig,
 }: {
   payload: any
-  code: string
+  normalizedCode: string
   cartID?: string
   pluginConfig: SanitizedCouponPluginOptions
 }) {
-  // Find the referral code
-  // Find the referral code (Case insensitive check: Exact -> Lower -> Upper)
-  let referral = await payload.find({
+  const collections = pluginConfig.integration.collections
+  const resolvers = pluginConfig.integration.resolvers
+
+  const referralData = await findByNormalizedCode({
+    payload,
     collection: pluginConfig.collections.referralCodesSlug,
-    where: {
-      code: { equals: code },
-    },
-    limit: 1,
+    normalizedCode,
   })
 
-  if (!referral.docs.length) {
-    referral = await payload.find({
-      collection: pluginConfig.collections.referralCodesSlug,
-      where: {
-        code: { equals: code.toLowerCase() },
-      },
-      limit: 1,
-    })
-  }
-
-  if (!referral.docs.length) {
-    referral = await payload.find({
-      collection: pluginConfig.collections.referralCodesSlug,
-      where: {
-        code: { equals: code.toUpperCase() },
-      },
-      limit: 1,
-    })
-  }
-
-  if (!referral.docs.length) {
+  if (!referralData) {
     return Response.json({ success: false, error: 'Referral code not found' }, { status: 404 })
   }
 
-  const referralData = referral.docs[0]
-
-  // Check if referral code is active
   if (!referralData.isActive) {
     return Response.json({ success: false, error: 'Referral code is not active' }, { status: 400 })
   }
 
-  // Check expiration
   if (referralData.expiresAt && new Date() > new Date(referralData.expiresAt)) {
     return Response.json({ success: false, error: 'Referral code has expired' }, { status: 400 })
   }
 
-  // Check usage limit
   if (referralData.usageLimit && referralData.usageCount >= referralData.usageLimit) {
     return Response.json(
       { success: false, error: 'Referral code usage limit exceeded' },
@@ -264,9 +298,10 @@ async function validateReferralCode({
     )
   }
 
-  // Get the referral program
-  const programId =
-    typeof referralData.program === 'string' ? referralData.program : referralData.program?.id
+  const programId = relationId(referralData.program as RelationValue)
+  if (programId == null) {
+    return Response.json({ success: false, error: 'Referral program not found' }, { status: 404 })
+  }
 
   const program = await payload.findByID({
     collection: pluginConfig.collections.referralProgramsSlug,
@@ -282,13 +317,16 @@ async function validateReferralCode({
 
   const cart = cartID
     ? await payload.findByID({
-        collection: 'carts',
+        collection: collections.cartsSlug,
         id: cartID,
         depth: 2,
       })
     : null
 
-  const cartTotal = cart ? cart.subtotal || cart.total || 0 : 0
+  const cartTotal = cart
+    ? Number(resolvers.getCartTotal(cart)) || Number(resolvers.getCartSubtotal(cart)) || 0
+    : 0
+
   const minOrderAmount = getProgramMinimumOrderAmount({
     program,
     allowedTotalCommissionTypes: pluginConfig.referralConfig.allowedTotalCommissionTypes,
@@ -305,7 +343,7 @@ async function validateReferralCode({
   }
 
   const { partnerCommission, customerDiscount } = calculateCommissionAndDiscount({
-    cartItems: cart?.items || [],
+    cartItems: cart ? resolvers.getCartItems(cart) : [],
     program,
     currencyCode: pluginConfig.defaultCurrency,
     cartTotal,
@@ -314,7 +352,6 @@ async function validateReferralCode({
 
   const cappedCustomerDiscount =
     cartTotal > 0 ? Math.min(customerDiscount, cartTotal) : customerDiscount
-
   const roundedPartnerCommission = roundTo2(partnerCommission)
   const roundedCustomerDiscount = roundTo2(cappedCustomerDiscount)
 

@@ -5,227 +5,312 @@ import {
   calculateCouponDiscount,
   getProgramMinimumOrderAmount,
 } from '../utilities/calculateValues'
-import { getCartItemUnitPrice } from '../utilities/pricing'
 import { roundTo2 } from '../utilities/roundTo2'
+
+type RelationValue = string | number | { id?: string | number } | null | undefined
+
+function relationId(value: RelationValue): string | number | null {
+  if (value == null) return null
+  if (typeof value === 'string' || typeof value === 'number') return value
+  if (typeof value === 'object' && (typeof value.id === 'string' || typeof value.id === 'number')) {
+    return value.id
+  }
+  return null
+}
+
+function readField<T = unknown>(doc: unknown, field: string): T | undefined {
+  if (!doc || typeof doc !== 'object') return undefined
+  return (doc as Record<string, unknown>)[field] as T | undefined
+}
+
+function writeField(doc: Record<string, unknown>, field: string, value: unknown): void {
+  doc[field] = value
+}
+
+function clearCouponFields(
+  target: Record<string, unknown>,
+  fields: SanitizedCouponPluginOptions['integration']['fields'],
+): void {
+  writeField(target, fields.cartAppliedCouponField, null)
+  writeField(target, fields.cartDiscountAmountField, 0)
+}
+
+function clearReferralFields(
+  target: Record<string, unknown>,
+  fields: SanitizedCouponPluginOptions['integration']['fields'],
+): void {
+  writeField(target, fields.cartAppliedReferralCodeField, null)
+  writeField(target, fields.cartPartnerCommissionField, 0)
+  writeField(target, fields.cartCustomerDiscountField, 0)
+}
 
 export const recalculateCartHook =
   (pluginConfig: SanitizedCouponPluginOptions): CollectionBeforeChangeHook =>
   async ({ data, req, originalDoc }) => {
-    // If no Payload, can't fetch relations
     if (!req.payload) return data
 
-    // Determine effective state
-    // data.items might be replacing or merging. In standard ecommerce, usually it replaces.
-    // We need to calculate based on the *final* state of items.
-    // If data.items is present, use it. If not, use originalDoc.items.
-    const effectiveItems = data.items || originalDoc?.items || []
-
-    // If no items, ensure totals are 0
-    if (!effectiveItems.length) {
-      return {
-        ...data,
-        partnerCommission: 0,
-        customerDiscount: 0,
-        discountAmount: 0,
-        total: 0,
-      }
+    const integration = pluginConfig.integration || ({} as any)
+    const collections = integration.collections || {
+      cartsSlug: 'carts',
+      ordersSlug: 'orders',
+      productsSlug: 'products',
+      usersSlug: 'users',
+      categoriesSlug: 'categories',
+      tagsSlug: 'tags',
     }
-
-    // Determine effective codes
-    const appliedReferralCode =
-      data.appliedReferralCode !== undefined
-        ? data.appliedReferralCode
-        : originalDoc?.appliedReferralCode
-    const appliedCoupon =
-      data.appliedCoupon !== undefined ? data.appliedCoupon : originalDoc?.appliedCoupon
-
-    if (!appliedReferralCode && !appliedCoupon) {
-      // No codes applied, just return data (cleanup done by other logic if needed, or we explicitly clear?)
-      // Use case: user removed code. data.appliedCoupon would be null.
-      // If we are just updating items, and code was removed, these should be 0.
-      // But if code was removed, data.appliedCoupon is null.
-      if (data.appliedReferralCode === null || data.appliedCoupon === null) {
-        const fallbackSubtotal =
-          typeof data.subtotal === 'number'
-            ? data.subtotal
-            : typeof originalDoc?.subtotal === 'number'
-              ? originalDoc.subtotal
-              : undefined
-
-        return {
-          ...data,
-          partnerCommission: 0,
-          customerDiscount: 0,
-          discountAmount: 0,
-          total: fallbackSubtotal,
+    const fields = integration.fields || {
+      cartItemsField: 'items',
+      cartSubtotalField: 'subtotal',
+      cartTotalField: 'total',
+      cartAppliedCouponField: 'appliedCoupon',
+      cartAppliedReferralCodeField: 'appliedReferralCode',
+      cartDiscountAmountField: 'discountAmount',
+      cartCustomerDiscountField: 'customerDiscount',
+      cartPartnerCommissionField: 'partnerCommission',
+      orderAppliedCouponField: 'appliedCoupon',
+      orderAppliedReferralCodeField: 'appliedReferralCode',
+      orderDiscountAmountField: 'discountAmount',
+      orderCustomerDiscountField: 'customerDiscount',
+      orderPartnerCommissionField: 'partnerCommission',
+      orderCustomerEmailField: 'customerEmail',
+      orderPaymentStatusField: 'paymentStatus',
+      orderCreatedAtField: 'createdAt',
+      productPriceField: 'price',
+      productCurrencyCodeField: 'currencyCode',
+    }
+    const resolvers = integration.resolvers || {
+      getUserID: ({ user }: { user?: unknown }) => {
+        if (!user || typeof user !== 'object') return null
+        const id = (user as Record<string, unknown>).id
+        if (typeof id === 'string' || typeof id === 'number') return id
+        return null
+      },
+      getCartItems: (cart: unknown) => {
+        if (!cart || typeof cart !== 'object') return []
+        const value = (cart as Record<string, unknown>)[fields.cartItemsField]
+        return Array.isArray(value) ? value : []
+      },
+      getCartSubtotal: (cart: unknown) => {
+        if (!cart || typeof cart !== 'object') return 0
+        const value = (cart as Record<string, unknown>)[fields.cartSubtotalField]
+        return typeof value === 'number' ? value : 0
+      },
+      getCartTotal: (cart: unknown) => {
+        if (!cart || typeof cart !== 'object') return 0
+        const value = (cart as Record<string, unknown>)[fields.cartTotalField]
+        return typeof value === 'number' ? value : 0
+      },
+      isOrderPaid: (_order: unknown) => false,
+      getProductUnitPrice: ({ item, product, variant, currencyCode }: any) => {
+        if (item && typeof item === 'object') {
+          const itemPrice = (item as Record<string, unknown>).price
+          if (typeof itemPrice === 'number') return itemPrice
+          const unitPrice = (item as Record<string, unknown>).unitPrice
+          if (typeof unitPrice === 'number') return unitPrice
         }
-      }
-      return data
+
+        const readPrice = (entity: unknown, code?: string) => {
+          if (!entity || typeof entity !== 'object') return undefined
+          const map = entity as Record<string, unknown>
+          if (code && typeof code === 'string') {
+            const key = `priceIn${code.toUpperCase()}`
+            const value = map[key]
+            if (typeof value === 'number') return value
+          }
+          const base = map.price
+          return typeof base === 'number' ? base : undefined
+        }
+
+        return readPrice(variant, currencyCode) ?? readPrice(product, currencyCode) ?? 0
+      },
     }
 
-    // We need fully hydrated items to calculate prices
-    // Optimized: Only fetch if we really need to recalculate.
-    // Standard ecommerce recalculates 'total' and 'subtotal' in its hooks.
-    // We need to know the *new* subtotal.
-    // Since we don't know the order of hooks, we can't rely on data.subtotal being correct yet if we run before ecommerce.
-    // SAFEST: We calculate our own subtotal based on current prices.
+    const mutableData = (data || {}) as Record<string, unknown>
+    const original = (originalDoc || {}) as Record<string, unknown>
 
-    const getRelationID = (value: unknown): number | string | undefined => {
-      if (value === null || value === undefined) return undefined
-      if (typeof value === 'object') return (value as { id?: number | string }).id
-      if (typeof value === 'string' || typeof value === 'number') return value
-      return undefined
+    const effectiveItems =
+      readField<any[]>(mutableData, fields.cartItemsField) ??
+      readField<any[]>(original, fields.cartItemsField) ??
+      []
+
+    const effectiveAppliedReferral =
+      readField<RelationValue>(mutableData, fields.cartAppliedReferralCodeField) !== undefined
+        ? readField<RelationValue>(mutableData, fields.cartAppliedReferralCodeField)
+        : readField<RelationValue>(original, fields.cartAppliedReferralCodeField)
+
+    const effectiveAppliedCoupon =
+      readField<RelationValue>(mutableData, fields.cartAppliedCouponField) !== undefined
+        ? readField<RelationValue>(mutableData, fields.cartAppliedCouponField)
+        : readField<RelationValue>(original, fields.cartAppliedCouponField)
+
+    if (!Array.isArray(effectiveItems) || effectiveItems.length === 0) {
+      clearReferralFields(mutableData, fields)
+      clearCouponFields(mutableData, fields)
+      writeField(mutableData, fields.cartTotalField, 0)
+      return mutableData
     }
+
+    const getRelationID = (value: unknown): string | number | null =>
+      relationId(value as RelationValue)
 
     const productIds = effectiveItems
-      .map((item: any) => getRelationID(item.product))
-      .filter((id: any): id is number | string => id !== undefined)
+      .map((item: any) => getRelationID(item?.product))
+      .filter((id: string | number | null): id is string | number => id != null)
 
-    if (!productIds.length) return data
-
-    // Fetch products to get prices
-    const productsQuery = await req.payload.find({
-      collection: 'products', // Assumption: standard shops have products
-      where: {
-        id: { in: productIds },
-      },
-      limit: productIds.length,
-    })
-
-    const productsMap = new Map(productsQuery.docs.map((p) => [String(p.id), p]))
+    let productsMap = new Map<string, any>()
+    if (productIds.length > 0) {
+      const productsQuery = await req.payload.find({
+        collection: collections.productsSlug,
+        where: {
+          id: { in: productIds },
+        },
+        limit: productIds.length,
+      })
+      productsMap = new Map((productsQuery?.docs || []).map((p: any) => [String(p.id), p]))
+    }
 
     let calculatedSubtotal = 0
     const enrichedItems = effectiveItems.map((item: any) => {
-      const productId = getRelationID(item.product)
-      const product: any = productId !== undefined ? productsMap.get(String(productId)) || {} : {}
+      const pid = getRelationID(item?.product)
+      const product = pid != null ? productsMap.get(String(pid)) || {} : {}
+      const variant = typeof item?.variant === 'object' ? item.variant : undefined
 
-      // We might need variants logic too, keeping it simple for now based on available info
-      // Ideally we should replicate the price finding logic fully.
-      // For now, let's map what we have.
+      const unitPrice = Number(
+        resolvers.getProductUnitPrice({
+          item,
+          product,
+          variant,
+          currencyCode: pluginConfig.defaultCurrency,
+        }),
+      )
 
-      const itemPrice = getCartItemUnitPrice({
-        item,
-        product,
-        variant: typeof item.variant === 'object' ? item.variant : undefined,
-        currencyCode: pluginConfig.defaultCurrency,
-      })
-
-      calculatedSubtotal += itemPrice * (item.quantity ?? 1)
+      const quantity =
+        typeof item?.quantity === 'number' && Number.isFinite(item.quantity) ? item.quantity : 1
+      const safeUnitPrice = Number.isFinite(unitPrice) ? unitPrice : 0
+      calculatedSubtotal += safeUnitPrice * quantity
 
       return {
         ...item,
-        product, // Attach full product for rules
-        price: itemPrice, // Normalized price
+        product,
+        price: safeUnitPrice,
+        quantity,
       }
     })
 
-    // 1. Handle Referral
-    if (appliedReferralCode && pluginConfig.enableReferrals) {
-      const appliedReferralCodeID = getRelationID(appliedReferralCode)
-      if (appliedReferralCodeID === undefined) {
-        data.partnerCommission = 0
-        data.customerDiscount = 0
-        data.total = calculatedSubtotal
-        return data
-      }
+    writeField(mutableData, fields.cartSubtotalField, roundTo2(calculatedSubtotal))
 
-      // Fetch referral code & program
+    let customerDiscount = 0
+    let couponDiscount = 0
+
+    const appliedReferralID = relationId(effectiveAppliedReferral)
+    if (pluginConfig.enableReferrals && appliedReferralID != null) {
       const referralQuery = await req.payload.find({
         collection: pluginConfig.collections.referralCodesSlug,
-        where: {
-          id: { equals: appliedReferralCodeID },
-        },
+        where: { id: { equals: appliedReferralID } },
         limit: 1,
         depth: 1,
       })
 
-      if (referralQuery.docs.length) {
-        const referralCode = referralQuery.docs[0]
-        const programId =
-          typeof referralCode.program === 'string' ? referralCode.program : referralCode.program?.id
+      const referralCode = referralQuery?.docs?.[0]
+      if (!referralCode || referralCode.isActive === false) {
+        clearReferralFields(mutableData, fields)
+      } else {
+        const programId = relationId(referralCode.program as RelationValue)
         const program =
           typeof referralCode.program === 'object'
             ? referralCode.program
-            : programId
+            : programId != null
               ? await req.payload.findByID({
                   collection: pluginConfig.collections.referralProgramsSlug,
                   id: programId,
                 })
               : null
 
-        if (program) {
+        if (!program || program.isActive === false) {
+          clearReferralFields(mutableData, fields)
+        } else {
           const minOrderAmount = getProgramMinimumOrderAmount({
             program,
             allowedTotalCommissionTypes: pluginConfig.referralConfig.allowedTotalCommissionTypes,
           })
+
           if (typeof minOrderAmount === 'number' && calculatedSubtotal < minOrderAmount) {
-            data.appliedReferralCode = null
-            data.partnerCommission = 0
-            data.customerDiscount = 0
-            data.total = calculatedSubtotal
-            return data
+            clearReferralFields(mutableData, fields)
+          } else {
+            const result = calculateCommissionAndDiscount({
+              cartItems: enrichedItems,
+              program,
+              currencyCode: pluginConfig.defaultCurrency,
+              cartTotal: calculatedSubtotal,
+              allowedTotalCommissionTypes: pluginConfig.referralConfig.allowedTotalCommissionTypes,
+            })
+
+            const roundedPartnerCommission = roundTo2(result.partnerCommission)
+            const roundedCustomerDiscount = roundTo2(Math.max(0, result.customerDiscount))
+
+            writeField(mutableData, fields.cartPartnerCommissionField, roundedPartnerCommission)
+            writeField(mutableData, fields.cartCustomerDiscountField, roundedCustomerDiscount)
+            customerDiscount = roundedCustomerDiscount
           }
-
-          const { partnerCommission, customerDiscount } = calculateCommissionAndDiscount({
-            cartItems: enrichedItems,
-            program,
-            currencyCode: pluginConfig.defaultCurrency,
-            cartTotal: calculatedSubtotal,
-            allowedTotalCommissionTypes: pluginConfig.referralConfig.allowedTotalCommissionTypes,
-          })
-
-          const roundedCustomerDiscount = roundTo2(customerDiscount)
-          data.partnerCommission = roundTo2(partnerCommission)
-          data.customerDiscount = roundedCustomerDiscount
-
-          // Update total
-          // Use calculated subtotal or trust data.subtotal if present?
-          // Best to use our calculated subtotal to be safely independent.
-          data.total = Math.max(0, calculatedSubtotal - roundedCustomerDiscount)
-        } else {
-          // If referral code exists but program is unavailable, clear referral discount fields.
-          data.appliedReferralCode = null
-          data.partnerCommission = 0
-          data.customerDiscount = 0
-          data.total = calculatedSubtotal
         }
+      }
+    } else {
+      if (readField(mutableData, fields.cartAppliedReferralCodeField) === null) {
+        clearReferralFields(mutableData, fields)
       }
     }
 
-    // 2. Handle Coupon
-    if (appliedCoupon && (!appliedReferralCode || pluginConfig.referralConfig.allowBothSystems)) {
-      const appliedCouponID = getRelationID(appliedCoupon)
-      if (appliedCouponID === undefined) {
-        return data
-      }
+    const appliedCouponID = relationId(effectiveAppliedCoupon)
+    const canUseCouponWithReferral =
+      !pluginConfig.enableReferrals ||
+      pluginConfig.referralConfig.allowBothSystems ||
+      relationId(readField(mutableData, fields.cartAppliedReferralCodeField) as RelationValue) ==
+        null
 
+    if (appliedCouponID != null && canUseCouponWithReferral) {
       const couponQuery = await req.payload.find({
         collection: pluginConfig.collections.couponsSlug,
-        where: {
-          id: { equals: appliedCouponID },
-        },
+        where: { id: { equals: appliedCouponID } },
         limit: 1,
       })
 
-      if (couponQuery.docs.length) {
-        const coupon = couponQuery.docs[0]
-        const discountAmount = calculateCouponDiscount({
-          coupon,
-          cartTotal: calculatedSubtotal,
-        })
+      const coupon = couponQuery?.docs?.[0]
+      if (!coupon) {
+        clearCouponFields(mutableData, fields)
+      } else {
+        const now = new Date()
+        const activeFrom = coupon.activeFrom ? new Date(coupon.activeFrom) : null
+        const activeUntil = coupon.activeUntil ? new Date(coupon.activeUntil) : null
+        const isValidDate =
+          (!activeFrom || now >= activeFrom) && (!activeUntil || now <= activeUntil)
+        const underUsage =
+          !coupon.usageLimit || Number(coupon.usageCount || 0) < Number(coupon.usageLimit || 0)
 
-        data.discountAmount = discountAmount
-
-        // If referral also applied, subtract from the already reduced total?
-        // Usually discounts stack or are applied to subtotal.
-        // Let's assume applied to subtotal for simplicity unless logic dictates otherwise.
-        // But wait, referral discount reduces total. Coupon reduces total.
-        // Standard approach: Total = Subtotal - ReferralDiscount - CouponDiscount
-
-        const currentDiscount = data.customerDiscount || 0
-        data.total = Math.max(0, calculatedSubtotal - currentDiscount - discountAmount)
+        if (!isValidDate || !underUsage) {
+          clearCouponFields(mutableData, fields)
+        } else {
+          couponDiscount = roundTo2(
+            calculateCouponDiscount({ coupon, cartTotal: calculatedSubtotal }),
+          )
+          writeField(mutableData, fields.cartDiscountAmountField, couponDiscount)
+        }
+      }
+    } else {
+      if (readField(mutableData, fields.cartAppliedCouponField) === null) {
+        clearCouponFields(mutableData, fields)
+        writeField(mutableData, fields.cartCustomerDiscountField, 0)
+        writeField(mutableData, fields.cartPartnerCommissionField, 0)
+        writeField(
+          mutableData,
+          fields.cartTotalField,
+          roundTo2(Number(resolvers.getCartSubtotal(mutableData)) || calculatedSubtotal),
+        )
+        return mutableData
       }
     }
 
-    return data
+    const nextTotal = roundTo2(Math.max(0, calculatedSubtotal - customerDiscount - couponDiscount))
+    writeField(mutableData, fields.cartTotalField, nextTotal)
+
+    return mutableData
   }
