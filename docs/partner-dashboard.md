@@ -157,7 +157,7 @@ The easiest way to add a partner dashboard:
 
 ```tsx
 // pages/partner/dashboard.tsx (Next.js example)
-import { PartnerDashboard } from '@wtree/payload-ecommerce-coupon'
+import { PartnerDashboard } from '@wtree/payload-ecommerce-coupon/client'
 
 export default function PartnerDashboardPage() {
   return (
@@ -185,7 +185,7 @@ import {
   RecentReferrals,
   ReferralCodes,
   usePartnerStats,
-} from '@wtree/payload-ecommerce-coupon'
+} from '@wtree/payload-ecommerce-coupon/client'
 import { useEffect, useState } from 'react'
 
 export default function CustomPartnerDashboard() {
@@ -234,7 +234,7 @@ export default function CustomPartnerDashboard() {
 Use the `usePartnerStats` hook to build completely custom UI:
 
 ```tsx
-import { usePartnerStats } from '@wtree/payload-ecommerce-coupon'
+import { usePartnerStats } from '@wtree/payload-ecommerce-coupon/client'
 
 export default function FullyCustomDashboard() {
   const [stats, setStats] = useState(null)
@@ -337,7 +337,7 @@ Override the default styles:
 If using Tailwind, you can style components with utility classes:
 
 ```tsx
-import { usePartnerStats } from '@wtree/payload-ecommerce-coupon'
+import { usePartnerStats } from '@wtree/payload-ecommerce-coupon/client'
 
 function TailwindDashboard() {
   // ... fetch data
@@ -380,7 +380,7 @@ export default buildConfig({
 // components/admin/PartnerDashboardView.tsx
 'use client'
 
-import { PartnerDashboard } from '@wtree/payload-ecommerce-coupon'
+import { PartnerDashboard } from '@wtree/payload-ecommerce-coupon/client'
 
 export default function PartnerDashboardView() {
   return (

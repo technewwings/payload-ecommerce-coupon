@@ -325,7 +325,7 @@ Cookie: payload-token=<auth-token>
 Apply a coupon or referral code to a cart.
 
 ```typescript
-import { useCouponCode } from '@wtree/payload-ecommerce-coupon'
+import { useCouponCode } from '@wtree/payload-ecommerce-coupon/client'
 
 const result = await useCouponCode({
   code: 'WELCOME10',
@@ -355,7 +355,7 @@ if (result.success) {
 Validate a code without applying it.
 
 ```typescript
-import { validateCouponCode } from '@wtree/payload-ecommerce-coupon'
+import { validateCouponCode } from '@wtree/payload-ecommerce-coupon/client'
 
 const result = await validateCouponCode('WELCOME10', 5000, 'cart-123')
 
@@ -379,7 +379,7 @@ if (result.success) {
 Fetch partner dashboard statistics.
 
 ```typescript
-import { usePartnerStats } from '@wtree/payload-ecommerce-coupon'
+import { usePartnerStats } from '@wtree/payload-ecommerce-coupon/client'
 
 const result = await usePartnerStats()
 

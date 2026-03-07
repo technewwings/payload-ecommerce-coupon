@@ -34,10 +34,26 @@
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
+      "browser": "./dist/browser.mjs",
       "import": "./dist/index.mjs",
       "require": "./dist/index.js"
-    }
+    },
+    "./client": {
+      "types": "./dist/client/index.d.ts",
+      "import": "./dist/browser.mjs",
+      "require": "./dist/browser.js"
+    },
+    "./styles.css": "./dist/styles.css",
+    "./dist/styles.css": "./dist/styles.css"
   },
+  "browser": {
+    "./dist/index.mjs": "./dist/browser.mjs",
+    "./dist/index.js": "./dist/browser.js"
+  },
+  "sideEffects": [
+    "*.css",
+    "dist/styles.css"
+  ],
   "scripts": {
     "build": "bun run clean && rolldown -c && tsc --declaration --emitDeclarationOnly --outDir dist && bun scripts/copy-styles.mjs",
     "clean": "rm -rf dist",

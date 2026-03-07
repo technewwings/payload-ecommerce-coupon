@@ -199,7 +199,7 @@ Default paths (customizable via `endpoints` config):
 ## Frontend helpers
 
 ```ts
-import { useCouponCode, validateCouponCode, usePartnerStats } from '@wtree/payload-ecommerce-coupon'
+import { useCouponCode, validateCouponCode, usePartnerStats } from '@wtree/payload-ecommerce-coupon/client'
 ```
 
 - `useCouponCode({ code, cartID, customerEmail? })`
@@ -219,8 +219,8 @@ import {
   ReferralCodes,
   ProgramOverview,
   CommissionBreakdown,
-} from '@wtree/payload-ecommerce-coupon'
-import '@wtree/payload-ecommerce-coupon/dist/styles.css'
+} from '@wtree/payload-ecommerce-coupon/client'
+import '@wtree/payload-ecommerce-coupon/styles.css'
 ```
 
 > The dashboard components are client-side React components. Use them in your frontend app (for example, a Next.js client component).
@@ -230,8 +230,8 @@ import '@wtree/payload-ecommerce-coupon/dist/styles.css'
 ```tsx
 'use client'
 
-import { PartnerDashboard } from '@wtree/payload-ecommerce-coupon'
-import '@wtree/payload-ecommerce-coupon/dist/styles.css'
+import { PartnerDashboard } from '@wtree/payload-ecommerce-coupon/client'
+import '@wtree/payload-ecommerce-coupon/styles.css'
 
 export default function PartnerPage() {
   return <PartnerDashboard apiEndpoint="/api/referrals/partner-stats" />
