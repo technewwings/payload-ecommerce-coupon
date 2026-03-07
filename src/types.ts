@@ -1,202 +1,202 @@
-import type { Access, CollectionSlug } from "payload";
+import type { Access, CollectionSlug } from 'payload'
 
 export type CouponPluginCollections = {
-  couponsSlug?: string;
-  referralProgramsSlug?: string;
-  referralCodesSlug?: string;
-  referralPartnersSlug?: string;
-};
+  couponsSlug?: string
+  referralProgramsSlug?: string
+  referralCodesSlug?: string
+  referralPartnersSlug?: string
+}
 
 export type CouponPluginAccess = {
   /** Access control for coupon operations */
-  canUseCoupons?: Access;
+  canUseCoupons?: Access
   /** Access control for referral operations */
-  canUseReferrals?: Access;
+  canUseReferrals?: Access
   /** Access control for admin operations */
-  isAdmin?: Access;
+  isAdmin?: Access
   /** Access control for partner operations */
-  isPartner?: Access;
-};
+  isPartner?: Access
+}
 
 export type CouponPluginEndpoints = {
-  applyCoupon?: string;
-  validateCoupon?: string;
-  partnerStats?: string;
-  recordOrderUsage?: string;
-};
+  applyCoupon?: string
+  validateCoupon?: string
+  partnerStats?: string
+  recordOrderUsage?: string
+}
 
 export type ReferralProgramConfig = {
   /** Allow both coupon and referral systems to run simultaneously */
-  allowBothSystems?: boolean;
+  allowBothSystems?: boolean
   /** Only one code (coupon or referral) can be applied per cart */
-  singleCodePerCart?: boolean;
+  singleCodePerCart?: boolean
   /** Default commission split for partners */
-  defaultPartnerSplit?: number;
+  defaultPartnerSplit?: number
   /** Default discount split for customers */
-  defaultCustomerSplit?: number;
+  defaultCustomerSplit?: number
   /** Allowed Total Commission types in referral programs */
-  allowedTotalCommissionTypes?: Array<"fixed" | "percentage">;
-};
+  allowedTotalCommissionTypes?: Array<'fixed' | 'percentage'>
+}
 
 export type RoleConfig = {
   /** User field paths that can hold roles (supports string or string[]) */
-  roleFieldPaths?: string[];
+  roleFieldPaths?: string[]
   /** Values considered admin role */
-  adminRoleValues?: string[];
+  adminRoleValues?: string[]
   /** Values considered partner role */
-  partnerRoleValues?: string[];
+  partnerRoleValues?: string[]
   /** Optional override to extract roles from req.user */
-  customRoleResolver?: (user: unknown) => string[];
-};
+  customRoleResolver?: (user: unknown) => string[]
+}
 
 export type AdminGroupConfig = {
   /** Group name for coupon collections in admin panel */
-  couponsGroup?: string;
+  couponsGroup?: string
   /** Group name for referral collections in admin panel */
-  referralsGroup?: string;
-};
+  referralsGroup?: string
+}
 
 /** Config for per-customer coupon limit (query paid orders by customer) */
 export type OrderIntegrationConfig = {
   /** Orders collection slug */
-  ordersSlug?: string;
+  ordersSlug?: string
   /** Order field that stores customer email */
-  orderCustomerEmailField?: string;
+  orderCustomerEmailField?: string
   /** Order field that indicates payment status */
-  orderPaymentStatusField?: string;
+  orderPaymentStatusField?: string
   /** Value that means order is paid (counted for per-customer limit) */
-  orderPaidStatusValue?: string;
-};
+  orderPaidStatusValue?: string
+}
 
 export type PartnerDashboardConfig = {
   /** Enable partner dashboard widgets */
-  enabled?: boolean;
+  enabled?: boolean
   /** Show earnings summary widget */
-  showEarningsSummary?: boolean;
+  showEarningsSummary?: boolean
   /** Show referral performance widget */
-  showReferralPerformance?: boolean;
+  showReferralPerformance?: boolean
   /** Show recent referrals widget */
-  showRecentReferrals?: boolean;
+  showRecentReferrals?: boolean
   /** Show commission breakdown widget */
-  showCommissionBreakdown?: boolean;
-};
+  showCommissionBreakdown?: boolean
+}
 
 export type CouponPluginOptions = {
-  enabled?: boolean;
-  enableReferrals?: boolean;
-  allowStackWithOtherCoupons?: boolean;
-  defaultCurrency?: string;
+  enabled?: boolean
+  enableReferrals?: boolean
+  allowStackWithOtherCoupons?: boolean
+  defaultCurrency?: string
   collections?: CouponPluginCollections & {
     /** Override the default coupons collection configuration */
-    couponsCollectionOverride?: (params: { defaultCollection: any }) => any | Promise<any>;
+    couponsCollectionOverride?: (params: { defaultCollection: any }) => any | Promise<any>
     /** Override the default referral programs collection configuration */
-    referralProgramsCollectionOverride?: (params: { defaultCollection: any }) => any | Promise<any>;
+    referralProgramsCollectionOverride?: (params: { defaultCollection: any }) => any | Promise<any>
     /** Override the default referral codes collection configuration */
-    referralCodesCollectionOverride?: (params: { defaultCollection: any }) => any | Promise<any>;
-  };
-  endpoints?: CouponPluginEndpoints;
-  autoIntegrate?: boolean;
-  access?: CouponPluginAccess;
+    referralCodesCollectionOverride?: (params: { defaultCollection: any }) => any | Promise<any>
+  }
+  endpoints?: CouponPluginEndpoints
+  autoIntegrate?: boolean
+  access?: CouponPluginAccess
   /** Referral program specific configuration */
-  referralConfig?: ReferralProgramConfig;
+  referralConfig?: ReferralProgramConfig
   /** Admin panel group configuration */
-  adminGroups?: AdminGroupConfig;
+  adminGroups?: AdminGroupConfig
   /** Partner dashboard configuration */
-  partnerDashboard?: PartnerDashboardConfig;
+  partnerDashboard?: PartnerDashboardConfig
   /** Order integration for per-customer coupon limit */
-  orderIntegration?: OrderIntegrationConfig;
+  orderIntegration?: OrderIntegrationConfig
   /** Role resolution configuration for access checks and user filtering */
-  roleConfig?: RoleConfig;
-};
+  roleConfig?: RoleConfig
+}
 
 export type SanitizedCouponPluginOptions = {
-  enabled: boolean;
-  enableReferrals: boolean;
-  allowStackWithOtherCoupons: boolean;
-  defaultCurrency: string;
-  collections: Required<CouponPluginCollections>;
-  endpoints: Required<CouponPluginEndpoints>;
-  autoIntegrate: boolean;
-  access: Required<CouponPluginAccess>;
-  referralConfig: Required<ReferralProgramConfig>;
-  adminGroups: Required<AdminGroupConfig>;
-  partnerDashboard: Required<PartnerDashboardConfig>;
-  orderIntegration: Required<OrderIntegrationConfig>;
+  enabled: boolean
+  enableReferrals: boolean
+  allowStackWithOtherCoupons: boolean
+  defaultCurrency: string
+  collections: Required<CouponPluginCollections>
+  endpoints: Required<CouponPluginEndpoints>
+  autoIntegrate: boolean
+  access: Required<CouponPluginAccess>
+  referralConfig: Required<ReferralProgramConfig>
+  adminGroups: Required<AdminGroupConfig>
+  partnerDashboard: Required<PartnerDashboardConfig>
+  orderIntegration: Required<OrderIntegrationConfig>
   roleConfig: {
-    roleFieldPaths: string[];
-    adminRoleValues: string[];
-    partnerRoleValues: string[];
-    customRoleResolver?: (user: unknown) => string[];
-  };
-};
+    roleFieldPaths: string[]
+    adminRoleValues: string[]
+    partnerRoleValues: string[]
+    customRoleResolver?: (user: unknown) => string[]
+  }
+}
 
 export type CouponPluginConfig = {
   collections: {
-    coupons: CollectionSlug;
-    referralPrograms: CollectionSlug;
-    referralCodes: CollectionSlug;
-    referralPartners?: CollectionSlug;
-  };
-};
+    coupons: CollectionSlug
+    referralPrograms: CollectionSlug
+    referralCodes: CollectionSlug
+    referralPartners?: CollectionSlug
+  }
+}
 
 export type ApplyCouponHook = {
-  code: string;
-  cartID?: string;
-  customerEmail?: string;
-};
+  code: string
+  cartID?: string
+  customerEmail?: string
+}
 
 export type ApplyCouponResponse = {
-  success: boolean;
-  message: string;
-  discount?: number;
-  partnerCommission?: number;
-  customerDiscount?: number;
-  currency?: string;
+  success: boolean
+  message: string
+  discount?: number
+  partnerCommission?: number
+  customerDiscount?: number
+  currency?: string
   coupon?: {
-    code: string;
-    type: "percentage" | "fixed";
-    value: number;
-  };
+    code: string
+    type: 'percentage' | 'fixed'
+    value: number
+  }
   referralCode?: {
-    code: string;
-  };
-  error?: string;
-};
+    code: string
+  }
+  error?: string
+}
 
 export type PartnerStats = {
-  totalEarnings: number;
-  pendingEarnings: number;
-  paidEarnings: number;
-  totalReferrals: number;
-  successfulReferrals: number;
-  conversionRate: number;
+  totalEarnings: number
+  pendingEarnings: number
+  paidEarnings: number
+  totalReferrals: number
+  successfulReferrals: number
+  conversionRate: number
   recentReferrals: Array<{
-    id: string;
-    code: string;
-    orderValue: number;
-    commission: number;
-    date: string;
-    status: "pending" | "paid" | "cancelled";
-  }>;
+    id: string
+    code: string
+    orderValue: number
+    commission: number
+    date: string
+    status: 'pending' | 'paid' | 'cancelled'
+  }>
   monthlyEarnings: Array<{
-    month: string;
-    earnings: number;
-    referrals: number;
-  }>;
-};
+    month: string
+    earnings: number
+    referrals: number
+  }>
+}
 
 export type PartnerDashboardData = {
-  stats: PartnerStats;
+  stats: PartnerStats
   referralCodes: Array<{
-    id: string;
-    code: string;
-    usageCount: number;
-    totalEarnings: number;
-    isActive: boolean;
-  }>;
+    id: string
+    code: string
+    usageCount: number
+    totalEarnings: number
+    isActive: boolean
+  }>
   program: {
-    name: string;
-    commissionRate: number;
-    customerDiscount: number;
-  } | null;
-};
+    name: string
+    commissionRate: number
+    customerDiscount: number
+  } | null
+}

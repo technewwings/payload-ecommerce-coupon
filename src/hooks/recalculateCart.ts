@@ -1,24 +1,24 @@
-import type { CollectionBeforeChangeHook } from "payload";
-import type { SanitizedCouponPluginOptions } from "../types";
+import type { CollectionBeforeChangeHook } from 'payload'
+import type { SanitizedCouponPluginOptions } from '../types'
 import {
   calculateCommissionAndDiscount,
   calculateCouponDiscount,
   getProgramMinimumOrderAmount,
-} from "../utilities/calculateValues";
-import { getCartItemUnitPrice } from "../utilities/pricing";
-import { roundTo2 } from "../utilities/roundTo2";
+} from '../utilities/calculateValues'
+import { getCartItemUnitPrice } from '../utilities/pricing'
+import { roundTo2 } from '../utilities/roundTo2'
 
 export const recalculateCartHook =
   (pluginConfig: SanitizedCouponPluginOptions): CollectionBeforeChangeHook =>
   async ({ data, req, originalDoc }) => {
     // If no Payload, can't fetch relations
-    if (!req.payload) return data;
+    if (!req.payload) return data
 
     // Determine effective state
     // data.items might be replacing or merging. In standard ecommerce, usually it replaces.
     // We need to calculate based on the *final* state of items.
     // If data.items is present, use it. If not, use originalDoc.items.
-    const effectiveItems = data.items || originalDoc?.items || [];
+    const effectiveItems = data.items || originalDoc?.items || []
 
     // If no items, ensure totals are 0
     if (!effectiveItems.length) {
@@ -28,16 +28,16 @@ export const recalculateCartHook =
         customerDiscount: 0,
         discountAmount: 0,
         total: 0,
-      };
+      }
     }
 
     // Determine effective codes
     const appliedReferralCode =
       data.appliedReferralCode !== undefined
         ? data.appliedReferralCode
-        : originalDoc?.appliedReferralCode;
+        : originalDoc?.appliedReferralCode
     const appliedCoupon =
-      data.appliedCoupon !== undefined ? data.appliedCoupon : originalDoc?.appliedCoupon;
+      data.appliedCoupon !== undefined ? data.appliedCoupon : originalDoc?.appliedCoupon
 
     if (!appliedReferralCode && !appliedCoupon) {
       // No codes applied, just return data (cleanup done by other logic if needed, or we explicitly clear?)
@@ -46,11 +46,11 @@ export const recalculateCartHook =
       // But if code was removed, data.appliedCoupon is null.
       if (data.appliedReferralCode === null || data.appliedCoupon === null) {
         const fallbackSubtotal =
-          typeof data.subtotal === "number"
+          typeof data.subtotal === 'number'
             ? data.subtotal
-            : typeof originalDoc?.subtotal === "number"
+            : typeof originalDoc?.subtotal === 'number'
               ? originalDoc.subtotal
-              : undefined;
+              : undefined
 
         return {
           ...data,
@@ -58,9 +58,9 @@ export const recalculateCartHook =
           customerDiscount: 0,
           discountAmount: 0,
           total: fallbackSubtotal,
-        };
+        }
       }
-      return data;
+      return data
     }
 
     // We need fully hydrated items to calculate prices
@@ -71,33 +71,33 @@ export const recalculateCartHook =
     // SAFEST: We calculate our own subtotal based on current prices.
 
     const getRelationID = (value: unknown): number | string | undefined => {
-      if (value === null || value === undefined) return undefined;
-      if (typeof value === "object") return (value as { id?: number | string }).id;
-      if (typeof value === "string" || typeof value === "number") return value;
-      return undefined;
-    };
+      if (value === null || value === undefined) return undefined
+      if (typeof value === 'object') return (value as { id?: number | string }).id
+      if (typeof value === 'string' || typeof value === 'number') return value
+      return undefined
+    }
 
     const productIds = effectiveItems
       .map((item: any) => getRelationID(item.product))
-      .filter((id: any): id is number | string => id !== undefined);
+      .filter((id: any): id is number | string => id !== undefined)
 
-    if (!productIds.length) return data;
+    if (!productIds.length) return data
 
     // Fetch products to get prices
     const productsQuery = await req.payload.find({
-      collection: "products", // Assumption: standard shops have products
+      collection: 'products', // Assumption: standard shops have products
       where: {
         id: { in: productIds },
       },
       limit: productIds.length,
-    });
+    })
 
-    const productsMap = new Map(productsQuery.docs.map((p) => [String(p.id), p]));
+    const productsMap = new Map(productsQuery.docs.map((p) => [String(p.id), p]))
 
-    let calculatedSubtotal = 0;
+    let calculatedSubtotal = 0
     const enrichedItems = effectiveItems.map((item: any) => {
-      const productId = getRelationID(item.product);
-      const product: any = productId !== undefined ? productsMap.get(String(productId)) || {} : {};
+      const productId = getRelationID(item.product)
+      const product: any = productId !== undefined ? productsMap.get(String(productId)) || {} : {}
 
       // We might need variants logic too, keeping it simple for now based on available info
       // Ideally we should replicate the price finding logic fully.
@@ -106,27 +106,27 @@ export const recalculateCartHook =
       const itemPrice = getCartItemUnitPrice({
         item,
         product,
-        variant: typeof item.variant === "object" ? item.variant : undefined,
+        variant: typeof item.variant === 'object' ? item.variant : undefined,
         currencyCode: pluginConfig.defaultCurrency,
-      });
+      })
 
-      calculatedSubtotal += itemPrice * (item.quantity ?? 1);
+      calculatedSubtotal += itemPrice * (item.quantity ?? 1)
 
       return {
         ...item,
         product, // Attach full product for rules
         price: itemPrice, // Normalized price
-      };
-    });
+      }
+    })
 
     // 1. Handle Referral
     if (appliedReferralCode && pluginConfig.enableReferrals) {
-      const appliedReferralCodeID = getRelationID(appliedReferralCode);
+      const appliedReferralCodeID = getRelationID(appliedReferralCode)
       if (appliedReferralCodeID === undefined) {
-        data.partnerCommission = 0;
-        data.customerDiscount = 0;
-        data.total = calculatedSubtotal;
-        return data;
+        data.partnerCommission = 0
+        data.customerDiscount = 0
+        data.total = calculatedSubtotal
+        return data
       }
 
       // Fetch referral code & program
@@ -137,35 +137,33 @@ export const recalculateCartHook =
         },
         limit: 1,
         depth: 1,
-      });
+      })
 
       if (referralQuery.docs.length) {
-        const referralCode = referralQuery.docs[0];
+        const referralCode = referralQuery.docs[0]
         const programId =
-          typeof referralCode.program === "string"
-            ? referralCode.program
-            : referralCode.program?.id;
+          typeof referralCode.program === 'string' ? referralCode.program : referralCode.program?.id
         const program =
-          typeof referralCode.program === "object"
+          typeof referralCode.program === 'object'
             ? referralCode.program
             : programId
               ? await req.payload.findByID({
                   collection: pluginConfig.collections.referralProgramsSlug,
                   id: programId,
                 })
-              : null;
+              : null
 
         if (program) {
           const minOrderAmount = getProgramMinimumOrderAmount({
             program,
             allowedTotalCommissionTypes: pluginConfig.referralConfig.allowedTotalCommissionTypes,
-          });
-          if (typeof minOrderAmount === "number" && calculatedSubtotal < minOrderAmount) {
-            data.appliedReferralCode = null;
-            data.partnerCommission = 0;
-            data.customerDiscount = 0;
-            data.total = calculatedSubtotal;
-            return data;
+          })
+          if (typeof minOrderAmount === 'number' && calculatedSubtotal < minOrderAmount) {
+            data.appliedReferralCode = null
+            data.partnerCommission = 0
+            data.customerDiscount = 0
+            data.total = calculatedSubtotal
+            return data
           }
 
           const { partnerCommission, customerDiscount } = calculateCommissionAndDiscount({
@@ -174,31 +172,31 @@ export const recalculateCartHook =
             currencyCode: pluginConfig.defaultCurrency,
             cartTotal: calculatedSubtotal,
             allowedTotalCommissionTypes: pluginConfig.referralConfig.allowedTotalCommissionTypes,
-          });
+          })
 
-          const roundedCustomerDiscount = roundTo2(customerDiscount);
-          data.partnerCommission = roundTo2(partnerCommission);
-          data.customerDiscount = roundedCustomerDiscount;
+          const roundedCustomerDiscount = roundTo2(customerDiscount)
+          data.partnerCommission = roundTo2(partnerCommission)
+          data.customerDiscount = roundedCustomerDiscount
 
           // Update total
           // Use calculated subtotal or trust data.subtotal if present?
           // Best to use our calculated subtotal to be safely independent.
-          data.total = Math.max(0, calculatedSubtotal - roundedCustomerDiscount);
+          data.total = Math.max(0, calculatedSubtotal - roundedCustomerDiscount)
         } else {
           // If referral code exists but program is unavailable, clear referral discount fields.
-          data.appliedReferralCode = null;
-          data.partnerCommission = 0;
-          data.customerDiscount = 0;
-          data.total = calculatedSubtotal;
+          data.appliedReferralCode = null
+          data.partnerCommission = 0
+          data.customerDiscount = 0
+          data.total = calculatedSubtotal
         }
       }
     }
 
     // 2. Handle Coupon
     if (appliedCoupon && (!appliedReferralCode || pluginConfig.referralConfig.allowBothSystems)) {
-      const appliedCouponID = getRelationID(appliedCoupon);
+      const appliedCouponID = getRelationID(appliedCoupon)
       if (appliedCouponID === undefined) {
-        return data;
+        return data
       }
 
       const couponQuery = await req.payload.find({
@@ -207,16 +205,16 @@ export const recalculateCartHook =
           id: { equals: appliedCouponID },
         },
         limit: 1,
-      });
+      })
 
       if (couponQuery.docs.length) {
-        const coupon = couponQuery.docs[0];
+        const coupon = couponQuery.docs[0]
         const discountAmount = calculateCouponDiscount({
           coupon,
           cartTotal: calculatedSubtotal,
-        });
+        })
 
-        data.discountAmount = discountAmount;
+        data.discountAmount = discountAmount
 
         // If referral also applied, subtract from the already reduced total?
         // Usually discounts stack or are applied to subtotal.
@@ -224,10 +222,10 @@ export const recalculateCartHook =
         // But wait, referral discount reduces total. Coupon reduces total.
         // Standard approach: Total = Subtotal - ReferralDiscount - CouponDiscount
 
-        const currentDiscount = data.customerDiscount || 0;
-        data.total = Math.max(0, calculatedSubtotal - currentDiscount - discountAmount);
+        const currentDiscount = data.customerDiscount || 0
+        data.total = Math.max(0, calculatedSubtotal - currentDiscount - discountAmount)
       }
     }
 
-    return data;
-  };
+    return data
+  }

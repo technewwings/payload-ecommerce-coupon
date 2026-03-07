@@ -1,78 +1,78 @@
-"use client";
+'use client'
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState } from 'react'
 
-import type { PartnerDashboardData } from "../../types";
+import type { PartnerDashboardData } from '../../types'
 
-import { EarningsSummary } from "./EarningsSummary";
-import { ReferralPerformance } from "./ReferralPerformance";
-import { RecentReferrals } from "./RecentReferrals";
-import { ReferralCodes } from "./ReferralCodes";
+import { EarningsSummary } from './EarningsSummary'
+import { ReferralPerformance } from './ReferralPerformance'
+import { RecentReferrals } from './RecentReferrals'
+import { ReferralCodes } from './ReferralCodes'
 
-import "./styles.css";
+import './styles.css'
 
 export type PartnerDashboardProps = {
-  showEarningsSummary?: boolean;
-  showReferralPerformance?: boolean;
-  showRecentReferrals?: boolean;
-  showReferralCodes?: boolean;
-  apiEndpoint?: string;
-};
+  showEarningsSummary?: boolean
+  showReferralPerformance?: boolean
+  showRecentReferrals?: boolean
+  showReferralCodes?: boolean
+  apiEndpoint?: string
+}
 
 export const PartnerDashboard: React.FC<PartnerDashboardProps> = ({
   showEarningsSummary = true,
   showReferralPerformance = true,
   showRecentReferrals = true,
   showReferralCodes = true,
-  apiEndpoint = "/api/referrals/partner-stats",
+  apiEndpoint = '/api/referrals/partner-stats',
 }) => {
-  const [data, setData] = useState<PartnerDashboardData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [currency, setCurrency] = useState("USD");
+  const [data, setData] = useState<PartnerDashboardData | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [currency, setCurrency] = useState('USD')
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        setLoading(true);
+        setLoading(true)
         const response = await fetch(apiEndpoint, {
-          credentials: "include",
-        });
+          credentials: 'include',
+        })
 
         if (!response.ok) {
           if (response.status === 401) {
-            setError("Please log in to view your partner dashboard");
-            return;
+            setError('Please log in to view your partner dashboard')
+            return
           }
           if (response.status === 403) {
-            setError("Partner access required");
-            return;
+            setError('Partner access required')
+            return
           }
-          throw new Error("Failed to fetch partner data");
+          throw new Error('Failed to fetch partner data')
         }
 
         const result = (await response.json()) as {
-          success: boolean;
-          data?: PartnerDashboardData;
-          currency?: string;
-          error?: string;
-        };
+          success: boolean
+          data?: PartnerDashboardData
+          currency?: string
+          error?: string
+        }
 
         if (result.success) {
-          setData(result.data ?? null);
-          setCurrency(result.currency ?? "USD");
+          setData(result.data ?? null)
+          setCurrency(result.currency ?? 'USD')
         } else {
-          setError(result.error ?? "Failed to load dashboard data");
+          setError(result.error ?? 'Failed to load dashboard data')
         }
       } catch (err) {
-        setError(err instanceof Error ? err.message : "An error occurred");
+        setError(err instanceof Error ? err.message : 'An error occurred')
       } finally {
-        setLoading(false);
+        setLoading(false)
       }
-    };
+    }
 
-    fetchData();
-  }, [apiEndpoint]);
+    fetchData()
+  }, [apiEndpoint])
 
   if (loading) {
     return (
@@ -82,7 +82,7 @@ export const PartnerDashboard: React.FC<PartnerDashboardProps> = ({
           <p>Loading partner dashboard...</p>
         </div>
       </div>
-    );
+    )
   }
 
   if (error) {
@@ -93,7 +93,7 @@ export const PartnerDashboard: React.FC<PartnerDashboardProps> = ({
           <p>{error}</p>
         </div>
       </div>
-    );
+    )
   }
 
   if (!data) {
@@ -104,7 +104,7 @@ export const PartnerDashboard: React.FC<PartnerDashboardProps> = ({
           <p>Your partner dashboard will appear here once you have referral activity.</p>
         </div>
       </div>
-    );
+    )
   }
 
   return (
@@ -135,7 +135,7 @@ export const PartnerDashboard: React.FC<PartnerDashboardProps> = ({
         )}
       </div>
     </div>
-  );
-};
+  )
+}
 
-export default PartnerDashboard;
+export default PartnerDashboard
