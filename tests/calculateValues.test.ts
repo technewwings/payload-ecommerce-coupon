@@ -238,7 +238,7 @@ describe('calculateCommissionAndDiscount', () => {
     expect(result.customerDiscount).toBe(0)
   })
 
-  it('should ignore minOrderAmount restrictions for fixed commission rules', () => {
+  it('should enforce minOrderAmount restrictions for fixed commission rules', () => {
     const cartItems = [{ id: '1', price: 100, quantity: 1, product: { id: 'p1' } }]
     const program = {
       minOrderAmount: 200,
@@ -253,8 +253,8 @@ describe('calculateCommissionAndDiscount', () => {
     }
 
     const result = calculateCommissionAndDiscount({ cartItems, program, cartTotal: 100 })
-    expect(result.partnerCommission).toBe(15)
-    expect(result.customerDiscount).toBe(10)
+    expect(result.partnerCommission).toBe(0)
+    expect(result.customerDiscount).toBe(0)
   })
 
   it('should calculate percentage commissions without totalCommission.value using direct percentages', () => {
@@ -319,7 +319,7 @@ describe('calculateCommissionAndDiscount', () => {
 })
 
 describe('getProgramMinimumOrderAmount', () => {
-  it('should ignore program-level minimum when only fixed commission rules are allowed', () => {
+  it('should return program-level minimum when only fixed commission rules are allowed', () => {
     const min = getProgramMinimumOrderAmount({
       program: {
         minOrderAmount: 500,
@@ -328,7 +328,7 @@ describe('getProgramMinimumOrderAmount', () => {
       allowedTotalCommissionTypes: ['fixed'],
     })
 
-    expect(min).toBeNull()
+    expect(min).toBe(500)
   })
 
   it('should return program-level minimum when percentage rules are available', () => {

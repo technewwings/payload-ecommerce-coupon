@@ -519,7 +519,7 @@ describe('Apply Coupon Endpoint', () => {
       expect(result.error).toContain('Minimum order value of 200')
     })
 
-    it('should not enforce minimum order amount for fixed referral rules on apply', async () => {
+    it('should enforce minimum order amount for fixed referral rules on apply', async () => {
       const mockReferralCode = {
         id: 'ref-1',
         code: 'REF123',
@@ -570,10 +570,8 @@ describe('Apply Coupon Endpoint', () => {
       const response = await handler(req as any)
       const result = await response.json()
 
-      expect(response.status).toBe(200)
-      expect(result.success).toBe(true)
-      expect(result.customerDiscount).toBe(10)
-      expect(result.partnerCommission).toBe(15)
+      expect(response.status).toBe(400)
+      expect(result.error).toContain('Minimum order value of 200')
     })
   })
 
@@ -985,7 +983,7 @@ describe('Validate Coupon Endpoint', () => {
       expect(result.error).toContain('Minimum order value of 200')
     })
 
-    it('should not enforce minimum order amount for fixed referral rules on validate', async () => {
+    it('should enforce minimum order amount for fixed referral rules on validate', async () => {
       const mockReferralCode = {
         id: 'ref-1',
         code: 'REF123',
@@ -1034,10 +1032,8 @@ describe('Validate Coupon Endpoint', () => {
       const response = await handler(req as any)
       const result = await response.json()
 
-      expect(response.status).toBe(200)
-      expect(result.success).toBe(true)
-      expect(result.customerDiscount).toBe(10)
-      expect(result.partnerCommission).toBe(15)
+      expect(response.status).toBe(400)
+      expect(result.error).toContain('Minimum order value of 200')
     })
   })
 

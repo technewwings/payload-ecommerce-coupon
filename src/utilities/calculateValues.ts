@@ -265,8 +265,7 @@ function selectBestRuleForItem({
         : typeof rule?.minOrderAmount === 'number' && Number.isFinite(rule.minOrderAmount)
           ? rule.minOrderAmount
           : null
-    const shouldApplyMinOrder = rule?.totalCommission?.type !== 'fixed'
-    if (resolvedMinOrderAmount != null && shouldApplyMinOrder) {
+    if (resolvedMinOrderAmount != null) {
       return cartTotal >= resolvedMinOrderAmount
     }
     return true
@@ -335,27 +334,15 @@ export function getProgramMinimumOrderAmount({
   program: any
   allowedTotalCommissionTypes?: Array<'fixed' | 'percentage'>
 }): number | null {
+  if (typeof program?.minOrderAmount === 'number' && Number.isFinite(program.minOrderAmount)) {
+    return program.minOrderAmount
+  }
+
   const rules = Array.isArray(program?.commissionRules) ? program.commissionRules : []
 
   if (!rules.length) return null
 
   const allowedTypes = allowedCommissionTypesSet(allowedTotalCommissionTypes)
-  const hasEligiblePercentageRule = rules.some((rule: any) => {
-    if (rule?.totalCommission?.type) {
-      return (
-        rule.totalCommission.type === 'percentage' && allowedTypes.has(rule.totalCommission.type)
-      )
-    }
-    return true
-  })
-
-  if (
-    hasEligiblePercentageRule &&
-    typeof program?.minOrderAmount === 'number' &&
-    Number.isFinite(program.minOrderAmount)
-  ) {
-    return program.minOrderAmount
-  }
 
   const minValues = rules
     .filter((rule: any) => {

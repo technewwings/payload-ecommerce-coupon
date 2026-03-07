@@ -1,6 +1,7 @@
 import { APIError, type CollectionConfig } from 'payload'
 
 import type { SanitizedCouponPluginOptions } from '../types'
+import { roundTo2 } from '../utilities/roundTo2'
 
 type CommissionType = 'fixed' | 'percentage'
 
@@ -22,6 +23,14 @@ function toNumber(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? value : null
 }
 
+function normalizeLegacyX100Money(value: number | null): number | null {
+  if (value == null) return null
+  if (Number.isInteger(value) && Math.abs(value) >= 1000) {
+    return roundTo2(value / 100)
+  }
+  return value
+}
+
 export const createReferralProgramsCollection = (
   pluginConfig: SanitizedCouponPluginOptions,
 ): CollectionConfig => {
@@ -39,7 +48,9 @@ export const createReferralProgramsCollection = (
         throw new APIError('At least one commission rule is required', 400)
       }
 
-      const maxPartnerCommissionPerOrder = toNumber(data.maxPartnerCommissionPerOrder)
+      const maxPartnerCommissionPerOrder = normalizeLegacyX100Money(
+        toNumber(data.maxPartnerCommissionPerOrder),
+      )
       if (maxPartnerCommissionPerOrder != null && maxPartnerCommissionPerOrder < 0) {
         throw new APIError(
           'Maximum commission per order for partner must be a non-negative number',
@@ -47,7 +58,9 @@ export const createReferralProgramsCollection = (
         )
       }
 
-      const maxCustomerDiscountPerOrder = toNumber(data.maxCustomerDiscountPerOrder)
+      const maxCustomerDiscountPerOrder = normalizeLegacyX100Money(
+        toNumber(data.maxCustomerDiscountPerOrder),
+      )
       if (maxCustomerDiscountPerOrder != null && maxCustomerDiscountPerOrder < 0) {
         throw new APIError(
           'Maximum discount for customer per order must be a non-negative number',
@@ -55,7 +68,7 @@ export const createReferralProgramsCollection = (
         )
       }
 
-      const minOrderAmount = toNumber(data.minOrderAmount)
+      const minOrderAmount = normalizeLegacyX100Money(toNumber(data.minOrderAmount))
       if (minOrderAmount != null && minOrderAmount < 0) {
         throw new APIError('Minimum Order Amount must be a non-negative number', 400)
       }
@@ -151,8 +164,8 @@ export const createReferralProgramsCollection = (
             partnerSplit = partnerPctInput
             customerSplit = customerPctComputed
           } else {
-            const partnerAmountInput = toNumber(r.partnerAmount)
-            const customerAmountInput = toNumber(r.customerAmount)
+            const partnerAmountInput = normalizeLegacyX100Money(toNumber(r.partnerAmount))
+            const customerAmountInput = normalizeLegacyX100Money(toNumber(r.customerAmount))
             const legacyPartnerSplitInput = toNumber(r.partnerSplit)
             const legacyCustomerSplitInput = toNumber(r.customerSplit)
 
@@ -274,7 +287,8 @@ export const createReferralProgramsCollection = (
         type: 'number',
         min: 0,
         admin: {
-          description: 'Maximum commission per order for partner. Leave empty for no cap.',
+          description:
+            'Maximum commission per order for partner (normal currency value, ). Leave empty for no cap.',
         },
       },
       {
@@ -282,7 +296,8 @@ export const createReferralProgramsCollection = (
         type: 'number',
         min: 0,
         admin: {
-          description: 'Maximum customer discount per order. Leave empty for no cap.',
+          description:
+            'Maximum customer discount per order (normal currency value, ). Leave empty for no cap.',
         },
       },
       {
@@ -291,7 +306,7 @@ export const createReferralProgramsCollection = (
         min: 0,
         admin: {
           description:
-            'Minimum cart subtotal required for this program. Leave empty for no minimum.',
+            'Minimum cart subtotal required for this program (normal currency value, ). Leave empty for no minimum.',
         },
       },
       {
@@ -398,7 +413,7 @@ export const createReferralProgramsCollection = (
             admin: {
               condition: (_: unknown, siblingData: { totalCommission?: { type?: string } }) =>
                 siblingData?.totalCommission?.type === 'fixed',
-              description: 'Fixed partner commission amount per item.',
+              description: 'Fixed partner commission amount per item (normal currency value).',
             },
           },
           {
@@ -408,7 +423,7 @@ export const createReferralProgramsCollection = (
             admin: {
               condition: (_: unknown, siblingData: { totalCommission?: { type?: string } }) =>
                 siblingData?.totalCommission?.type === 'fixed',
-              description: 'Fixed customer discount amount per item.',
+              description: 'Fixed customer discount amount per item (normal currency value).',
             },
           },
           {

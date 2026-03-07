@@ -184,6 +184,27 @@ describe('Referral Programs Collection v2', () => {
     expect(result.maxCustomerDiscountPerOrder).toBe(25.5)
   })
 
+  it('should normalize legacy x100 top-level caps and min order amount to normal currency values', async () => {
+    const result = await beforeChangeHook({
+      data: {
+        maxPartnerCommissionPerOrder: 2500,
+        maxCustomerDiscountPerOrder: 1200,
+        minOrderAmount: 15000,
+        commissionRules: [
+          {
+            appliesTo: 'all',
+            totalCommission: { type: 'percentage', value: 20 },
+            partnerSplit: 50,
+          },
+        ],
+      },
+    })
+
+    expect(result.maxPartnerCommissionPerOrder).toBe(25)
+    expect(result.maxCustomerDiscountPerOrder).toBe(12)
+    expect(result.minOrderAmount).toBe(150)
+  })
+
   it('should preserve fixed partner/customer amounts without cent conversion', async () => {
     const result = await beforeChangeHook({
       data: {
@@ -200,6 +221,24 @@ describe('Referral Programs Collection v2', () => {
 
     expect(result.commissionRules[0].partnerSplit).toBe(12.5)
     expect(result.commissionRules[0].customerSplit).toBe(4.25)
+  })
+
+  it('should normalize legacy x100 fixed partner/customer amounts to normal currency values', async () => {
+    const result = await beforeChangeHook({
+      data: {
+        commissionRules: [
+          {
+            appliesTo: 'all',
+            totalCommission: { type: 'fixed' },
+            partnerAmount: 1250,
+            customerAmount: 4500,
+          },
+        ],
+      },
+    })
+
+    expect(result.commissionRules[0].partnerSplit).toBe(12.5)
+    expect(result.commissionRules[0].customerSplit).toBe(45)
   })
 
   it('should normalize missing top-level minOrderAmount and per-order max caps to null', async () => {
