@@ -1,4 +1,4 @@
-import type { CollectionConfig } from "payload";
+import { APIError, type CollectionConfig } from "payload";
 
 import type { SanitizedCouponPluginOptions } from "../types";
 
@@ -40,17 +40,17 @@ export const createReferralProgramsCollection = (
         !Array.isArray(data.commissionRules) ||
         data.commissionRules.length === 0
       ) {
-        throw new Error("At least one commission rule is required");
+        throw new APIError("At least one commission rule is required", 400);
       }
 
       const maxAmount = toNumber(data.maxAmount);
       if (maxAmount != null && maxAmount < 0) {
-        throw new Error("Max Amount must be a non-negative number");
+        throw new APIError("Max Amount must be a non-negative number", 400);
       }
 
       const minOrderAmount = toNumber(data.minOrderAmount);
       if (minOrderAmount != null && minOrderAmount < 0) {
-        throw new Error("Minimum Order Amount must be a non-negative number");
+        throw new APIError("Minimum Order Amount must be a non-negative number", 400);
       }
 
       data.maxAmount = maxAmount ?? null;
@@ -61,15 +61,16 @@ export const createReferralProgramsCollection = (
           const r = rule as RuleData;
 
           if (!r.totalCommission) {
-            throw new Error(`Commission rule ${index + 1}: Total Commission is required`);
+            throw new APIError(`Commission rule ${index + 1}: Total Commission is required`, 400);
           }
 
           if (
             !r.totalCommission.type ||
             !allowedTotalCommissionTypes.includes(r.totalCommission.type)
           ) {
-            throw new Error(
+            throw new APIError(
               `Commission rule ${index + 1}: Total Commission type must be one of ${allowedTotalCommissionTypes.join(", ")}`,
+              400,
             );
           }
 
@@ -78,20 +79,25 @@ export const createReferralProgramsCollection = (
 
           if (type === "percentage") {
             if (totalValue == null || totalValue < 0) {
-              throw new Error(
+              throw new APIError(
                 `Commission rule ${index + 1}: Total Commission value must be a non-negative number`,
+                400,
               );
             }
             if (totalValue > 100) {
-              throw new Error(
+              throw new APIError(
                 `Commission rule ${index + 1}: Percentage Total Commission cannot exceed 100`,
+                400,
               );
             }
           }
 
           const appliesTo = r.appliesTo ?? "all";
           if (appliesTo === "products" && (!r.products || r.products.length === 0)) {
-            throw new Error(`Commission rule ${index + 1}: At least one product is required`);
+            throw new APIError(
+              `Commission rule ${index + 1}: At least one product is required`,
+              400,
+            );
           }
 
           if (
@@ -99,8 +105,9 @@ export const createReferralProgramsCollection = (
             (!r.categories || r.categories.length === 0) &&
             (!r.tags || r.tags.length === 0)
           ) {
-            throw new Error(
+            throw new APIError(
               `Commission rule ${index + 1}: At least one category or tag is required`,
+              400,
             );
           }
 
@@ -117,14 +124,16 @@ export const createReferralProgramsCollection = (
             const customerPctInput = toNumber(r.customerPercent) ?? toNumber(r.customerSplit);
 
             if (partnerPctInput == null || partnerPctInput < 0 || partnerPctInput > 100) {
-              throw new Error(
+              throw new APIError(
                 `Commission rule ${index + 1}: Partner Split must be between 0 and 100`,
+                400,
               );
             }
 
             if (customerPctInput != null && (customerPctInput < 0 || customerPctInput > 100)) {
-              throw new Error(
+              throw new APIError(
                 `Commission rule ${index + 1}: Customer percentage must be between 0 and 100`,
+                400,
               );
             }
 
@@ -133,8 +142,9 @@ export const createReferralProgramsCollection = (
             const percentTotal = partnerPctInput + customerPctComputed;
 
             if (percentTotal > 100) {
-              throw new Error(
+              throw new APIError(
                 `Commission rule ${index + 1}: Partner percentage + Customer percentage cannot exceed 100`,
+                400,
               );
             }
 
@@ -158,14 +168,16 @@ export const createReferralProgramsCollection = (
 
             if (hasNewFixedInputs) {
               if (partnerAmountInput == null || partnerAmountInput < 0) {
-                throw new Error(
+                throw new APIError(
                   `Commission rule ${index + 1}: Partner fixed amount must be a non-negative number`,
+                  400,
                 );
               }
 
               if (customerAmountInput == null || customerAmountInput < 0) {
-                throw new Error(
+                throw new APIError(
                   `Commission rule ${index + 1}: Customer fixed amount must be a non-negative number`,
+                  400,
                 );
               }
 
@@ -175,8 +187,9 @@ export const createReferralProgramsCollection = (
               customerSplit = toCents(customerAmountInput);
             } else if (hasLegacyFixedInputs) {
               if (legacyPartnerSplitInput == null || legacyPartnerSplitInput < 0) {
-                throw new Error(
+                throw new APIError(
                   `Commission rule ${index + 1}: For fixed commissions, both partner and customer values must be non-negative numbers`,
+                  400,
                 );
               }
 
@@ -186,8 +199,9 @@ export const createReferralProgramsCollection = (
                 (legacyHasTotalValue ? 100 - legacyPartnerSplitInput : null);
 
               if (resolvedLegacyCustomerSplit == null || resolvedLegacyCustomerSplit < 0) {
-                throw new Error(
+                throw new APIError(
                   `Commission rule ${index + 1}: For fixed commissions, both partner and customer values must be non-negative numbers`,
+                  400,
                 );
               }
 
@@ -196,8 +210,9 @@ export const createReferralProgramsCollection = (
               partnerAmount = null;
               customerAmount = null;
             } else {
-              throw new Error(
+              throw new APIError(
                 `Commission rule ${index + 1}: For fixed commissions, both partner and customer values must be provided`,
+                400,
               );
             }
           }
@@ -409,18 +424,6 @@ export const createReferralProgramsCollection = (
               hidden: true,
               description:
                 "Canonical storage field. Percentage mode: percent. Fixed mode: amount in cents.",
-            },
-          },
-          {
-            name: "splitWarning",
-            type: "text",
-            virtual: true,
-            admin: {
-              readOnly: true,
-              condition: (_: unknown, siblingData: { totalCommission?: { type?: string } }) =>
-                siblingData?.totalCommission?.type === "percentage",
-              description:
-                "Non-blocking warning shown when partnerPercent + customerPercent is greater than 50%.",
             },
           },
         ],
