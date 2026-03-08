@@ -1,3 +1,4 @@
+import { APIError } from 'payload'
 import { getCartItemUnitPrice } from './pricing'
 
 // ---------------------------------------------------------------------------
@@ -300,7 +301,6 @@ function selectBestRuleForItem({
   itemTotalCents,
   quantity,
   cartTotalCents,
-  minOrderAmountCents,
   allowedTotalCommissionTypes,
 }: {
   rules: any[]
@@ -308,7 +308,6 @@ function selectBestRuleForItem({
   itemTotalCents: number
   quantity: number
   cartTotalCents: number
-  minOrderAmountCents?: number | null
   allowedTotalCommissionTypes?: Array<'fixed' | 'percentage'>
 }): { rule: any; reward: { partner: number; customer: number } } | null {
   const allowedTypes = allowedCommissionTypesSet(allowedTotalCommissionTypes)
@@ -321,11 +320,9 @@ function selectBestRuleForItem({
 
     // minOrderAmount on the rule itself is stored in normal currency → cents
     const resolvedMinCents =
-      minOrderAmountCents != null && Number.isFinite(minOrderAmountCents)
-        ? minOrderAmountCents
-        : typeof rule?.minOrderAmount === 'number' && Number.isFinite(rule.minOrderAmount)
-          ? toCents(rule.minOrderAmount)
-          : null
+      typeof rule?.minOrderAmount === 'number' && rule?.minOrderAmount
+        ? toCents(rule.minOrderAmount)
+        : null
 
     if (resolvedMinCents != null) {
       return cartTotalCents >= resolvedMinCents
@@ -459,12 +456,6 @@ export function calculateCommissionAndDiscount({
   // Scale cart total to cents for eligibility checks
   const cartTotalCents = toCents(cartTotal)
 
-  // Scale program-level minOrderAmount to cents (if present) for rule filtering
-  const programMinOrderAmountCents =
-    typeof program?.minOrderAmount === 'number' && Number.isFinite(program.minOrderAmount)
-      ? toCents(program.minOrderAmount)
-      : null
-
   let totalPartnerCents = 0
   let totalCustomerCents = 0
 
@@ -483,13 +474,18 @@ export function calculateCommissionAndDiscount({
     const quantity = item.quantity ?? 1
     const itemTotalCents = toCents(itemPriceCurrency) * quantity
 
+    const minOrderAmountCents = toCents(program?.minOrderAmount ?? 0)
+
+    if (minOrderAmountCents && itemTotalCents < minOrderAmountCents) {
+      throw new APIError('Item total must be greater than or equal to min order amount', 400)
+    }
+
     const bestMatch = selectBestRuleForItem({
       rules,
       item: { ...item, product },
       itemTotalCents,
       quantity,
       cartTotalCents,
-      minOrderAmountCents: programMinOrderAmountCents,
       allowedTotalCommissionTypes,
     })
 

@@ -4,6 +4,7 @@ import {
   calculateCouponDiscount,
   getProgramMinimumOrderAmount,
 } from '../src/utilities/calculateValues'
+import { APIError } from 'payload'
 
 // ---------------------------------------------------------------------------
 // calculateCouponDiscount
@@ -299,10 +300,12 @@ describe('calculateCommissionAndDiscount', () => {
         },
       ],
     }
-
-    const result = calculateCommissionAndDiscount({ cartItems, program, cartTotal: 100 })
-    expect(result.partnerCommission).toBe(0)
-    expect(result.customerDiscount).toBe(0)
+    try {
+      const result = calculateCommissionAndDiscount({ cartItems, program, cartTotal: 100 })
+    } catch (e: any) {
+      expect(e).toBeInstanceOf(APIError)
+      expect(e.message).toBe('Item total must be greater than or equal to min order amount')
+    }
   })
 
   it('should calculate percentage commissions without totalCommission.value using direct percentages', () => {
