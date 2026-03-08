@@ -321,10 +321,13 @@ async function handleCouponCode({
     )
   }
 
+  // Use cartSubtotal (pre-discount baseline) for all order-value eligibility checks
+  // and discount calculations. cartTotal may already reflect a previously applied
+  // discount and would produce an inconsistent baseline for min/max enforcement.
   const cartSubtotal = Number(resolvers.getCartSubtotal(cart)) || 0
   const cartTotal = Number(resolvers.getCartTotal(cart)) || cartSubtotal || 0
 
-  if (coupon.minOrderValue && cartTotal < coupon.minOrderValue) {
+  if (coupon.minOrderValue && cartSubtotal < coupon.minOrderValue) {
     return Response.json(
       {
         success: false,
@@ -334,7 +337,7 @@ async function handleCouponCode({
     )
   }
 
-  if (coupon.maxOrderValue && cartTotal > coupon.maxOrderValue) {
+  if (coupon.maxOrderValue && cartSubtotal > coupon.maxOrderValue) {
     return Response.json(
       {
         success: false,
@@ -344,7 +347,7 @@ async function handleCouponCode({
     )
   }
 
-  const discountAmount = calculateCouponDiscount({ coupon, cartTotal })
+  const discountAmount = calculateCouponDiscount({ coupon, cartTotal: cartSubtotal })
   const nextTotal = roundTo2(Math.max(0, cartTotal - discountAmount))
 
   const data: Record<string, unknown> = {}
@@ -441,15 +444,17 @@ async function handleReferralCode({
   }
 
   const cartItems = resolvers.getCartItems(cart)
-  const cartTotal =
-    Number(resolvers.getCartTotal(cart)) || Number(resolvers.getCartSubtotal(cart)) || 0
+  // Use cartSubtotal as the pre-discount baseline for min-order enforcement and
+  // commission/discount calculations, matching the recalculateCart hook policy.
+  const cartSubtotal = Number(resolvers.getCartSubtotal(cart)) || 0
+  const cartTotal = Number(resolvers.getCartTotal(cart)) || cartSubtotal || 0
 
   const minOrderAmount = getProgramMinimumOrderAmount({
     program,
     allowedTotalCommissionTypes: pluginConfig.referralConfig.allowedTotalCommissionTypes,
   })
 
-  if (typeof minOrderAmount === 'number' && cartTotal < minOrderAmount) {
+  if (typeof minOrderAmount === 'number' && cartSubtotal < minOrderAmount) {
     return Response.json(
       {
         success: false,
@@ -463,7 +468,7 @@ async function handleReferralCode({
     cartItems,
     program,
     currencyCode: pluginConfig.defaultCurrency,
-    cartTotal,
+    cartTotal: cartSubtotal,
     allowedTotalCommissionTypes: pluginConfig.referralConfig.allowedTotalCommissionTypes,
   })
 

@@ -1,7 +1,6 @@
 import { APIError, type CollectionConfig } from 'payload'
 
 import type { SanitizedCouponPluginOptions } from '../types'
-import { roundTo2 } from '../utilities/roundTo2'
 
 type CommissionType = 'fixed' | 'percentage'
 
@@ -23,13 +22,17 @@ function toNumber(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? value : null
 }
 
-function normalizeLegacyX100Money(value: number | null): number | null {
-  if (value == null) return null
-  if (Number.isInteger(value) && Math.abs(value) >= 1000) {
-    return roundTo2(value / 100)
-  }
-  return value
-}
+/**
+ * Scaling policy:
+ *   - Admin inputs normal currency values (e.g. 100 means $100).
+ *   - Internally, maxPartnerCommissionPerOrder, maxCustomerDiscountPerOrder, and
+ *     minOrderAmount are stored in x100 (integer cents) form to avoid floating-point
+ *     drift on monetary cap fields.
+ *   - beforeChange  →  multiply by 100 before persisting.
+ *   - afterRead     →  divide by 100 before returning to admin / calculation code.
+ *   - partnerAmount / customerAmount per-rule fixed amounts are NOT scaled here;
+ *     they represent per-item fixed currency amounts and are stored as-is.
+ */
 
 export const createReferralProgramsCollection = (
   pluginConfig: SanitizedCouponPluginOptions,
@@ -38,6 +41,9 @@ export const createReferralProgramsCollection = (
   const allowedTotalCommissionTypes = referralConfig.allowedTotalCommissionTypes
   const relationSlugs = integration.collections
 
+  // ---------------------------------------------------------------------------
+  // beforeChange — validate, scale monetary cap fields ×100, normalise rules
+  // ---------------------------------------------------------------------------
   const beforeChange: NonNullable<CollectionConfig['hooks']>['beforeChange'] = [
     ({ data }: { data: Record<string, unknown> }) => {
       if (
@@ -48,37 +54,37 @@ export const createReferralProgramsCollection = (
         throw new APIError('At least one commission rule is required', 400)
       }
 
-      const maxPartnerCommissionPerOrder = normalizeLegacyX100Money(
-        toNumber(data.maxPartnerCommissionPerOrder),
-      )
-      if (maxPartnerCommissionPerOrder != null && maxPartnerCommissionPerOrder < 0) {
+      // --- top-level monetary caps: validate then scale ×100 for storage ---
+
+      const rawMaxPartner = toNumber(data.maxPartnerCommissionPerOrder)
+      if (rawMaxPartner != null && rawMaxPartner < 0) {
         throw new APIError(
           'Maximum commission per order for partner must be a non-negative number',
           400,
         )
       }
 
-      const maxCustomerDiscountPerOrder = normalizeLegacyX100Money(
-        toNumber(data.maxCustomerDiscountPerOrder),
-      )
-      if (maxCustomerDiscountPerOrder != null && maxCustomerDiscountPerOrder < 0) {
+      const rawMaxCustomer = toNumber(data.maxCustomerDiscountPerOrder)
+      if (rawMaxCustomer != null && rawMaxCustomer < 0) {
         throw new APIError(
           'Maximum discount for customer per order must be a non-negative number',
           400,
         )
       }
 
-      const minOrderAmount = normalizeLegacyX100Money(toNumber(data.minOrderAmount))
-      if (minOrderAmount != null && minOrderAmount < 0) {
+      const rawMinOrder = toNumber(data.minOrderAmount)
+      if (rawMinOrder != null && rawMinOrder < 0) {
         throw new APIError('Minimum Order Amount must be a non-negative number', 400)
       }
 
+      // Store as x100 (cents). null when not provided.
       data.maxPartnerCommissionPerOrder =
-        maxPartnerCommissionPerOrder != null ? maxPartnerCommissionPerOrder : null
+        rawMaxPartner != null ? Math.round(rawMaxPartner * 100) : null
       data.maxCustomerDiscountPerOrder =
-        maxCustomerDiscountPerOrder != null ? maxCustomerDiscountPerOrder : null
-      data.minOrderAmount = minOrderAmount ?? null
+        rawMaxCustomer != null ? Math.round(rawMaxCustomer * 100) : null
+      data.minOrderAmount = rawMinOrder != null ? Math.round(rawMinOrder * 100) : null
 
+      // --- commission rules ---
       data.commissionRules = data.commissionRules.map(
         (rule: Record<string, unknown>, index: number) => {
           const r = rule as RuleData
@@ -164,8 +170,11 @@ export const createReferralProgramsCollection = (
             partnerSplit = partnerPctInput
             customerSplit = customerPctComputed
           } else {
-            const partnerAmountInput = normalizeLegacyX100Money(toNumber(r.partnerAmount))
-            const customerAmountInput = normalizeLegacyX100Money(toNumber(r.customerAmount))
+            // Fixed commission type.
+            // partnerAmount / customerAmount are per-item fixed currency amounts — stored as-is
+            // (no x100 scaling: they feed directly into per-unit arithmetic in calculateValues).
+            const partnerAmountInput = toNumber(r.partnerAmount)
+            const customerAmountInput = toNumber(r.customerAmount)
             const legacyPartnerSplitInput = toNumber(r.partnerSplit)
             const legacyCustomerSplitInput = toNumber(r.customerSplit)
 
@@ -249,6 +258,29 @@ export const createReferralProgramsCollection = (
     },
   ]
 
+  // ---------------------------------------------------------------------------
+  // afterRead — divide x100 monetary cap fields back to normal currency values
+  // so that admin UI and calculation utilities always see normal currency units.
+  // ---------------------------------------------------------------------------
+  const afterRead: NonNullable<CollectionConfig['hooks']>['afterRead'] = [
+    ({ doc }: { doc: Record<string, unknown> }) => {
+      if (!doc) return doc
+
+      const unscale = (value: unknown): number | null => {
+        const n = toNumber(value)
+        if (n == null) return null
+        // Divide stored x100 value back to normal currency, rounded to 2 dp.
+        return Math.round((n / 100) * 100) / 100
+      }
+
+      doc.maxPartnerCommissionPerOrder = unscale(doc.maxPartnerCommissionPerOrder)
+      doc.maxCustomerDiscountPerOrder = unscale(doc.maxCustomerDiscountPerOrder)
+      doc.minOrderAmount = unscale(doc.minOrderAmount)
+
+      return doc
+    },
+  ]
+
   return {
     slug: collections.referralProgramsSlug,
     admin: {
@@ -264,6 +296,7 @@ export const createReferralProgramsCollection = (
     },
     hooks: {
       beforeChange,
+      afterRead,
     },
     fields: [
       {
@@ -288,7 +321,7 @@ export const createReferralProgramsCollection = (
         min: 0,
         admin: {
           description:
-            'Maximum commission per order for partner (normal currency value, ). Leave empty for no cap.',
+            'Maximum commission per order for partner (enter normal currency value, e.g. 50 for $50). Leave empty for no cap.',
         },
       },
       {
@@ -297,7 +330,7 @@ export const createReferralProgramsCollection = (
         min: 0,
         admin: {
           description:
-            'Maximum customer discount per order (normal currency value, ). Leave empty for no cap.',
+            'Maximum customer discount per order (enter normal currency value, e.g. 25 for $25). Leave empty for no cap.',
         },
       },
       {
@@ -306,7 +339,7 @@ export const createReferralProgramsCollection = (
         min: 0,
         admin: {
           description:
-            'Minimum cart subtotal required for this program (normal currency value, ). Leave empty for no minimum.',
+            'Minimum cart subtotal required for this program (enter normal currency value, e.g. 100 for $100). Leave empty for no minimum.',
         },
       },
       {
@@ -391,7 +424,7 @@ export const createReferralProgramsCollection = (
             admin: {
               condition: (_: unknown, siblingData: { totalCommission?: { type?: string } }) =>
                 siblingData?.totalCommission?.type === 'percentage',
-              description: 'Partner share in percent (0-100)',
+              description: 'Partner share in percent (0–100)',
             },
           },
           {
@@ -403,7 +436,7 @@ export const createReferralProgramsCollection = (
               condition: (_: unknown, siblingData: { totalCommission?: { type?: string } }) =>
                 siblingData?.totalCommission?.type === 'percentage',
               description:
-                'Customer share percentage. (0-100). Partner + Customer cannot exceed 100.',
+                'Customer share percentage (0–100). Partner + Customer cannot exceed 100.',
             },
           },
           {
@@ -413,7 +446,8 @@ export const createReferralProgramsCollection = (
             admin: {
               condition: (_: unknown, siblingData: { totalCommission?: { type?: string } }) =>
                 siblingData?.totalCommission?.type === 'fixed',
-              description: 'Fixed partner commission amount per item (normal currency value).',
+              description:
+                'Fixed partner commission amount per item (normal currency value, e.g. 12.50 for $12.50).',
             },
           },
           {
@@ -423,7 +457,8 @@ export const createReferralProgramsCollection = (
             admin: {
               condition: (_: unknown, siblingData: { totalCommission?: { type?: string } }) =>
                 siblingData?.totalCommission?.type === 'fixed',
-              description: 'Fixed customer discount amount per item (normal currency value).',
+              description:
+                'Fixed customer discount amount per item (normal currency value, e.g. 5 for $5).',
             },
           },
           {
@@ -432,7 +467,8 @@ export const createReferralProgramsCollection = (
             min: 0,
             admin: {
               hidden: true,
-              description: 'Canonical storage field. Percentage mode: percent. Fixed mode: amount.',
+              description:
+                'Canonical storage field. Percentage mode: percent value. Fixed mode: per-item amount.',
             },
           },
           {
@@ -441,7 +477,8 @@ export const createReferralProgramsCollection = (
             min: 0,
             admin: {
               hidden: true,
-              description: 'Canonical storage field. Percentage mode: percent. Fixed mode: amount.',
+              description:
+                'Canonical storage field. Percentage mode: percent value. Fixed mode: per-item amount.',
             },
           },
         ],

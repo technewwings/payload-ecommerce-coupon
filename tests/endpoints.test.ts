@@ -1234,3 +1234,575 @@ describe('Referral v2 Consistency', () => {
     expect(result.error).toBe('Referral code already applied to this cart')
   })
 })
+
+describe('cartSubtotal Baseline Enforcement', () => {
+  const couponPluginConfig = sanitizePluginConfig({
+    pluginConfig: {
+      enabled: true,
+      enableReferrals: false,
+      defaultCurrency: 'USD',
+      collections: {
+        couponsSlug: 'coupons',
+        referralProgramsSlug: 'referral-programs',
+        referralCodesSlug: 'referral-codes',
+        referralPartnersSlug: 'referral-partners',
+      },
+      endpoints: {
+        applyCoupon: '/coupons/apply',
+        validateCoupon: '/coupons/validate',
+      },
+      access: {
+        canUseCoupons: () => true,
+        canUseReferrals: () => true,
+        isAdmin: () => true,
+      },
+    },
+  })
+
+  const referralPluginConfig = sanitizePluginConfig({
+    pluginConfig: {
+      enabled: true,
+      enableReferrals: true,
+      defaultCurrency: 'USD',
+      collections: {
+        couponsSlug: 'coupons',
+        referralProgramsSlug: 'referral-programs',
+        referralCodesSlug: 'referral-codes',
+        referralPartnersSlug: 'referral-partners',
+      },
+      endpoints: {
+        applyCoupon: '/coupons/apply',
+        validateCoupon: '/coupons/validate',
+      },
+      access: {
+        canUseCoupons: () => true,
+        canUseReferrals: () => true,
+        isAdmin: () => true,
+      },
+    },
+  })
+
+  beforeEach(() => {
+    jest.clearAllMocks()
+  })
+
+  // ---------------------------------------------------------------------------
+  // applyCoupon — coupon path: min/max order uses cartSubtotal
+  // ---------------------------------------------------------------------------
+
+  it('apply coupon: enforces minOrderValue against cartSubtotal, not cartTotal', async () => {
+    // Cart has subtotal=80, but total=60 (discount already applied from elsewhere).
+    // coupon.minOrderValue=100 should reject because subtotal(80) < 100,
+    // even though if we checked total(60) it would also reject — the key is we
+    // compare against the PRE-discount subtotal, not the post-discount total.
+    const mockCoupon = {
+      id: 'c1',
+      code: 'MIN100',
+      type: 'fixed',
+      value: 10,
+      minOrderValue: 100,
+    }
+
+    mockPayload.find.mockResolvedValue({ docs: [mockCoupon], totalDocs: 1 })
+    mockPayload.findByID.mockResolvedValue({
+      id: 'cart-1',
+      subtotal: 80,
+      total: 60,
+      items: [],
+    })
+
+    const handler = applyCouponHandler({ pluginConfig: couponPluginConfig })
+    const response = await handler({
+      payload: mockPayload,
+      data: { code: 'MIN100', cartID: 'cart-1' },
+    } as any)
+    const result = await response.json()
+
+    expect(response.status).toBe(400)
+    expect(result.error).toContain('Minimum order value of 100 USD required')
+  })
+
+  it('apply coupon: passes minOrderValue check when cartSubtotal meets threshold even if cartTotal does not', async () => {
+    // Cart subtotal=150 (meets minOrderValue=100), total=90 (post-discount, below threshold).
+    // We should pass because we check cartSubtotal, not cartTotal.
+    const mockCoupon = {
+      id: 'c2',
+      code: 'MIN100B',
+      type: 'fixed',
+      value: 5,
+      minOrderValue: 100,
+    }
+
+    mockPayload.find.mockResolvedValue({ docs: [mockCoupon], totalDocs: 1 })
+    mockPayload.findByID.mockResolvedValue({
+      id: 'cart-2',
+      subtotal: 150,
+      total: 90,
+      items: [],
+    })
+    mockPayload.update.mockResolvedValue({})
+
+    const handler = applyCouponHandler({ pluginConfig: couponPluginConfig })
+    const response = await handler({
+      payload: mockPayload,
+      data: { code: 'MIN100B', cartID: 'cart-2' },
+    } as any)
+    const result = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(result.success).toBe(true)
+  })
+
+  it('apply coupon: enforces maxOrderValue against cartSubtotal', async () => {
+    // cartSubtotal=200 exceeds maxOrderValue=150 → rejected.
+    const mockCoupon = {
+      id: 'c3',
+      code: 'MAX150',
+      type: 'fixed',
+      value: 10,
+      maxOrderValue: 150,
+    }
+
+    mockPayload.find.mockResolvedValue({ docs: [mockCoupon], totalDocs: 1 })
+    mockPayload.findByID.mockResolvedValue({
+      id: 'cart-3',
+      subtotal: 200,
+      total: 200,
+      items: [],
+    })
+
+    const handler = applyCouponHandler({ pluginConfig: couponPluginConfig })
+    const response = await handler({
+      payload: mockPayload,
+      data: { code: 'MAX150', cartID: 'cart-3' },
+    } as any)
+    const result = await response.json()
+
+    expect(response.status).toBe(400)
+    expect(result.error).toContain('Maximum order value of 150 USD exceeded')
+  })
+
+  it('apply coupon: calculates percentage discount against cartSubtotal', async () => {
+    // cartSubtotal=200, total=180. 10% of subtotal(200)=20, not 10% of total(180)=18.
+    const mockCoupon = {
+      id: 'c4',
+      code: 'PCT10',
+      type: 'percentage',
+      value: 10,
+    }
+
+    mockPayload.find.mockResolvedValue({ docs: [mockCoupon], totalDocs: 1 })
+    mockPayload.findByID.mockResolvedValue({
+      id: 'cart-4',
+      subtotal: 200,
+      total: 180,
+      items: [],
+    })
+    mockPayload.update.mockResolvedValue({})
+
+    const handler = applyCouponHandler({ pluginConfig: couponPluginConfig })
+    const response = await handler({
+      payload: mockPayload,
+      data: { code: 'PCT10', cartID: 'cart-4' },
+    } as any)
+    const result = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(result.success).toBe(true)
+    // Discount must be 10% of subtotal(200) = 20, not 10% of total(180) = 18
+    expect(result.discount).toBe(20)
+  })
+
+  it('apply coupon: fixed discount uses cartSubtotal as ceiling when subtotal < coupon value', async () => {
+    // cartSubtotal=30, coupon fixed value=50 → discount capped at subtotal(30).
+    const mockCoupon = {
+      id: 'c5',
+      code: 'FIX50',
+      type: 'fixed',
+      value: 50,
+    }
+
+    mockPayload.find.mockResolvedValue({ docs: [mockCoupon], totalDocs: 1 })
+    mockPayload.findByID.mockResolvedValue({
+      id: 'cart-5',
+      subtotal: 30,
+      total: 30,
+      items: [],
+    })
+    mockPayload.update.mockResolvedValue({})
+
+    const handler = applyCouponHandler({ pluginConfig: couponPluginConfig })
+    const response = await handler({
+      payload: mockPayload,
+      data: { code: 'FIX50', cartID: 'cart-5' },
+    } as any)
+    const result = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(result.success).toBe(true)
+    // Discount capped at subtotal(30)
+    expect(result.discount).toBe(30)
+  })
+
+  // ---------------------------------------------------------------------------
+  // applyCoupon — referral path: min order uses cartSubtotal
+  // ---------------------------------------------------------------------------
+
+  it('apply referral: enforces minOrderAmount against cartSubtotal, not cartTotal', async () => {
+    // cartSubtotal=80, cartTotal=60. minOrderAmount=100.
+    // Should reject because subtotal(80) < 100.
+    const mockReferralCode = {
+      id: 'ref-sub-1',
+      code: 'REFSUB1',
+      isActive: true,
+      program: 'prog-sub-1',
+    }
+    const mockProgram = {
+      id: 'prog-sub-1',
+      isActive: true,
+      minOrderAmount: 100,
+      commissionRules: [
+        {
+          appliesTo: 'all',
+          totalCommission: { type: 'fixed' },
+          partnerSplit: 10,
+          customerSplit: 5,
+        },
+      ],
+    }
+
+    mockPayload.find.mockResolvedValue({ docs: [mockReferralCode], totalDocs: 1 })
+    mockPayload.findByID.mockImplementation((args: any) => {
+      if (args.collection === 'referral-programs') return Promise.resolve(mockProgram)
+      if (args.collection === 'carts') {
+        return Promise.resolve({ id: 'cart-sub-1', subtotal: 80, total: 60, items: [] })
+      }
+      return Promise.resolve(null)
+    })
+
+    const handler = applyCouponHandler({ pluginConfig: referralPluginConfig })
+    const response = await handler({
+      payload: mockPayload,
+      data: { code: 'REFSUB1', cartID: 'cart-sub-1' },
+    } as any)
+    const result = await response.json()
+
+    expect(response.status).toBe(400)
+    expect(result.error).toContain('Minimum order value of 100 USD required')
+  })
+
+  it('apply referral: passes minOrderAmount when cartSubtotal meets threshold even if cartTotal does not', async () => {
+    // cartSubtotal=150, cartTotal=80. minOrderAmount=100.
+    // Should pass because subtotal(150) >= 100.
+    const mockReferralCode = {
+      id: 'ref-sub-2',
+      code: 'REFSUB2',
+      isActive: true,
+      program: 'prog-sub-2',
+    }
+    const mockProgram = {
+      id: 'prog-sub-2',
+      isActive: true,
+      minOrderAmount: 100,
+      commissionRules: [
+        {
+          appliesTo: 'all',
+          totalCommission: { type: 'fixed' },
+          partnerSplit: 10,
+          customerSplit: 5,
+        },
+      ],
+    }
+
+    mockPayload.find.mockResolvedValue({ docs: [mockReferralCode], totalDocs: 1 })
+    mockPayload.findByID.mockImplementation((args: any) => {
+      if (args.collection === 'referral-programs') return Promise.resolve(mockProgram)
+      if (args.collection === 'carts') {
+        return Promise.resolve({
+          id: 'cart-sub-2',
+          subtotal: 150,
+          total: 80,
+          items: [{ id: 'i1', price: 150, quantity: 1, product: { id: 'p1' } }],
+        })
+      }
+      return Promise.resolve(null)
+    })
+    mockPayload.update.mockResolvedValue({})
+
+    const handler = applyCouponHandler({ pluginConfig: referralPluginConfig })
+    const response = await handler({
+      payload: mockPayload,
+      data: { code: 'REFSUB2', cartID: 'cart-sub-2' },
+    } as any)
+    const result = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(result.success).toBe(true)
+  })
+
+  it('apply referral: commission calculation uses cartSubtotal as the base', async () => {
+    // cartSubtotal=200, cartTotal=150 (post-discount).
+    // 10% percentage rule on subtotal(200) → totalPot=20, split 50/50 → each 10.
+    // If it mistakenly used cartTotal(150) → totalPot=15, split → each 7.5.
+    const mockReferralCode = {
+      id: 'ref-sub-3',
+      code: 'REFSUB3',
+      isActive: true,
+      program: 'prog-sub-3',
+    }
+    const mockProgram = {
+      id: 'prog-sub-3',
+      isActive: true,
+      commissionRules: [
+        {
+          appliesTo: 'all',
+          totalCommission: { type: 'percentage', value: 10 },
+          partnerSplit: 50,
+          customerSplit: 50,
+        },
+      ],
+    }
+
+    mockPayload.find.mockResolvedValue({ docs: [mockReferralCode], totalDocs: 1 })
+    mockPayload.findByID.mockImplementation((args: any) => {
+      if (args.collection === 'referral-programs') return Promise.resolve(mockProgram)
+      if (args.collection === 'carts') {
+        return Promise.resolve({
+          id: 'cart-sub-3',
+          subtotal: 200,
+          total: 150,
+          items: [{ id: 'i1', price: 200, quantity: 1, product: { id: 'p1' } }],
+        })
+      }
+      return Promise.resolve(null)
+    })
+    mockPayload.update.mockResolvedValue({})
+
+    const handler = applyCouponHandler({ pluginConfig: referralPluginConfig })
+    const response = await handler({
+      payload: mockPayload,
+      data: { code: 'REFSUB3', cartID: 'cart-sub-3' },
+    } as any)
+    const result = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(result.success).toBe(true)
+    // 10% of subtotal(200) = 20, split 50/50 → each 10
+    expect(result.partnerCommission).toBe(10)
+    expect(result.customerDiscount).toBe(10)
+  })
+
+  // ---------------------------------------------------------------------------
+  // validateCoupon — referral path: min order uses cartSubtotal
+  // ---------------------------------------------------------------------------
+
+  it('validate referral: enforces minOrderAmount against cartSubtotal, not cartTotal', async () => {
+    // cartSubtotal=80 (via subtotal field), minOrderAmount=100.
+    const mockReferralCode = {
+      id: 'ref-val-1',
+      code: 'REFVAL1',
+      isActive: true,
+      program: 'prog-val-1',
+    }
+    const mockProgram = {
+      id: 'prog-val-1',
+      isActive: true,
+      minOrderAmount: 100,
+      commissionRules: [
+        {
+          appliesTo: 'all',
+          totalCommission: { type: 'fixed' },
+          partnerSplit: 10,
+          customerSplit: 5,
+        },
+      ],
+    }
+
+    mockPayload.find.mockResolvedValue({ docs: [mockReferralCode], totalDocs: 1 })
+    mockPayload.findByID.mockImplementation((args: any) => {
+      if (args.collection === 'referral-programs') return Promise.resolve(mockProgram)
+      if (args.collection === 'carts') {
+        return Promise.resolve({ id: 'cart-val-1', subtotal: 80, total: 60, items: [] })
+      }
+      return Promise.resolve(null)
+    })
+
+    const handler = validateCouponHandler({ pluginConfig: referralPluginConfig })
+    const response = await handler({
+      payload: mockPayload,
+      data: { code: 'REFVAL1', cartID: 'cart-val-1' },
+    } as any)
+    const result = await response.json()
+
+    expect(response.status).toBe(400)
+    expect(result.error).toContain('Minimum order value of 100 USD required')
+  })
+
+  it('validate referral: passes minOrderAmount when cartSubtotal meets threshold even if cartTotal does not', async () => {
+    // cartSubtotal=120, cartTotal=70. minOrderAmount=100.
+    const mockReferralCode = {
+      id: 'ref-val-2',
+      code: 'REFVAL2',
+      isActive: true,
+      program: 'prog-val-2',
+    }
+    const mockProgram = {
+      id: 'prog-val-2',
+      isActive: true,
+      minOrderAmount: 100,
+      commissionRules: [
+        {
+          appliesTo: 'all',
+          totalCommission: { type: 'fixed' },
+          partnerSplit: 10,
+          customerSplit: 5,
+        },
+      ],
+    }
+
+    mockPayload.find.mockResolvedValue({ docs: [mockReferralCode], totalDocs: 1 })
+    mockPayload.findByID.mockImplementation((args: any) => {
+      if (args.collection === 'referral-programs') return Promise.resolve(mockProgram)
+      if (args.collection === 'carts') {
+        return Promise.resolve({
+          id: 'cart-val-2',
+          subtotal: 120,
+          total: 70,
+          items: [{ id: 'i1', price: 120, quantity: 1, product: { id: 'p1' } }],
+        })
+      }
+      return Promise.resolve(null)
+    })
+
+    const handler = validateCouponHandler({ pluginConfig: referralPluginConfig })
+    const response = await handler({
+      payload: mockPayload,
+      data: { code: 'REFVAL2', cartID: 'cart-val-2' },
+    } as any)
+    const result = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(result.success).toBe(true)
+  })
+
+  it('validate referral: commission calculation uses cartSubtotal as the base', async () => {
+    // cartSubtotal=200, cartTotal=100. 10% on subtotal → 20 total, 50/50 → 10 each.
+    const mockReferralCode = {
+      id: 'ref-val-3',
+      code: 'REFVAL3',
+      isActive: true,
+      program: 'prog-val-3',
+    }
+    const mockProgram = {
+      id: 'prog-val-3',
+      isActive: true,
+      commissionRules: [
+        {
+          appliesTo: 'all',
+          totalCommission: { type: 'percentage', value: 10 },
+          partnerSplit: 50,
+          customerSplit: 50,
+        },
+      ],
+    }
+
+    mockPayload.find.mockResolvedValue({ docs: [mockReferralCode], totalDocs: 1 })
+    mockPayload.findByID.mockImplementation((args: any) => {
+      if (args.collection === 'referral-programs') return Promise.resolve(mockProgram)
+      if (args.collection === 'carts') {
+        return Promise.resolve({
+          id: 'cart-val-3',
+          subtotal: 200,
+          total: 100,
+          items: [{ id: 'i1', price: 200, quantity: 1, product: { id: 'p1' } }],
+        })
+      }
+      return Promise.resolve(null)
+    })
+
+    const handler = validateCouponHandler({ pluginConfig: referralPluginConfig })
+    const response = await handler({
+      payload: mockPayload,
+      data: { code: 'REFVAL3', cartID: 'cart-val-3' },
+    } as any)
+    const result = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(result.success).toBe(true)
+    // 10% of subtotal(200)=20, 50/50 split → each 10
+    expect(result.partnerCommission).toBe(10)
+    expect(result.customerDiscount).toBe(10)
+  })
+
+  // ---------------------------------------------------------------------------
+  // apply+validate consistency: both use cartSubtotal as baseline
+  // ---------------------------------------------------------------------------
+
+  it('apply and validate produce identical values when cart has divergent subtotal and total', async () => {
+    // This test verifies the critical invariant: apply and validate must agree
+    // when both are called with the same cart that has subtotal != total.
+    const referralCode = {
+      id: 'ref-cons-1',
+      code: 'REFCONS1',
+      isActive: true,
+      program: 'prog-cons-1',
+    }
+    const program = {
+      id: 'prog-cons-1',
+      isActive: true,
+      commissionRules: [
+        {
+          appliesTo: 'all',
+          totalCommission: { type: 'percentage', value: 10 },
+          partnerSplit: 60,
+          customerSplit: 40,
+        },
+      ],
+    }
+    // Simulate a cart where a previous operation reduced total but subtotal remains original
+    const cart = {
+      id: 'cart-cons-1',
+      subtotal: 300,
+      total: 240,
+      items: [{ id: 'i1', price: 300, quantity: 1, product: { id: 'p1' } }],
+    }
+
+    mockPayload.find.mockImplementation((args: any) => {
+      if (args.collection === 'referral-codes') return Promise.resolve({ docs: [referralCode] })
+      return Promise.resolve({ docs: [] })
+    })
+    mockPayload.findByID.mockImplementation((args: any) => {
+      if (args.collection === 'referral-programs') return Promise.resolve(program)
+      if (args.collection === 'carts') return Promise.resolve(cart)
+      return Promise.resolve(null)
+    })
+    mockPayload.update.mockResolvedValue({})
+
+    const applyHandler = applyCouponHandler({ pluginConfig: referralPluginConfig })
+    const validateHandler = validateCouponHandler({ pluginConfig: referralPluginConfig })
+
+    const applyResp = await applyHandler({
+      payload: mockPayload,
+      data: { code: 'REFCONS1', cartID: 'cart-cons-1' },
+    } as any)
+    const validateResp = await validateHandler({
+      payload: mockPayload,
+      data: { code: 'REFCONS1', cartID: 'cart-cons-1' },
+    } as any)
+
+    const applyJson = await applyResp.json()
+    const validateJson = await validateResp.json()
+
+    expect(applyResp.status).toBe(200)
+    expect(validateResp.status).toBe(200)
+
+    // Both endpoints must agree on commission values
+    expect(applyJson.partnerCommission).toBe(validateJson.partnerCommission)
+    expect(applyJson.customerDiscount).toBe(validateJson.customerDiscount)
+
+    // Values should be based on subtotal(300), not total(240)
+    // 10% of 300 = 30, split 60/40 → partner=18, customer=12
+    expect(applyJson.partnerCommission).toBe(18)
+    expect(applyJson.customerDiscount).toBe(12)
+  })
+})

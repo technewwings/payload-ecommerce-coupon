@@ -247,6 +247,9 @@ async function validateCouponCode({
     }
   }
 
+  // cartValue is the caller-supplied cart subtotal (pre-discount baseline).
+  // Using the subtotal ensures min/max checks and discount calculations are
+  // always based on the original item total, not a post-discount total.
   if (cartValue !== undefined) {
     const minOrderValue = couponData.minOrderValue
     const maxOrderValue = couponData.maxOrderValue
@@ -362,9 +365,12 @@ async function validateReferralCode({
       })
     : null
 
-  const cartTotal = cart
-    ? Number(resolvers.getCartTotal(cart)) || Number(resolvers.getCartSubtotal(cart)) || 0
+  // Use cartSubtotal (pre-discount baseline) for min-order enforcement and
+  // commission calculations, consistent with applyCoupon and recalculateCart.
+  const cartSubtotal = cart
+    ? Number(resolvers.getCartSubtotal(cart)) || Number(resolvers.getCartTotal(cart)) || 0
     : 0
+  const cartTotal = cartSubtotal
 
   const minOrderAmount = getProgramMinimumOrderAmount({
     program,
