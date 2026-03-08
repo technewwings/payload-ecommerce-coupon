@@ -16,11 +16,9 @@ describe('Referral Programs Collection v2', () => {
 
   const collection = createReferralProgramsCollection(pluginConfig)
   const beforeChangeHook = collection.hooks?.beforeChange?.[0] as any
-  const afterReadHook = collection.hooks?.afterRead?.[0] as any
 
   beforeEach(() => {
     expect(beforeChangeHook).toBeDefined()
-    expect(afterReadHook).toBeDefined()
   })
 
   // ---------------------------------------------------------------------------
@@ -41,6 +39,12 @@ describe('Referral Programs Collection v2', () => {
     expect(names).not.toContain('minOrderValue')
   })
 
+  it('should not register an afterRead hook (no DB-level scaling needed)', () => {
+    // These fields are stored as normal currency; the calc layer handles
+    // toCents() internally. No afterRead transformation is required.
+    expect(collection.hooks?.afterRead).toBeUndefined()
+  })
+
   // ---------------------------------------------------------------------------
   // beforeChange — validation errors
   // ---------------------------------------------------------------------------
@@ -48,9 +52,7 @@ describe('Referral Programs Collection v2', () => {
   it('should throw when commissionRules array is empty', () => {
     expect(() =>
       beforeChangeHook({
-        data: {
-          commissionRules: [],
-        },
+        data: { commissionRules: [] },
       }),
     ).toThrow('At least one commission rule is required')
   })
@@ -194,10 +196,15 @@ describe('Referral Programs Collection v2', () => {
   })
 
   // ---------------------------------------------------------------------------
-  // beforeChange — x100 scaling of monetary cap fields
+  // beforeChange — monetary cap fields stored as normal currency (pass-through)
+  //
+  // Policy: admin inputs normal currency (e.g. 100 = $100.00).
+  // beforeChange validates and stores the value as-is.
+  // The calculation layer (calculateValues.ts) converts to integer cents
+  // internally via toCents() before any arithmetic.
   // ---------------------------------------------------------------------------
 
-  it('should store minOrderAmount as x100 (cents) on save', async () => {
+  it('should store minOrderAmount as normal currency (not scaled)', async () => {
     const result = await beforeChangeHook({
       data: {
         minOrderAmount: 120,
@@ -212,14 +219,32 @@ describe('Referral Programs Collection v2', () => {
       },
     })
 
-    // Admin input: 120 → stored as 12000
-    expect(result.minOrderAmount).toBe(12000)
+    // Stored as-is: 120 means $120.00
+    expect(result.minOrderAmount).toBe(120)
   })
 
-  it('should store maxPartnerCommissionPerOrder and maxCustomerDiscountPerOrder as x100 on save', async () => {
+  it('should store maxPartnerCommissionPerOrder as normal currency (not scaled)', async () => {
     const result = await beforeChangeHook({
       data: {
         maxPartnerCommissionPerOrder: 40,
+        commissionRules: [
+          {
+            appliesTo: 'all',
+            totalCommission: { type: 'percentage', value: 20 },
+            partnerSplit: 50,
+            customerSplit: 50,
+          },
+        ],
+      },
+    })
+
+    // Stored as-is: 40 means $40.00
+    expect(result.maxPartnerCommissionPerOrder).toBe(40)
+  })
+
+  it('should store maxCustomerDiscountPerOrder as normal currency (not scaled)', async () => {
+    const result = await beforeChangeHook({
+      data: {
         maxCustomerDiscountPerOrder: 25.5,
         commissionRules: [
           {
@@ -232,12 +257,33 @@ describe('Referral Programs Collection v2', () => {
       },
     })
 
-    // Admin inputs: 40 → 4000, 25.5 → 2550
-    expect(result.maxPartnerCommissionPerOrder).toBe(4000)
-    expect(result.maxCustomerDiscountPerOrder).toBe(2550)
+    // Stored as-is: 25.5 means $25.50
+    expect(result.maxCustomerDiscountPerOrder).toBe(25.5)
   })
 
-  it('should store fractional normal-currency values correctly as x100 integers', async () => {
+  it('should store all three monetary fields as normal currency in one save', async () => {
+    const result = await beforeChangeHook({
+      data: {
+        minOrderAmount: 99.99,
+        maxPartnerCommissionPerOrder: 50,
+        maxCustomerDiscountPerOrder: 25.5,
+        commissionRules: [
+          {
+            appliesTo: 'all',
+            totalCommission: { type: 'percentage', value: 10 },
+            partnerSplit: 40,
+            customerSplit: 60,
+          },
+        ],
+      },
+    })
+
+    expect(result.minOrderAmount).toBe(99.99)
+    expect(result.maxPartnerCommissionPerOrder).toBe(50)
+    expect(result.maxCustomerDiscountPerOrder).toBe(25.5)
+  })
+
+  it('should store fractional monetary values exactly as provided', async () => {
     const result = await beforeChangeHook({
       data: {
         minOrderAmount: 9.99,
@@ -254,9 +300,9 @@ describe('Referral Programs Collection v2', () => {
       },
     })
 
-    expect(result.minOrderAmount).toBe(999)
-    expect(result.maxPartnerCommissionPerOrder).toBe(50)
-    expect(result.maxCustomerDiscountPerOrder).toBe(125)
+    expect(result.minOrderAmount).toBe(9.99)
+    expect(result.maxPartnerCommissionPerOrder).toBe(0.5)
+    expect(result.maxCustomerDiscountPerOrder).toBe(1.25)
   })
 
   it('should store null for missing top-level monetary caps and minOrderAmount', async () => {
@@ -278,7 +324,7 @@ describe('Referral Programs Collection v2', () => {
     expect(result.maxCustomerDiscountPerOrder).toBeNull()
   })
 
-  it('should accept zero as a valid minOrderAmount and store it as 0 (x100)', async () => {
+  it('should accept zero as a valid minOrderAmount and store it as 0', async () => {
     const result = await beforeChangeHook({
       data: {
         minOrderAmount: 0,
@@ -293,8 +339,51 @@ describe('Referral Programs Collection v2', () => {
       },
     })
 
-    // 0 * 100 = 0
     expect(result.minOrderAmount).toBe(0)
+  })
+
+  it('should accept zero for maxPartnerCommissionPerOrder and maxCustomerDiscountPerOrder', async () => {
+    const result = await beforeChangeHook({
+      data: {
+        maxPartnerCommissionPerOrder: 0,
+        maxCustomerDiscountPerOrder: 0,
+        commissionRules: [
+          {
+            appliesTo: 'all',
+            totalCommission: { type: 'percentage', value: 10 },
+            partnerSplit: 50,
+            customerSplit: 50,
+          },
+        ],
+      },
+    })
+
+    expect(result.maxPartnerCommissionPerOrder).toBe(0)
+    expect(result.maxCustomerDiscountPerOrder).toBe(0)
+  })
+
+  it('should store large normal-currency values as-is (no division applied)', async () => {
+    // e.g. a high-value market where $2500 is a normal cap amount — must not be divided
+    const result = await beforeChangeHook({
+      data: {
+        maxPartnerCommissionPerOrder: 2500,
+        maxCustomerDiscountPerOrder: 1200,
+        minOrderAmount: 15000,
+        commissionRules: [
+          {
+            appliesTo: 'all',
+            totalCommission: { type: 'percentage', value: 20 },
+            partnerSplit: 50,
+            customerSplit: 50,
+          },
+        ],
+      },
+    })
+
+    // Stored exactly as provided — NOT divided by 100
+    expect(result.maxPartnerCommissionPerOrder).toBe(2500)
+    expect(result.maxCustomerDiscountPerOrder).toBe(1200)
+    expect(result.minOrderAmount).toBe(15000)
   })
 
   // ---------------------------------------------------------------------------
@@ -353,8 +442,9 @@ describe('Referral Programs Collection v2', () => {
     expect(result.commissionRules[0].customerSplit).toBe(50)
   })
 
-  it('should preserve fixed partner/customer per-item amounts without x100 scaling', async () => {
-    // partnerAmount / customerAmount are per-item fixed currency values — NOT scaled.
+  it('should preserve fixed partner/customer per-item amounts without scaling', async () => {
+    // partnerAmount / customerAmount are per-item fixed currency values stored as-is.
+    // The calc layer does toCents() on them before arithmetic.
     const result = await beforeChangeHook({
       data: {
         commissionRules: [
@@ -372,9 +462,8 @@ describe('Referral Programs Collection v2', () => {
     expect(result.commissionRules[0].customerSplit).toBe(4.25)
   })
 
-  it('should NOT apply x100 normalization to fixed per-item amounts (large values stay as-is)', async () => {
-    // Large fixed amounts like 1250 are legitimate per-item prices (e.g., $1250 AED).
-    // The old legacy normalization would have divided these; new policy keeps them intact.
+  it('should store large fixed per-item amounts as-is', async () => {
+    // e.g. $1250 per-item commission in a high-value market — stored exactly
     const result = await beforeChangeHook({
       data: {
         commissionRules: [
@@ -388,7 +477,6 @@ describe('Referral Programs Collection v2', () => {
       },
     })
 
-    // Stored exactly as provided — no /100 division.
     expect(result.commissionRules[0].partnerSplit).toBe(1250)
     expect(result.commissionRules[0].customerSplit).toBe(4500)
   })
@@ -464,146 +552,5 @@ describe('Referral Programs Collection v2', () => {
     })
 
     expect(result.commissionRules[0].appliesTo).toBe('segments')
-  })
-
-  // ---------------------------------------------------------------------------
-  // afterRead — ÷100 unscaling of monetary cap fields
-  // ---------------------------------------------------------------------------
-
-  it('should unscale x100 stored minOrderAmount back to normal currency on read', () => {
-    const doc = {
-      minOrderAmount: 12000,
-      maxPartnerCommissionPerOrder: null,
-      maxCustomerDiscountPerOrder: null,
-    }
-    const result = afterReadHook({ doc })
-
-    // 12000 / 100 = 120
-    expect(result.minOrderAmount).toBe(120)
-  })
-
-  it('should unscale x100 stored maxPartnerCommissionPerOrder on read', () => {
-    const doc = {
-      minOrderAmount: null,
-      maxPartnerCommissionPerOrder: 4000,
-      maxCustomerDiscountPerOrder: null,
-    }
-    const result = afterReadHook({ doc })
-
-    // 4000 / 100 = 40
-    expect(result.maxPartnerCommissionPerOrder).toBe(40)
-  })
-
-  it('should unscale x100 stored maxCustomerDiscountPerOrder on read', () => {
-    const doc = {
-      minOrderAmount: null,
-      maxPartnerCommissionPerOrder: null,
-      maxCustomerDiscountPerOrder: 2550,
-    }
-    const result = afterReadHook({ doc })
-
-    // 2550 / 100 = 25.5
-    expect(result.maxCustomerDiscountPerOrder).toBe(25.5)
-  })
-
-  it('should unscale all three monetary fields in one read', () => {
-    const doc = {
-      minOrderAmount: 10000,
-      maxPartnerCommissionPerOrder: 5000,
-      maxCustomerDiscountPerOrder: 3075,
-    }
-    const result = afterReadHook({ doc })
-
-    expect(result.minOrderAmount).toBe(100)
-    expect(result.maxPartnerCommissionPerOrder).toBe(50)
-    expect(result.maxCustomerDiscountPerOrder).toBe(30.75)
-  })
-
-  it('should keep null values as null on afterRead', () => {
-    const doc = {
-      minOrderAmount: null,
-      maxPartnerCommissionPerOrder: null,
-      maxCustomerDiscountPerOrder: null,
-    }
-    const result = afterReadHook({ doc })
-
-    expect(result.minOrderAmount).toBeNull()
-    expect(result.maxPartnerCommissionPerOrder).toBeNull()
-    expect(result.maxCustomerDiscountPerOrder).toBeNull()
-  })
-
-  it('should unscale zero correctly on afterRead', () => {
-    const doc = {
-      minOrderAmount: 0,
-      maxPartnerCommissionPerOrder: 0,
-      maxCustomerDiscountPerOrder: 0,
-    }
-    const result = afterReadHook({ doc })
-
-    expect(result.minOrderAmount).toBe(0)
-    expect(result.maxPartnerCommissionPerOrder).toBe(0)
-    expect(result.maxCustomerDiscountPerOrder).toBe(0)
-  })
-
-  it('should return doc unchanged if doc is falsy', () => {
-    const result = afterReadHook({ doc: null })
-    expect(result).toBeNull()
-  })
-
-  // ---------------------------------------------------------------------------
-  // Round-trip: beforeChange (×100) then afterRead (÷100) restores original values
-  // ---------------------------------------------------------------------------
-
-  it('should round-trip normal currency values through beforeChange and afterRead', async () => {
-    const inputMinOrder = 99.99
-    const inputMaxPartner = 50
-    const inputMaxCustomer = 25.5
-
-    const saved = await beforeChangeHook({
-      data: {
-        minOrderAmount: inputMinOrder,
-        maxPartnerCommissionPerOrder: inputMaxPartner,
-        maxCustomerDiscountPerOrder: inputMaxCustomer,
-        commissionRules: [
-          {
-            appliesTo: 'all',
-            totalCommission: { type: 'percentage', value: 10 },
-            partnerSplit: 40,
-            customerSplit: 60,
-          },
-        ],
-      },
-    })
-
-    // Simulate reading from DB
-    const read = afterReadHook({ doc: saved })
-
-    expect(read.minOrderAmount).toBe(inputMinOrder)
-    expect(read.maxPartnerCommissionPerOrder).toBe(inputMaxPartner)
-    expect(read.maxCustomerDiscountPerOrder).toBe(inputMaxCustomer)
-  })
-
-  it('should round-trip zero through beforeChange and afterRead', async () => {
-    const saved = await beforeChangeHook({
-      data: {
-        minOrderAmount: 0,
-        maxPartnerCommissionPerOrder: 0,
-        maxCustomerDiscountPerOrder: 0,
-        commissionRules: [
-          {
-            appliesTo: 'all',
-            totalCommission: { type: 'percentage', value: 10 },
-            partnerSplit: 50,
-            customerSplit: 50,
-          },
-        ],
-      },
-    })
-
-    const read = afterReadHook({ doc: saved })
-
-    expect(read.minOrderAmount).toBe(0)
-    expect(read.maxPartnerCommissionPerOrder).toBe(0)
-    expect(read.maxCustomerDiscountPerOrder).toBe(0)
   })
 })

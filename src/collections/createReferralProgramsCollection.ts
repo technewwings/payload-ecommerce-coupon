@@ -54,7 +54,10 @@ export const createReferralProgramsCollection = (
         throw new APIError('At least one commission rule is required', 400)
       }
 
-      // --- top-level monetary caps: validate then scale ×100 for storage ---
+      // --- top-level monetary caps: validate and store as normal currency ---
+      // The calculation layer (calculateValues.ts) converts to integer cents
+      // internally via toCents() before doing any arithmetic, so these fields
+      // must be stored as normal currency units (e.g. 100 = $100.00).
 
       const rawMaxPartner = toNumber(data.maxPartnerCommissionPerOrder)
       if (rawMaxPartner != null && rawMaxPartner < 0) {
@@ -77,12 +80,10 @@ export const createReferralProgramsCollection = (
         throw new APIError('Minimum Order Amount must be a non-negative number', 400)
       }
 
-      // Store as x100 (cents). null when not provided.
-      data.maxPartnerCommissionPerOrder =
-        rawMaxPartner != null ? Math.round(rawMaxPartner * 100) : null
-      data.maxCustomerDiscountPerOrder =
-        rawMaxCustomer != null ? Math.round(rawMaxCustomer * 100) : null
-      data.minOrderAmount = rawMinOrder != null ? Math.round(rawMinOrder * 100) : null
+      // Store as normal currency. null when not provided.
+      data.maxPartnerCommissionPerOrder = rawMaxPartner ?? null
+      data.maxCustomerDiscountPerOrder = rawMaxCustomer ?? null
+      data.minOrderAmount = rawMinOrder ?? null
 
       // --- commission rules ---
       data.commissionRules = data.commissionRules.map(
@@ -258,29 +259,6 @@ export const createReferralProgramsCollection = (
     },
   ]
 
-  // ---------------------------------------------------------------------------
-  // afterRead — divide x100 monetary cap fields back to normal currency values
-  // so that admin UI and calculation utilities always see normal currency units.
-  // ---------------------------------------------------------------------------
-  const afterRead: NonNullable<CollectionConfig['hooks']>['afterRead'] = [
-    ({ doc }: { doc: Record<string, unknown> }) => {
-      if (!doc) return doc
-
-      const unscale = (value: unknown): number | null => {
-        const n = toNumber(value)
-        if (n == null) return null
-        // Divide stored x100 value back to normal currency, rounded to 2 dp.
-        return Math.round((n / 100) * 100) / 100
-      }
-
-      doc.maxPartnerCommissionPerOrder = unscale(doc.maxPartnerCommissionPerOrder)
-      doc.maxCustomerDiscountPerOrder = unscale(doc.maxCustomerDiscountPerOrder)
-      doc.minOrderAmount = unscale(doc.minOrderAmount)
-
-      return doc
-    },
-  ]
-
   return {
     slug: collections.referralProgramsSlug,
     admin: {
@@ -296,7 +274,6 @@ export const createReferralProgramsCollection = (
     },
     hooks: {
       beforeChange,
-      afterRead,
     },
     fields: [
       {
