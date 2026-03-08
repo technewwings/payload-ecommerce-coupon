@@ -1,23 +1,68 @@
-import { roundTo2 } from './roundTo2'
 import { getCartItemUnitPrice } from './pricing'
 
-export function calculateCouponDiscount({ coupon, cartTotal }: { coupon: any; cartTotal: number }) {
-  let discount = 0
+// ---------------------------------------------------------------------------
+// Cent-safe arithmetic helpers
+//
+// Policy:
+//   • All monetary values arrive from the DB / admin in NORMAL CURRENCY units
+//     (e.g. 10.50 means $10.50).
+//   • Before any arithmetic we scale UP to integer CENTS (×100) so every
+//     intermediate result is a safe integer with no floating-point drift.
+//   • Results are scaled back DOWN (÷100) before being returned to callers,
+//     who then store them in DB as normal currency again.
+//   • Percentage values (0-100) stay as-is; they act as divisors inside the
+//     formula and do not need independent scaling.
+// ---------------------------------------------------------------------------
+
+/** Convert a normal-currency amount to integer cents. */
+function toCents(amount: number): number {
+  return Math.round(amount * 100)
+}
+
+/** Convert integer cents back to a normal-currency amount (2 dp max). */
+function fromCents(cents: number): number {
+  return Math.round(cents) / 100
+}
+
+// ---------------------------------------------------------------------------
+// Public: coupon discount
+// ---------------------------------------------------------------------------
+
+/**
+ * Calculate the discount amount for a coupon.
+ *
+ * @param coupon    - Coupon document from DB (values in normal currency).
+ * @param cartTotal - Cart subtotal in normal currency.
+ * @returns Discount amount in normal currency (2 dp).
+ */
+export function calculateCouponDiscount({
+  coupon,
+  cartTotal,
+}: {
+  coupon: any
+  cartTotal: number
+}): number {
+  const cartCents = toCents(cartTotal)
+  let discountCents = 0
 
   if (coupon.type === 'percentage') {
-    discount = roundTo2((cartTotal * coupon.value) / 100)
-    if (coupon.maxDiscountAmount != null && discount > coupon.maxDiscountAmount) {
-      discount = roundTo2(coupon.maxDiscountAmount)
+    // percentage value is 0-100, no scaling needed
+    discountCents = Math.floor((cartCents * coupon.value) / 100)
+    if (coupon.maxDiscountAmount != null) {
+      const maxCents = toCents(coupon.maxDiscountAmount)
+      if (discountCents > maxCents) discountCents = maxCents
     }
   } else if (coupon.type === 'fixed') {
-    discount = roundTo2(coupon.value)
-    if (discount > cartTotal) {
-      discount = roundTo2(cartTotal)
-    }
+    discountCents = toCents(coupon.value)
+    if (discountCents > cartCents) discountCents = cartCents
   }
 
-  return roundTo2(discount)
+  return fromCents(discountCents)
 }
+
+// ---------------------------------------------------------------------------
+// Internal helpers
+// ---------------------------------------------------------------------------
 
 function relationId(value: any): string | number | null {
   if (value == null) return null
@@ -54,47 +99,56 @@ function getRuleSplits(rule: any): { partnerSplit: number; customerSplit: number
         ? rule.refereeSplit
         : 100 - partnerRaw
 
-  return {
-    partnerSplit: partnerRaw,
-    customerSplit: customerRaw,
-  }
+  return { partnerSplit: partnerRaw, customerSplit: customerRaw }
 }
 
+// ---------------------------------------------------------------------------
+// Core per-item reward calculation (all values in CENTS)
+// ---------------------------------------------------------------------------
+
+/**
+ * Calculate partner and customer reward for a single line item.
+ *
+ * ALL inputs are expected in CENTS.
+ * Returns rewards in CENTS, or null if the rule is inapplicable.
+ */
 function calculateItemRewardByRule({
   rule,
-  itemTotal,
+  itemTotalCents,
   quantity,
   allowedTotalCommissionTypes,
 }: {
   rule: any
-  itemTotal: number
+  itemTotalCents: number
   quantity: number
   allowedTotalCommissionTypes?: Array<'fixed' | 'percentage'>
 }): { partner: number; customer: number } | null {
   const allowedTypes = allowedCommissionTypesSet(allowedTotalCommissionTypes)
 
-  // Shared model (v2)
+  // ── Shared / v2 model ────────────────────────────────────────────────────
   if (rule.totalCommission) {
     if (!allowedTypes.has(rule.totalCommission.type)) return null
 
-    const resolvedMaxAmount =
+    // maxAmount is stored in normal currency → convert to cents
+    const resolvedMaxAmountCents =
       typeof rule.totalCommission.maxAmount === 'number' &&
       Number.isFinite(rule.totalCommission.maxAmount)
-        ? rule.totalCommission.maxAmount
+        ? toCents(rule.totalCommission.maxAmount)
         : null
 
-    // Fixed direct mode (new): partner/customer are literal per-unit amounts.
-    // Apply max cap consistently to the combined per-line payout.
+    // ── Fixed direct mode: partnerSplit / customerSplit are per-unit currency amounts
     if (rule.totalCommission.type === 'fixed' && rule.totalCommission.value == null) {
-      const partnerAmtPerUnit = typeof rule.partnerSplit === 'number' ? rule.partnerSplit : null
-      const customerAmtPerUnit = typeof rule.customerSplit === 'number' ? rule.customerSplit : null
-      if (partnerAmtPerUnit == null || customerAmtPerUnit == null) return null
+      const partnerAmtPerUnitCents =
+        typeof rule.partnerSplit === 'number' ? toCents(rule.partnerSplit) : null
+      const customerAmtPerUnitCents =
+        typeof rule.customerSplit === 'number' ? toCents(rule.customerSplit) : null
+      if (partnerAmtPerUnitCents == null || customerAmtPerUnitCents == null) return null
 
-      let partner = partnerAmtPerUnit * quantity
-      let customer = customerAmtPerUnit * quantity
+      let partner = partnerAmtPerUnitCents * quantity
+      let customer = customerAmtPerUnitCents * quantity
 
-      if (resolvedMaxAmount != null) {
-        const maxPotForLine = resolvedMaxAmount * quantity
+      if (resolvedMaxAmountCents != null) {
+        const maxPotForLine = resolvedMaxAmountCents * quantity
         const totalPot = partner + customer
         if (totalPot > maxPotForLine && totalPot > 0) {
           const ratio = maxPotForLine / totalPot
@@ -106,7 +160,7 @@ function calculateItemRewardByRule({
       return { partner, customer }
     }
 
-    let totalPot = 0
+    // ── Percentage mode ───────────────────────────────────────────────────
     if (rule.totalCommission.type === 'percentage') {
       const commissionValue =
         typeof rule.totalCommission.value === 'number' &&
@@ -115,6 +169,7 @@ function calculateItemRewardByRule({
           : null
 
       if (commissionValue == null) {
+        // Direct percent splits (no totalCommission.value)
         const partnerPercentInput =
           typeof rule.partnerPercent === 'number'
             ? rule.partnerPercent
@@ -140,82 +195,81 @@ function calculateItemRewardByRule({
           return null
         }
 
-        const partner = (itemTotal * partnerPercentInput) / 100
-        const customer = (itemTotal * customerPercentInput) / 100
+        let partner = Math.floor((itemTotalCents * partnerPercentInput) / 100)
+        let customer = Math.floor((itemTotalCents * customerPercentInput) / 100)
 
-        if (resolvedMaxAmount != null) {
-          const maxPotForLine = resolvedMaxAmount * quantity
+        if (resolvedMaxAmountCents != null) {
+          const maxPotForLine = resolvedMaxAmountCents * quantity
           const totalForLine = partner + customer
           if (totalForLine > maxPotForLine && totalForLine > 0) {
             const ratio = maxPotForLine / totalForLine
-            return {
-              partner: Math.floor(partner * ratio),
-              customer: Math.floor(customer * ratio),
-            }
+            partner = Math.floor(partner * ratio)
+            customer = Math.floor(customer * ratio)
           }
         }
 
-        return {
-          partner: Math.floor(partner),
-          customer: Math.floor(customer),
-        }
+        return { partner, customer }
       }
 
-      totalPot = (itemTotal * commissionValue) / 100
-    } else {
+      // totalCommission.value drives the total pool (percentage of item total)
+      let totalPotCents = Math.floor((itemTotalCents * commissionValue) / 100)
+
+      if (resolvedMaxAmountCents != null) {
+        const maxPotForLine = resolvedMaxAmountCents * quantity
+        if (totalPotCents > maxPotForLine) totalPotCents = maxPotForLine
+      }
+
       const splits = getRuleSplits(rule)
       if (!splits) return null
-      totalPot = rule.totalCommission.value * quantity
 
-      if (resolvedMaxAmount != null) {
-        const maxPotForLine = resolvedMaxAmount * quantity
-        if (totalPot > maxPotForLine) {
-          totalPot = maxPotForLine
-        }
+      return {
+        partner: Math.floor((totalPotCents * splits.partnerSplit) / 100),
+        customer: Math.floor((totalPotCents * splits.customerSplit) / 100),
+      }
+    }
+
+    // ── Fixed pool mode: totalCommission.value is a per-unit currency amount
+    {
+      const splits = getRuleSplits(rule)
+      if (!splits) return null
+
+      // totalCommission.value is a per-unit currency amount → convert to cents
+      let totalPotCents = toCents(rule.totalCommission.value) * quantity
+
+      if (resolvedMaxAmountCents != null) {
+        const maxPotForLine = resolvedMaxAmountCents * quantity
+        if (totalPotCents > maxPotForLine) totalPotCents = maxPotForLine
       }
 
       return {
-        partner: Math.floor((totalPot * splits.partnerSplit) / 100),
-        customer: Math.floor((totalPot * splits.customerSplit) / 100),
+        partner: Math.floor((totalPotCents * splits.partnerSplit) / 100),
+        customer: Math.floor((totalPotCents * splits.customerSplit) / 100),
       }
-    }
-
-    if (resolvedMaxAmount != null) {
-      const maxPotForLine = resolvedMaxAmount * quantity
-      if (totalPot > maxPotForLine) {
-        totalPot = maxPotForLine
-      }
-    }
-
-    const splits = getRuleSplits(rule)
-    if (!splits) return null
-
-    return {
-      partner: Math.floor((totalPot * splits.partnerSplit) / 100),
-      customer: Math.floor((totalPot * splits.customerSplit) / 100),
     }
   }
 
-  // Compatibility fallback for legacy direct rules during migration window.
+  // ── Legacy direct-reward model (migration compatibility) ─────────────────
   if (rule.referrerReward && rule.refereeReward) {
     let partner = 0
     if (rule.referrerReward.type === 'percentage') {
-      partner = (itemTotal * rule.referrerReward.value) / 100
+      partner = Math.floor((itemTotalCents * rule.referrerReward.value) / 100)
     } else {
-      partner = rule.referrerReward.value * quantity
+      partner = toCents(rule.referrerReward.value) * quantity
     }
-    if (rule.referrerReward.maxReward != null && partner > rule.referrerReward.maxReward) {
-      partner = rule.referrerReward.maxReward
+    if (rule.referrerReward.maxReward != null) {
+      const maxCents = toCents(rule.referrerReward.maxReward)
+      if (partner > maxCents) partner = maxCents
     }
 
     let customer = 0
     if (rule.refereeReward.type === 'percentage') {
-      customer = (itemTotal * rule.refereeReward.value) / 100
+      customer = Math.floor((itemTotalCents * rule.refereeReward.value) / 100)
     } else {
-      customer = rule.refereeReward.value * quantity
+      customer = toCents(rule.refereeReward.value) * quantity
     }
-    if (rule.refereeReward.maxReward != null && customer > rule.refereeReward.maxReward) {
-      customer = rule.refereeReward.maxReward
+    if (rule.refereeReward.maxReward != null) {
+      const maxCents = toCents(rule.refereeReward.maxReward)
+      if (customer > maxCents) customer = maxCents
     }
 
     return { partner, customer }
@@ -223,6 +277,10 @@ function calculateItemRewardByRule({
 
   return null
 }
+
+// ---------------------------------------------------------------------------
+// Rule selection helpers
+// ---------------------------------------------------------------------------
 
 function getItemCategoryIds(item: any): Array<string | number> {
   const productCategories = Array.isArray(item?.product?.categories)
@@ -239,34 +297,38 @@ function getItemTagIds(item: any): Array<string | number> {
 function selectBestRuleForItem({
   rules,
   item,
-  itemTotal,
+  itemTotalCents,
   quantity,
-  cartTotal,
-  minOrderAmount,
+  cartTotalCents,
+  minOrderAmountCents,
   allowedTotalCommissionTypes,
 }: {
   rules: any[]
   item: any
-  itemTotal: number
+  itemTotalCents: number
   quantity: number
-  cartTotal: number
-  minOrderAmount?: number | null
+  cartTotalCents: number
+  minOrderAmountCents?: number | null
   allowedTotalCommissionTypes?: Array<'fixed' | 'percentage'>
 }): { rule: any; reward: { partner: number; customer: number } } | null {
   const allowedTypes = allowedCommissionTypesSet(allowedTotalCommissionTypes)
+
   const eligibleRules = rules.filter((rule: any) => {
     const hasSharedType = rule?.totalCommission?.type
       ? allowedTypes.has(rule.totalCommission.type)
       : true
     if (!hasSharedType) return false
-    const resolvedMinOrderAmount =
-      typeof minOrderAmount === 'number' && Number.isFinite(minOrderAmount)
-        ? minOrderAmount
+
+    // minOrderAmount on the rule itself is stored in normal currency → cents
+    const resolvedMinCents =
+      minOrderAmountCents != null && Number.isFinite(minOrderAmountCents)
+        ? minOrderAmountCents
         : typeof rule?.minOrderAmount === 'number' && Number.isFinite(rule.minOrderAmount)
-          ? rule.minOrderAmount
+          ? toCents(rule.minOrderAmount)
           : null
-    if (resolvedMinOrderAmount != null) {
-      return cartTotal >= resolvedMinOrderAmount
+
+    if (resolvedMinCents != null) {
+      return cartTotalCents >= resolvedMinCents
     }
     return true
   })
@@ -303,7 +365,7 @@ function selectBestRuleForItem({
   for (const rule of candidates) {
     const reward = calculateItemRewardByRule({
       rule,
-      itemTotal,
+      itemTotalCents,
       quantity,
       allowedTotalCommissionTypes,
     })
@@ -327,6 +389,14 @@ function selectBestRuleForItem({
   return best
 }
 
+// ---------------------------------------------------------------------------
+// Public: minimum order amount
+// ---------------------------------------------------------------------------
+
+/**
+ * Returns the effective minimum order amount for a program in NORMAL CURRENCY.
+ * Returns null if there is no minimum.
+ */
 export function getProgramMinimumOrderAmount({
   program,
   allowedTotalCommissionTypes,
@@ -339,7 +409,6 @@ export function getProgramMinimumOrderAmount({
   }
 
   const rules = Array.isArray(program?.commissionRules) ? program.commissionRules : []
-
   if (!rules.length) return null
 
   const allowedTypes = allowedCommissionTypesSet(allowedTotalCommissionTypes)
@@ -358,6 +427,16 @@ export function getProgramMinimumOrderAmount({
   return Math.min(...minValues)
 }
 
+// ---------------------------------------------------------------------------
+// Public: commission + discount calculation
+// ---------------------------------------------------------------------------
+
+/**
+ * Calculate total partner commission and customer discount for a cart.
+ *
+ * All monetary inputs are in NORMAL CURRENCY.
+ * Returns results in NORMAL CURRENCY (2 dp).
+ */
 export function calculateCommissionAndDiscount({
   cartItems,
   program,
@@ -377,14 +456,24 @@ export function calculateCommissionAndDiscount({
     return { partnerCommission: 0, customerDiscount: 0 }
   }
 
-  let totalPartnerCommission = 0
-  let totalCustomerDiscount = 0
+  // Scale cart total to cents for eligibility checks
+  const cartTotalCents = toCents(cartTotal)
+
+  // Scale program-level minOrderAmount to cents (if present) for rule filtering
+  const programMinOrderAmountCents =
+    typeof program?.minOrderAmount === 'number' && Number.isFinite(program.minOrderAmount)
+      ? toCents(program.minOrderAmount)
+      : null
+
+  let totalPartnerCents = 0
+  let totalCustomerCents = 0
 
   for (const item of cartItems) {
     const product = typeof item.product === 'object' ? item.product : {}
     const variant = typeof item.variant === 'object' ? item.variant : {}
 
-    const itemPrice = getCartItemUnitPrice({
+    // Unit price from DB is in normal currency → convert to cents
+    const itemPriceCurrency = getCartItemUnitPrice({
       item,
       product,
       variant,
@@ -392,44 +481,47 @@ export function calculateCommissionAndDiscount({
     })
 
     const quantity = item.quantity ?? 1
-    const itemTotal = itemPrice * quantity
+    const itemTotalCents = toCents(itemPriceCurrency) * quantity
 
     const bestMatch = selectBestRuleForItem({
       rules,
       item: { ...item, product },
-      itemTotal,
+      itemTotalCents,
       quantity,
-      cartTotal,
-      minOrderAmount:
-        typeof program?.minOrderAmount === 'number' && Number.isFinite(program.minOrderAmount)
-          ? program.minOrderAmount
-          : null,
+      cartTotalCents,
+      minOrderAmountCents: programMinOrderAmountCents,
       allowedTotalCommissionTypes,
     })
 
     if (!bestMatch) continue
 
-    totalPartnerCommission += bestMatch.reward.partner
-    totalCustomerDiscount += bestMatch.reward.customer
+    totalPartnerCents += bestMatch.reward.partner
+    totalCustomerCents += bestMatch.reward.customer
   }
 
-  const maxPartnerCommissionPerOrder =
+  // Per-order caps are stored in normal currency → convert to cents for comparison
+  const maxPartnerCents =
     typeof program?.maxPartnerCommissionPerOrder === 'number' &&
     Number.isFinite(program.maxPartnerCommissionPerOrder)
-      ? program.maxPartnerCommissionPerOrder
+      ? toCents(program.maxPartnerCommissionPerOrder)
       : null
-  const maxCustomerDiscountPerOrder =
+
+  const maxCustomerCents =
     typeof program?.maxCustomerDiscountPerOrder === 'number' &&
     Number.isFinite(program.maxCustomerDiscountPerOrder)
-      ? program.maxCustomerDiscountPerOrder
+      ? toCents(program.maxCustomerDiscountPerOrder)
       : null
 
-  if (maxPartnerCommissionPerOrder != null) {
-    totalPartnerCommission = Math.min(totalPartnerCommission, maxPartnerCommissionPerOrder)
+  if (maxPartnerCents != null) {
+    totalPartnerCents = Math.min(totalPartnerCents, maxPartnerCents)
   }
-  if (maxCustomerDiscountPerOrder != null) {
-    totalCustomerDiscount = Math.min(totalCustomerDiscount, maxCustomerDiscountPerOrder)
+  if (maxCustomerCents != null) {
+    totalCustomerCents = Math.min(totalCustomerCents, maxCustomerCents)
   }
 
-  return { partnerCommission: totalPartnerCommission, customerDiscount: totalCustomerDiscount }
+  // Convert back to normal currency for return
+  return {
+    partnerCommission: fromCents(totalPartnerCents),
+    customerDiscount: fromCents(totalCustomerCents),
+  }
 }
