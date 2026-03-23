@@ -298,10 +298,7 @@ export const sanitizePluginConfig = ({
       collections: integrationCollections,
       fields: integrationFields,
       resolvers: integrationResolvers,
-      cartAmountsInMinorUnits: toBoolean(
-        pluginConfig?.integration?.cartAmountsInMinorUnits,
-        false,
-      ),
+      cartAmountsInMinorUnits: toBoolean(pluginConfig?.integration?.cartAmountsInMinorUnits, false),
     },
     referralConfig: {
       allowBothSystems: pluginConfig?.referralConfig?.allowBothSystems ?? false,

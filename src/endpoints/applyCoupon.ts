@@ -1,4 +1,9 @@
-import { addDataAndFileToRequest, type Endpoint, type PayloadHandler, type PayloadRequest } from 'payload'
+import {
+  addDataAndFileToRequest,
+  type Endpoint,
+  type PayloadHandler,
+  type PayloadRequest,
+} from 'payload'
 import type { SanitizedCouponPluginOptions } from '../types'
 import {
   calculateCommissionAndDiscount,
@@ -7,7 +12,10 @@ import {
 } from '../utilities/calculateValues'
 import { isCouponCartDebugEnabled, logCouponCartDebug } from '../utilities/couponDebug'
 import { majorToMinor2dp, minorToMajor2dp } from '../utilities/ecommerceMoney'
-import { type SkipRecalculateContext, SKIP_COUPON_RECALCULATE_CONTEXT_KEY } from '../utilities/applyCouponContext'
+import {
+  type SkipRecalculateContext,
+  SKIP_COUPON_RECALCULATE_CONTEXT_KEY,
+} from '../utilities/applyCouponContext'
 import { idsEqual, type RelationValue, relationId } from '../utilities/relationId'
 import { roundTo2 } from '../utilities/roundTo2'
 
@@ -582,7 +590,9 @@ async function handleReferralCode({
 
   reqForCart.context = {
     ...(reqForCart.context || {}),
-    [SKIP_COUPON_RECALCULATE_CONTEXT_KEY]: { referralId: referralCode.id } satisfies SkipRecalculateContext,
+    [SKIP_COUPON_RECALCULATE_CONTEXT_KEY]: {
+      referralId: referralCode.id,
+    } satisfies SkipRecalculateContext,
   }
 
   await payload.update({

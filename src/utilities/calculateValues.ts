@@ -472,8 +472,7 @@ export function calculateCommissionAndDiscount({
     return { partnerCommission: 0, customerDiscount: 0 }
   }
 
-  const toMajorUnitPrice = (raw: number) =>
-    cartAmountsInMinorUnits ? minorToMajor2dp(raw) : raw
+  const toMajorUnitPrice = (raw: number) => (cartAmountsInMinorUnits ? minorToMajor2dp(raw) : raw)
 
   let totalPartnerCents = 0
   let totalCustomerCents = 0
