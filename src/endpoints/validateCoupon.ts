@@ -3,8 +3,10 @@ import { addDataAndFileToRequest, type Endpoint, type PayloadHandler } from 'pay
 import type { SanitizedCouponPluginOptions } from '../types'
 import {
   calculateCommissionAndDiscount,
+  calculateCouponDiscount,
   getProgramMinimumOrderAmount,
 } from '../utilities/calculateValues'
+import { majorToMinor2dp, minorToMajor2dp } from '../utilities/ecommerceMoney'
 import { roundTo2 } from '../utilities/roundTo2'
 
 type Args = {
@@ -183,6 +185,7 @@ async function validateCouponCode({
   pluginConfig: SanitizedCouponPluginOptions
 }) {
   const fields = pluginConfig.integration.fields
+  const cartMinor = pluginConfig.integration?.cartAmountsInMinorUnits === true
   const couponData = await findByNormalizedCode({
     payload,
     collection: pluginConfig.collections.couponsSlug,
@@ -253,8 +256,9 @@ async function validateCouponCode({
   if (cartValue !== undefined) {
     const minOrderValue = couponData.minOrderValue
     const maxOrderValue = couponData.maxOrderValue
+    const cartValueMajor = cartMinor ? minorToMajor2dp(cartValue) : cartValue
 
-    if (minOrderValue && cartValue < minOrderValue) {
+    if (minOrderValue && cartValueMajor < minOrderValue) {
       return Response.json(
         {
           success: false,
@@ -264,7 +268,7 @@ async function validateCouponCode({
       )
     }
 
-    if (maxOrderValue && cartValue > maxOrderValue) {
+    if (maxOrderValue && cartValueMajor > maxOrderValue) {
       return Response.json(
         {
           success: false,
@@ -277,15 +281,12 @@ async function validateCouponCode({
 
   let discount = 0
   if (cartValue !== undefined) {
-    if (couponData.type === 'percentage') {
-      discount = roundTo2((cartValue * couponData.value) / 100)
-      if (couponData.maxDiscountAmount != null && discount > couponData.maxDiscountAmount) {
-        discount = roundTo2(couponData.maxDiscountAmount)
-      }
-    } else if (couponData.type === 'fixed') {
-      discount = roundTo2(couponData.value)
-      if (discount > cartValue) discount = roundTo2(cartValue)
-    }
+    const cartValueMajor = cartMinor ? minorToMajor2dp(cartValue) : cartValue
+    const discountMajor = calculateCouponDiscount({
+      coupon: couponData,
+      cartTotal: cartValueMajor,
+    })
+    discount = cartMinor ? majorToMinor2dp(discountMajor) : discountMajor
   }
 
   return Response.json({
@@ -314,6 +315,7 @@ async function validateReferralCode({
 }) {
   const collections = pluginConfig.integration.collections
   const resolvers = pluginConfig.integration.resolvers
+  const cartMinor = pluginConfig.integration?.cartAmountsInMinorUnits === true
 
   const referralData = await findByNormalizedCode({
     payload,
@@ -370,14 +372,14 @@ async function validateReferralCode({
   const cartSubtotal = cart
     ? Number(resolvers.getCartSubtotal(cart)) || Number(resolvers.getCartTotal(cart)) || 0
     : 0
-  const cartTotal = cartSubtotal
+  const cartTotalMajor = cartMinor ? minorToMajor2dp(cartSubtotal) : cartSubtotal
 
   const minOrderAmount = getProgramMinimumOrderAmount({
     program,
     allowedTotalCommissionTypes: pluginConfig.referralConfig.allowedTotalCommissionTypes,
   })
 
-  if (typeof minOrderAmount === 'number' && cartTotal < minOrderAmount) {
+  if (typeof minOrderAmount === 'number' && cartTotalMajor < minOrderAmount) {
     return Response.json(
       {
         success: false,
@@ -391,20 +393,24 @@ async function validateReferralCode({
     cartItems: cart ? resolvers.getCartItems(cart) : [],
     program,
     currencyCode: pluginConfig.defaultCurrency,
-    cartTotal,
+    cartTotal: cartSubtotal,
     allowedTotalCommissionTypes: pluginConfig.referralConfig.allowedTotalCommissionTypes,
+    cartAmountsInMinorUnits: cartMinor,
   })
 
   const cappedCustomerDiscount =
-    cartTotal > 0 ? Math.min(customerDiscount, cartTotal) : customerDiscount
+    cartSubtotal > 0 ? Math.min(customerDiscount, cartSubtotal) : customerDiscount
   const roundedPartnerCommission = roundTo2(partnerCommission)
   const roundedCustomerDiscount = roundTo2(cappedCustomerDiscount)
+  const displayDiscount = cartMinor
+    ? minorToMajor2dp(roundedCustomerDiscount)
+    : roundedCustomerDiscount
 
   return Response.json({
     success: true,
     referralCode: {
       code: referralData.code,
-      description: `Get ${roundedCustomerDiscount.toFixed(2)} discount with this referral code`,
+      description: `Get ${displayDiscount.toFixed(2)} discount with this referral code`,
     },
     partnerCommission: roundedPartnerCommission,
     customerDiscount: roundedCustomerDiscount,

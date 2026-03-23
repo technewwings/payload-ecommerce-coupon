@@ -38,7 +38,7 @@ export default buildConfig({
 | ---------------------------- | --------- | ------- | ----------------------------------------------------- |
 | `enabled`                    | `boolean` | `true`  | Enable/disable the entire plugin                      |
 | `enableReferrals`            | `boolean` | `false` | Enable referral system (creates referral collections) |
-| `allowStackWithOtherCoupons` | `boolean` | `false` | Allow multiple coupons on same cart                   |
+| `allowStackWithOtherCoupons` | `boolean` | `false` | **Deprecated.** Ignored at runtime; use referral/coupon apply rules for single code per cart. |
 | `defaultCurrency`            | `string`  | `'USD'` | Default currency code                                 |
 | `autoIntegrate`              | `boolean` | `true`  | Auto-add fields to carts/orders collections           |
 
@@ -476,6 +476,7 @@ type PartnerDashboardData = {
 type CouponPluginOptions = {
   enabled?: boolean
   enableReferrals?: boolean
+  /** @deprecated Ignored at runtime */
   allowStackWithOtherCoupons?: boolean
   defaultCurrency?: string
   collections?: CouponPluginCollections

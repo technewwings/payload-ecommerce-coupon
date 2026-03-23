@@ -1,4 +1,4 @@
-import type { CollectionConfig } from 'payload'
+import { APIError, type CollectionConfig } from 'payload'
 
 import type { SanitizedCouponPluginOptions } from '../types'
 
@@ -66,7 +66,7 @@ export const createCouponsCollection = (
         type: 'number',
         required: true,
         admin: {
-          description: `If percentage, 10 = 10%. If fixed, interpreted in ${defaultCurrency} (smallest currency units)`,
+          description: `If percentage, 10 means 10% (must be 0–100). If fixed, amount in ${defaultCurrency} with up to 2 decimal places (e.g. 10.99).`,
           step: 0.01,
         },
       },
@@ -74,7 +74,7 @@ export const createCouponsCollection = (
         name: 'maxDiscountAmount',
         type: 'number',
         admin: {
-          description: `Maximum discount amount in ${defaultCurrency} (smallest currency unit). Leave empty for no cap.`,
+          description: `Maximum discount in ${defaultCurrency} (major units, e.g. 20.00). Leave empty for no cap.`,
         },
       },
       {
@@ -111,14 +111,14 @@ export const createCouponsCollection = (
         name: 'minOrderValue',
         type: 'number',
         admin: {
-          description: `Minimum order value required in ${defaultCurrency} (smallest currency units)`,
+          description: `Minimum cart subtotal in ${defaultCurrency} (major units, e.g. 50.00)`,
         },
       },
       {
         name: 'maxOrderValue',
         type: 'number',
         admin: {
-          description: `Maximum order value allowed in ${defaultCurrency} (smallest currency units)`,
+          description: `Maximum cart subtotal allowed in ${defaultCurrency} (major units, e.g. 500.00)`,
         },
       },
       {
@@ -146,6 +146,14 @@ export const createCouponsCollection = (
           if (data && typeof data.code === 'string') {
             data.code = data.code.trim()
             data.normalizedCode = data.code.toUpperCase()
+          }
+          if (data?.type === 'percentage' && typeof data.value === 'number') {
+            if (data.value < 0 || data.value > 100) {
+              throw new APIError('Percentage coupon value must be between 0 and 100', 400)
+            }
+          }
+          if (data?.type === 'fixed' && typeof data.value === 'number' && data.value < 0) {
+            throw new APIError('Fixed coupon value must be non-negative', 400)
           }
           return data
         },

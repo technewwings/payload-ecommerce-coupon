@@ -52,7 +52,7 @@ export async function useCouponCode(
   options: ApplyCouponHook,
   endpointConfig?: EndpointInput,
 ): Promise<ApplyCouponResponse> {
-  const { code, cartID, customerEmail } = options
+  const { code, cartID, customerEmail, secret } = options
 
   if (!code) {
     return {
@@ -68,7 +68,14 @@ export async function useCouponCode(
     const response = await fetch(endpoints.applyCoupon, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ code, cartID, customerEmail }),
+      body: JSON.stringify({
+        code,
+        cartID,
+        customerEmail,
+        ...(typeof secret === 'string' && secret.trim().length > 0
+          ? { secret: secret.trim() }
+          : {}),
+      }),
     })
 
     const data = (await response.json()) as Record<string, unknown>

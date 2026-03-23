@@ -1,4 +1,4 @@
-import { APIError } from 'payload'
+import { majorToMinor2dp, minorToMajor2dp } from './ecommerceMoney'
 import { getCartItemUnitPrice } from './pricing'
 
 // ---------------------------------------------------------------------------
@@ -431,8 +431,9 @@ export function getProgramMinimumOrderAmount({
 /**
  * Calculate total partner commission and customer discount for a cart.
  *
- * All monetary inputs are in NORMAL CURRENCY.
- * Returns results in NORMAL CURRENCY (2 dp).
+ * By default, cart line prices and `cartTotal` are **major** currency (e.g. 10.50 = $10.50).
+ * When `cartAmountsInMinorUnits` is true, `cartTotal` and line unit prices are **minor**
+ * (Payload ecommerce); results are returned in minor units in that mode.
  */
 export function calculateCommissionAndDiscount({
   cartItems,
@@ -440,12 +441,15 @@ export function calculateCommissionAndDiscount({
   currencyCode = 'AED',
   cartTotal = 0,
   allowedTotalCommissionTypes,
+  /** When true, cartTotal and product line prices are in minor units (Payload ecommerce). */
+  cartAmountsInMinorUnits = false,
 }: {
   cartItems: any[]
   program: any
   currencyCode?: string
   cartTotal?: number
   allowedTotalCommissionTypes?: Array<'fixed' | 'percentage'>
+  cartAmountsInMinorUnits?: boolean
 }): { partnerCommission: number; customerDiscount: number } {
   const rules = Array.isArray(program?.commissionRules) ? program.commissionRules : []
 
@@ -453,8 +457,23 @@ export function calculateCommissionAndDiscount({
     return { partnerCommission: 0, customerDiscount: 0 }
   }
 
+  const cartTotalMajor = cartAmountsInMinorUnits ? minorToMajor2dp(cartTotal) : cartTotal
+
   // Scale cart total to cents for eligibility checks
-  const cartTotalCents = toCents(cartTotal)
+  const cartTotalCents = toCents(cartTotalMajor)
+
+  // Program-level minimum order is cart-wide (matches recalculateCart / apply referral).
+  if (
+    typeof program?.minOrderAmount === 'number' &&
+    Number.isFinite(program.minOrderAmount) &&
+    toCents(program.minOrderAmount) > 0 &&
+    cartTotalCents < toCents(program.minOrderAmount)
+  ) {
+    return { partnerCommission: 0, customerDiscount: 0 }
+  }
+
+  const toMajorUnitPrice = (raw: number) =>
+    cartAmountsInMinorUnits ? minorToMajor2dp(raw) : raw
 
   let totalPartnerCents = 0
   let totalCustomerCents = 0
@@ -463,22 +482,18 @@ export function calculateCommissionAndDiscount({
     const product = typeof item.product === 'object' ? item.product : {}
     const variant = typeof item.variant === 'object' ? item.variant : {}
 
-    // Unit price from DB is in normal currency → convert to cents
-    const itemPriceCurrency = getCartItemUnitPrice({
-      item,
-      product,
-      variant,
-      currencyCode,
-    })
+    // Unit price: major currency unless cartAmountsInMinorUnits (ecommerce minor / fils)
+    const itemPriceCurrency = toMajorUnitPrice(
+      getCartItemUnitPrice({
+        item,
+        product,
+        variant,
+        currencyCode,
+      }),
+    )
 
     const quantity = item.quantity ?? 1
     const itemTotalCents = toCents(itemPriceCurrency) * quantity
-
-    const minOrderAmountCents = toCents(program?.minOrderAmount ?? 0)
-
-    if (minOrderAmountCents && itemTotalCents < minOrderAmountCents) {
-      throw new APIError('Item total must be greater than or equal to min order amount', 400)
-    }
 
     const bestMatch = selectBestRuleForItem({
       rules,
@@ -515,9 +530,18 @@ export function calculateCommissionAndDiscount({
     totalCustomerCents = Math.min(totalCustomerCents, maxCustomerCents)
   }
 
-  // Convert back to normal currency for return
+  const partnerMajor = fromCents(totalPartnerCents)
+  const customerMajor = fromCents(totalCustomerCents)
+
+  if (cartAmountsInMinorUnits) {
+    return {
+      partnerCommission: majorToMinor2dp(partnerMajor),
+      customerDiscount: majorToMinor2dp(customerMajor),
+    }
+  }
+
   return {
-    partnerCommission: fromCents(totalPartnerCents),
-    customerDiscount: fromCents(totalCustomerCents),
+    partnerCommission: partnerMajor,
+    customerDiscount: customerMajor,
   }
 }

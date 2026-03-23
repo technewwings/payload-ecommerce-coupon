@@ -136,6 +136,33 @@ describe('Frontend Hooks', () => {
         }),
       )
     })
+
+    it('should include cart secret when provided for guest access', async () => {
+      global.fetch = jest.fn(() =>
+        Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ success: true, message: 'Applied' }),
+        } as any),
+      )
+
+      await useCouponCode({
+        code: 'TEST10',
+        cartID: 'cart-123',
+        secret: 'secret-token',
+      })
+
+      expect(global.fetch).toHaveBeenCalledWith(
+        '/api/coupons/apply',
+        expect.objectContaining({
+          method: 'POST',
+          body: JSON.stringify({
+            code: 'TEST10',
+            cartID: 'cart-123',
+            secret: 'secret-token',
+          }),
+        }),
+      )
+    })
   })
 
   describe('validateCouponCode', () => {

@@ -1,25 +1,26 @@
-import { addDataAndFileToRequest, type Endpoint, type PayloadHandler } from 'payload'
+import { addDataAndFileToRequest, type Endpoint, type PayloadHandler, type PayloadRequest } from 'payload'
 import type { SanitizedCouponPluginOptions } from '../types'
 import {
   calculateCommissionAndDiscount,
   calculateCouponDiscount,
   getProgramMinimumOrderAmount,
 } from '../utilities/calculateValues'
+import { isCouponCartDebugEnabled, logCouponCartDebug } from '../utilities/couponDebug'
+import { majorToMinor2dp, minorToMajor2dp } from '../utilities/ecommerceMoney'
+import { type SkipRecalculateContext, SKIP_COUPON_RECALCULATE_CONTEXT_KEY } from '../utilities/applyCouponContext'
+import { idsEqual, type RelationValue, relationId } from '../utilities/relationId'
 import { roundTo2 } from '../utilities/roundTo2'
 
 type Args = {
   pluginConfig: SanitizedCouponPluginOptions
 }
 
-type RelationValue = string | number | { id?: string | number } | null | undefined
-
-function relationId(value: RelationValue): string | number | null {
-  if (value == null) return null
-  if (typeof value === 'string' || typeof value === 'number') return value
-  if (typeof value === 'object' && (typeof value.id === 'string' || typeof value.id === 'number')) {
-    return value.id
-  }
-  return null
+function buildReqWithCartSecret(req: PayloadRequest, secret: string | undefined): PayloadRequest {
+  if (!secret || typeof secret !== 'string' || secret.trim().length === 0) return req
+  return {
+    ...req,
+    context: { ...(req.context || {}), cartSecret: secret.trim() },
+  } as PayloadRequest
 }
 
 function readField<T = unknown>(doc: unknown, field: string): T | undefined {
@@ -122,6 +123,10 @@ export const applyCouponHandler =
     const cartIDRaw = data?.cartID
     const cartID = typeof cartIDRaw === 'string' || typeof cartIDRaw === 'number' ? cartIDRaw : null
     const customerEmail = typeof data?.customerEmail === 'string' ? data.customerEmail : undefined
+    const rawSecret = data?.secret
+    const cartSecret =
+      typeof rawSecret === 'string' && rawSecret.trim().length > 0 ? rawSecret.trim() : undefined
+    const reqForCart = buildReqWithCartSecret(req, cartSecret)
 
     const normalizedCode = normalizeCode(rawCode)
 
@@ -152,6 +157,8 @@ export const applyCouponHandler =
         collection: collections.cartsSlug,
         id: cartID,
         depth: 2,
+        overrideAccess: true,
+        req: reqForCart,
       })
 
       if (!cart) {
@@ -186,6 +193,7 @@ export const applyCouponHandler =
           cartID,
           normalizedCode,
           pluginConfig,
+          reqForCart,
         })
 
         if (
@@ -201,6 +209,8 @@ export const applyCouponHandler =
             normalizedCode,
             customerEmail,
             pluginConfig,
+            req,
+            reqForCart,
           })
         }
 
@@ -218,6 +228,8 @@ export const applyCouponHandler =
         normalizedCode,
         customerEmail,
         pluginConfig,
+        req,
+        reqForCart,
       })
     } catch (error) {
       console.error('Code application error:', error)
@@ -232,6 +244,8 @@ async function handleCouponCode({
   normalizedCode,
   customerEmail,
   pluginConfig,
+  req,
+  reqForCart,
 }: {
   payload: any
   cart: any
@@ -239,9 +253,12 @@ async function handleCouponCode({
   normalizedCode: string
   customerEmail?: string
   pluginConfig: SanitizedCouponPluginOptions
+  req: PayloadRequest
+  reqForCart: PayloadRequest
 }) {
   const fields = pluginConfig.integration.fields
   const resolvers = pluginConfig.integration.resolvers
+  const cartMinor = pluginConfig.integration?.cartAmountsInMinorUnits === true
   const coupon = await findByNormalizedCode({
     payload,
     collection: pluginConfig.collections.couponsSlug,
@@ -314,9 +331,31 @@ async function handleCouponCode({
   const existingCouponId = relationId(
     readField(cart, fields.cartAppliedCouponField) as RelationValue,
   )
-  if (existingCouponId === coupon.id) {
+  if (idsEqual(existingCouponId, coupon.id)) {
     return Response.json(
       { success: false, error: 'Coupon already applied to this cart' },
+      { status: 400 },
+    )
+  }
+
+  const referralOnCart =
+    relationId(readField(cart, fields.cartAppliedReferralCodeField) as RelationValue) != null
+  if (
+    pluginConfig.enableReferrals &&
+    !pluginConfig.referralConfig.allowBothSystems &&
+    referralOnCart
+  ) {
+    logCouponCartDebug(
+      'applyCoupon: rejected — referral on cart (allowBothSystems=false)',
+      { cartID, referralOnCart, couponId: coupon.id },
+      req,
+    )
+    return Response.json(
+      {
+        success: false,
+        error:
+          'A referral code is already applied to this cart. Remove it before applying a coupon.',
+      },
       { status: 400 },
     )
   }
@@ -324,10 +363,11 @@ async function handleCouponCode({
   // Use cartSubtotal (pre-discount baseline) for all order-value eligibility checks
   // and discount calculations. cartTotal may already reflect a previously applied
   // discount and would produce an inconsistent baseline for min/max enforcement.
-  const cartSubtotal = Number(resolvers.getCartSubtotal(cart)) || 0
-  const cartTotal = Number(resolvers.getCartTotal(cart)) || cartSubtotal || 0
+  const cartSubtotalRaw = Number(resolvers.getCartSubtotal(cart)) || 0
+  const cartSubtotalMajor = cartMinor ? minorToMajor2dp(cartSubtotalRaw) : cartSubtotalRaw
+  const cartTotalRaw = Number(resolvers.getCartTotal(cart)) || cartSubtotalRaw || 0
 
-  if (coupon.minOrderValue && cartSubtotal < coupon.minOrderValue) {
+  if (coupon.minOrderValue && cartSubtotalMajor < coupon.minOrderValue) {
     return Response.json(
       {
         success: false,
@@ -337,7 +377,7 @@ async function handleCouponCode({
     )
   }
 
-  if (coupon.maxOrderValue && cartSubtotal > coupon.maxOrderValue) {
+  if (coupon.maxOrderValue && cartSubtotalMajor > coupon.maxOrderValue) {
     return Response.json(
       {
         success: false,
@@ -347,19 +387,70 @@ async function handleCouponCode({
     )
   }
 
-  const discountAmount = calculateCouponDiscount({ coupon, cartTotal: cartSubtotal })
-  const nextTotal = roundTo2(Math.max(0, cartTotal - discountAmount))
+  const discountMajor = calculateCouponDiscount({ coupon, cartTotal: cartSubtotalMajor })
+  const discountAmount = cartMinor ? majorToMinor2dp(discountMajor) : discountMajor
+  const nextTotal = cartMinor
+    ? Math.max(0, Math.round(cartTotalRaw) - Math.round(discountAmount))
+    : roundTo2(Math.max(0, cartTotalRaw - discountAmount))
 
   const data: Record<string, unknown> = {}
   writeField(data, fields.cartAppliedCouponField, coupon.id)
   writeField(data, fields.cartDiscountAmountField, discountAmount)
   writeField(data, fields.cartTotalField, nextTotal)
 
+  reqForCart.context = {
+    ...(reqForCart.context || {}),
+    [SKIP_COUPON_RECALCULATE_CONTEXT_KEY]: { couponId: coupon.id } satisfies SkipRecalculateContext,
+  }
+
   await payload.update({
     collection: pluginConfig.integration.collections.cartsSlug,
     id: cartID,
     data,
+    overrideAccess: true,
+    req: reqForCart,
   })
+
+  if (isCouponCartDebugEnabled()) {
+    try {
+      const cartAfter = await payload.findByID({
+        collection: pluginConfig.integration.collections.cartsSlug,
+        id: cartID,
+        depth: 0,
+        overrideAccess: true,
+        req: reqForCart,
+      })
+      // eslint-disable-next-line no-console -- DEBUG_COUPON_CART diagnostic
+      console.log('[payload-ecommerce-coupon] applyCoupon: cart after update', {
+        cartID,
+        wroteAppliedCoupon: data[fields.cartAppliedCouponField],
+        appliedCouponOnDoc: readField(cartAfter, fields.cartAppliedCouponField),
+        discountAmountOnDoc: readField(cartAfter, fields.cartDiscountAmountField),
+        totalOnDoc: readField(cartAfter, fields.cartTotalField),
+      })
+    } catch (err) {
+      // eslint-disable-next-line no-console -- DEBUG_COUPON_CART diagnostic
+      console.log('[payload-ecommerce-coupon] applyCoupon: cart after update (read failed)', err)
+    }
+  }
+
+  logCouponCartDebug(
+    'applyCoupon: success',
+    {
+      cartID,
+      cartMinor,
+      cartSubtotalRaw,
+      cartSubtotalMajor,
+      cartTotalRaw,
+      discountMajor,
+      discountAmount,
+      nextTotal,
+      couponId: coupon.id,
+      couponType: coupon.type,
+      couponValue: coupon.value,
+    },
+    req,
+  )
 
   return Response.json({
     success: true,
@@ -380,15 +471,18 @@ async function handleReferralCode({
   cartID,
   normalizedCode,
   pluginConfig,
+  reqForCart,
 }: {
   payload: any
   cart: any
   cartID: string | number
   normalizedCode: string
   pluginConfig: SanitizedCouponPluginOptions
+  reqForCart: PayloadRequest
 }) {
   const fields = pluginConfig.integration.fields
   const resolvers = pluginConfig.integration.resolvers
+  const cartMinor = pluginConfig.integration?.cartAmountsInMinorUnits === true
 
   const referralCode = await findByNormalizedCode({
     payload,
@@ -436,7 +530,7 @@ async function handleReferralCode({
     readField(cart, fields.cartAppliedReferralCodeField) as RelationValue,
   )
 
-  if (existingReferralId === referralCode.id) {
+  if (idsEqual(existingReferralId, referralCode.id)) {
     return Response.json(
       { success: false, error: 'Referral code already applied to this cart' },
       { status: 400 },
@@ -447,6 +541,7 @@ async function handleReferralCode({
   // Use cartSubtotal as the pre-discount baseline for min-order enforcement and
   // commission/discount calculations, matching the recalculateCart hook policy.
   const cartSubtotal = Number(resolvers.getCartSubtotal(cart)) || 0
+  const cartSubtotalMajor = cartMinor ? minorToMajor2dp(cartSubtotal) : cartSubtotal
   const cartTotal = Number(resolvers.getCartTotal(cart)) || cartSubtotal || 0
 
   const minOrderAmount = getProgramMinimumOrderAmount({
@@ -454,7 +549,7 @@ async function handleReferralCode({
     allowedTotalCommissionTypes: pluginConfig.referralConfig.allowedTotalCommissionTypes,
   })
 
-  if (typeof minOrderAmount === 'number' && cartSubtotal < minOrderAmount) {
+  if (typeof minOrderAmount === 'number' && cartSubtotalMajor < minOrderAmount) {
     return Response.json(
       {
         success: false,
@@ -470,11 +565,14 @@ async function handleReferralCode({
     currencyCode: pluginConfig.defaultCurrency,
     cartTotal: cartSubtotal,
     allowedTotalCommissionTypes: pluginConfig.referralConfig.allowedTotalCommissionTypes,
+    cartAmountsInMinorUnits: cartMinor,
   })
 
   const roundedPartnerCommission = roundTo2(partnerCommission)
   const roundedCustomerDiscount = roundTo2(customerDiscount)
-  const nextTotal = roundTo2(Math.max(0, cartTotal - roundedCustomerDiscount))
+  const nextTotal = cartMinor
+    ? Math.max(0, Math.round(cartTotal) - Math.round(roundedCustomerDiscount))
+    : roundTo2(Math.max(0, cartTotal - roundedCustomerDiscount))
 
   const data: Record<string, unknown> = {}
   writeField(data, fields.cartAppliedReferralCodeField, referralCode.id)
@@ -482,10 +580,17 @@ async function handleReferralCode({
   writeField(data, fields.cartCustomerDiscountField, roundedCustomerDiscount)
   writeField(data, fields.cartTotalField, nextTotal)
 
+  reqForCart.context = {
+    ...(reqForCart.context || {}),
+    [SKIP_COUPON_RECALCULATE_CONTEXT_KEY]: { referralId: referralCode.id } satisfies SkipRecalculateContext,
+  }
+
   await payload.update({
     collection: pluginConfig.integration.collections.cartsSlug,
     id: cartID,
     data,
+    overrideAccess: true,
+    req: reqForCart,
   })
 
   return Response.json({

@@ -863,6 +863,33 @@ describe('Validate Coupon Endpoint', () => {
       expect(result.success).toBe(false)
       expect(result.error).toBe('Coupon usage limit exceeded')
     })
+
+    it('should return discount matching calculateCouponDiscount cents logic (10% of 19.99 = 1.99)', async () => {
+      const mockCoupon = {
+        id: 'coupon-1',
+        code: 'PRECISION',
+        type: 'percentage',
+        value: 10,
+      }
+
+      mockPayload.find.mockResolvedValue({
+        docs: [mockCoupon],
+        totalDocs: 1,
+      })
+
+      const handler = validateCouponHandler({ pluginConfig })
+      const req = {
+        payload: mockPayload,
+        data: { code: 'PRECISION', cartValue: 19.99 },
+      }
+
+      const response = await handler(req as any)
+      const result = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(result.success).toBe(true)
+      expect(result.discount).toBe(1.99)
+    })
   })
 
   describe('Referral Code Validation', () => {
@@ -1284,6 +1311,46 @@ describe('cartSubtotal Baseline Enforcement', () => {
 
   beforeEach(() => {
     jest.clearAllMocks()
+  })
+
+  it('apply coupon: findByID and update use overrideAccess and forward trimmed cart secret on req', async () => {
+    const mockCoupon = {
+      id: 'c-secret',
+      code: 'SAVE5',
+      type: 'fixed',
+      value: 5,
+    }
+    mockPayload.find.mockResolvedValue({ docs: [mockCoupon], totalDocs: 1 })
+    mockPayload.findByID.mockResolvedValue({
+      id: 'cart-sec',
+      subtotal: 100,
+      total: 100,
+      items: [{ product: 'p1', quantity: 1 }],
+    })
+    mockPayload.update.mockResolvedValue({})
+
+    const handler = applyCouponHandler({ pluginConfig: couponPluginConfig })
+    await handler({
+      payload: mockPayload,
+      data: { code: 'SAVE5', cartID: 'cart-sec', secret: '  guest-secret-xyz  ' },
+    } as any)
+
+    expect(mockPayload.findByID).toHaveBeenCalledWith(
+      expect.objectContaining({
+        overrideAccess: true,
+        req: expect.objectContaining({
+          context: expect.objectContaining({ cartSecret: 'guest-secret-xyz' }),
+        }),
+      }),
+    )
+    expect(mockPayload.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        overrideAccess: true,
+        req: expect.objectContaining({
+          context: expect.objectContaining({ cartSecret: 'guest-secret-xyz' }),
+        }),
+      }),
+    )
   })
 
   // ---------------------------------------------------------------------------

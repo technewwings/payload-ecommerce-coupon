@@ -90,10 +90,11 @@ describe('Coupon Plugin', () => {
       })
       const testConfig = { collections: [] } as any
       const result = await plugin(testConfig)
-      expect(result.collections).toHaveLength(2)
+      expect(result.collections).toHaveLength(3)
       expect(result.collections?.map((c: any) => c.slug)).toEqual([
         'referral-programs',
         'referral-codes',
+        'coupons',
       ])
     })
 
@@ -117,6 +118,7 @@ describe('Coupon Plugin', () => {
       expect(result.collections?.map((c: any) => c.slug)).toEqual([
         'custom-programs',
         'custom-codes',
+        'coupons',
       ])
     })
   })
@@ -335,7 +337,7 @@ describe('Coupon Plugin', () => {
       })
       const testConfig = { collections: [] } as any
       const result = await plugin(testConfig)
-      expect(result.collections).toHaveLength(2)
+      expect(result.collections).toHaveLength(3)
       const slugs = result.collections?.map((c: any) => c.slug)
       expect(slugs).toContain('shared-slug')
     })

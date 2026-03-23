@@ -199,6 +199,7 @@ export const sanitizePluginConfig = ({
   return {
     enabled: toBoolean(pluginConfig?.enabled, true),
     enableReferrals: toBoolean(pluginConfig?.enableReferrals, false),
+    // Deprecated in types; kept for backward-compatible config shape (ignored at runtime).
     allowStackWithOtherCoupons: toBoolean(pluginConfig?.allowStackWithOtherCoupons, false),
     defaultCurrency:
       typeof pluginConfig?.defaultCurrency === 'string' &&
@@ -297,6 +298,10 @@ export const sanitizePluginConfig = ({
       collections: integrationCollections,
       fields: integrationFields,
       resolvers: integrationResolvers,
+      cartAmountsInMinorUnits: toBoolean(
+        pluginConfig?.integration?.cartAmountsInMinorUnits,
+        false,
+      ),
     },
     referralConfig: {
       allowBothSystems: pluginConfig?.referralConfig?.allowBothSystems ?? false,

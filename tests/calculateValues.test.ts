@@ -4,8 +4,6 @@ import {
   calculateCouponDiscount,
   getProgramMinimumOrderAmount,
 } from '../src/utilities/calculateValues'
-import { APIError } from 'payload'
-
 // ---------------------------------------------------------------------------
 // calculateCouponDiscount
 // ---------------------------------------------------------------------------
@@ -287,7 +285,7 @@ describe('calculateCommissionAndDiscount', () => {
     expect(result.customerDiscount).toBe(0)
   })
 
-  it('should enforce minOrderAmount restrictions for fixed commission rules', () => {
+  it('should return zero commission when cart total is below program minOrderAmount (cart-wide)', () => {
     const cartItems = [{ id: '1', price: 100, quantity: 1, product: { id: 'p1' } }]
     const program = {
       minOrderAmount: 200,
@@ -300,12 +298,30 @@ describe('calculateCommissionAndDiscount', () => {
         },
       ],
     }
-    try {
-      const result = calculateCommissionAndDiscount({ cartItems, program, cartTotal: 100 })
-    } catch (e: any) {
-      expect(e).toBeInstanceOf(APIError)
-      expect(e.message).toBe('Item total must be greater than or equal to min order amount')
+    const result = calculateCommissionAndDiscount({ cartItems, program, cartTotal: 100 })
+    expect(result.partnerCommission).toBe(0)
+    expect(result.customerDiscount).toBe(0)
+  })
+
+  it('should apply fixed commission when program minOrderAmount is met by cart total across lines', () => {
+    const cartItems = [
+      { id: '1', price: 100, quantity: 1, product: { id: 'p1' } },
+      { id: '2', price: 110, quantity: 1, product: { id: 'p2' } },
+    ]
+    const program = {
+      minOrderAmount: 200,
+      commissionRules: [
+        {
+          appliesTo: 'all',
+          totalCommission: { type: 'fixed' },
+          partnerSplit: 15,
+          customerSplit: 10,
+        },
+      ],
     }
+    const result = calculateCommissionAndDiscount({ cartItems, program, cartTotal: 210 })
+    expect(result.partnerCommission).toBe(30)
+    expect(result.customerDiscount).toBe(20)
   })
 
   it('should calculate percentage commissions without totalCommission.value using direct percentages', () => {
@@ -582,6 +598,33 @@ describe('calculateCommissionAndDiscount', () => {
     const result = calculateCommissionAndDiscount({ cartItems, program })
     expect(result.partnerCommission).toBe(4.99)
     expect(result.customerDiscount).toBe(4.99)
+  })
+
+  it('stores partner/customer rewards in minor units when cartAmountsInMinorUnits is true', () => {
+    const cartItems = [
+      { id: '1', price: 10000, quantity: 1, product: { id: 'p1', price: 10000 } },
+    ]
+    const program = {
+      commissionRules: [
+        {
+          appliesTo: 'all',
+          totalCommission: { type: 'percentage', value: 20 },
+          partnerSplit: 50,
+          customerSplit: 50,
+        },
+      ],
+    }
+
+    const result = calculateCommissionAndDiscount({
+      cartItems,
+      program,
+      currencyCode: 'USD',
+      cartTotal: 10000,
+      cartAmountsInMinorUnits: true,
+    })
+
+    expect(result.partnerCommission).toBe(1000)
+    expect(result.customerDiscount).toBe(1000)
   })
 })
 

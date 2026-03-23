@@ -163,11 +163,20 @@ export type PluginIntegrationConfig = {
   collections?: PluginIntegrationCollections
   fields?: PluginIntegrationFields
   resolvers?: PluginIntegrationResolvers
+  /**
+   * When true, cart `subtotal` / `total` / discount fields match Payload ecommerce:
+   * amounts are in smallest currency units (e.g. fils). Coupon math still uses major
+   * units internally; values are converted at boundaries.
+   */
+  cartAmountsInMinorUnits?: boolean
 }
 
 export type CouponPluginOptions = {
   enabled?: boolean
   enableReferrals?: boolean
+  /**
+   * @deprecated Not implemented. Single coupon per cart is enforced by apply/referral flows; this flag is ignored at runtime.
+   */
   allowStackWithOtherCoupons?: boolean
   defaultCurrency?: string
   collections?: CouponPluginCollections & {
@@ -200,6 +209,7 @@ export type CouponPluginOptions = {
 export type SanitizedCouponPluginOptions = {
   enabled: boolean
   enableReferrals: boolean
+  /** @deprecated Ignored at runtime; kept for config compatibility. */
   allowStackWithOtherCoupons: boolean
   defaultCurrency: string
   collections: Required<CouponPluginCollections>
@@ -216,6 +226,8 @@ export type SanitizedCouponPluginOptions = {
     collections: Required<PluginIntegrationCollections>
     fields: Required<PluginIntegrationFields>
     resolvers: Required<PluginIntegrationResolvers>
+    /** When true, cart money fields use minor units (Payload ecommerce / formatCurrency). */
+    cartAmountsInMinorUnits: boolean
   }
   referralConfig: Required<ReferralProgramConfig>
   adminGroups: Required<AdminGroupConfig>
@@ -242,6 +254,8 @@ export type ApplyCouponHook = {
   code: string
   cartID?: string
   customerEmail?: string
+  /** Guest cart secret (same as remove-coupon); required for hasCartSecretAccess when unauthenticated */
+  secret?: string
 }
 
 export type ApplyCouponResponse = {

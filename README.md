@@ -331,6 +331,7 @@ This keeps plugin UI behavior consistent while respecting your product’s style
 type CouponPluginOptions = {
   enabled?: boolean
   enableReferrals?: boolean
+  /** @deprecated Ignored at runtime; reserved for future multi-coupon support. */
   allowStackWithOtherCoupons?: boolean
   defaultCurrency?: string
   autoIntegrate?: boolean

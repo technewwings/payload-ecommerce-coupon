@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, jest } from 'bun:test'
 import { recalculateCartHook } from '../src/hooks/recalculateCart'
+import { type SkipRecalculateContext, SKIP_COUPON_RECALCULATE_CONTEXT_KEY } from '../src/utilities/applyCouponContext'
 
 describe('recalculateCartHook', () => {
   const mockPluginConfig: any = {
@@ -185,6 +186,181 @@ describe('recalculateCartHook Integration', () => {
     })
 
     const result: any = await hook({ data, req: mockReq } as any)
+
+    expect(result.discountAmount).toBe(25)
+    expect(result.total).toBe(75)
+  })
+
+  it('should preserve referral discount when item quantity changes (no coupon)', async () => {
+    const hook = recalculateCartHook(mockPluginConfig)
+    // DB state: referral applied, no coupon
+    const originalDoc = {
+      items: [{ product: 'p1', quantity: 1 }],
+      appliedReferralCode: 'ref-1',
+      appliedCoupon: null,
+    }
+    // update-item only sends items; Payload carries all other fields from original
+    const data = {
+      items: [{ product: 'p1', quantity: 2 }],
+      appliedReferralCode: 'ref-1',
+      appliedCoupon: null,
+      subtotal: 0,
+      total: 0,
+      partnerCommission: 0,
+      customerDiscount: 0,
+      discountAmount: 0,
+    }
+
+    mockPayload.find.mockImplementation((args: any) => {
+      if (args.collection === 'products')
+        return Promise.resolve({ docs: [{ id: 'p1', price: 100 }] })
+      if (args.collection === 'referral-codes')
+        return Promise.resolve({
+          docs: [
+            {
+              id: 'ref-1',
+              program: {
+                id: 'prog-1',
+                commissionRules: [
+                  {
+                    appliesTo: 'all',
+                    basis: 'shared',
+                    totalCommission: { type: 'percentage', value: 20 },
+                    referrerSplit: 50,
+                    refereeSplit: 50,
+                  },
+                ],
+              },
+            },
+          ],
+        })
+      return Promise.resolve({ docs: [] })
+    })
+
+    const result: any = await hook({ data, originalDoc, req: mockReq } as any)
+
+    // subtotal = 2 × 100 = 200; 20% shared = 40; 50/50 split → 20 partner, 20 customer
+    expect(result.subtotal).toBe(200)
+    expect(result.customerDiscount).toBe(20)
+    expect(result.partnerCommission).toBe(20)
+    expect(result.total).toBe(180) // 200 - 20
+    // Coupon fields must remain cleared
+    expect(result.discountAmount).toBe(0)
+    expect(result.appliedCoupon).toBe(null)
+  })
+
+  it('should apply coupon when patch omits items but originalDoc has line items (partial update)', async () => {
+    const hook = recalculateCartHook(mockPluginConfig)
+    const originalDoc = {
+      items: [{ product: 'p1', quantity: 1 }],
+      subtotal: 100,
+      total: 100,
+      appliedCoupon: null,
+    }
+    const data = {
+      appliedCoupon: 'coupon-1',
+      discountAmount: 25,
+      total: 75,
+    }
+
+    mockPayload.find.mockImplementation((args: any) => {
+      if (args.collection === 'products')
+        return Promise.resolve({ docs: [{ id: 'p1', price: 100 }] })
+      if (args.collection === 'coupons') {
+        return Promise.resolve({
+          docs: [{ id: 'coupon-1', type: 'fixed', value: 25 }],
+        })
+      }
+      return Promise.resolve({ docs: [] })
+    })
+
+    const result: any = await hook({ data, originalDoc, req: mockReq } as any)
+
+    expect(result.discountAmount).toBe(25)
+    expect(result.total).toBe(75)
+  })
+
+  it('should skip recalculation and restore coupon ID from context when SKIP flag is set', async () => {
+    const hook = recalculateCartHook(mockPluginConfig)
+    const originalDoc = {
+      items: [{ product: 'p1', quantity: 1 }],
+      appliedCoupon: null,
+    }
+    // Simulates the merged data Payload passes to beforeChange: Payload strips the
+    // relationship ID so appliedCoupon arrives as null even though the patch had the ID.
+    const data: Record<string, unknown> = {
+      appliedCoupon: null,
+      discountAmount: 25,
+      total: 75,
+    }
+
+    const skipCtx: SkipRecalculateContext = { couponId: 'coupon-1' }
+    const mockReqWithCtx = {
+      payload: mockPayload,
+      context: { [SKIP_COUPON_RECALCULATE_CONTEXT_KEY]: skipCtx },
+    }
+
+    const result: any = await hook({ data, originalDoc, req: mockReqWithCtx } as any)
+
+    // Hook must not call payload.find
+    expect(mockPayload.find).not.toHaveBeenCalled()
+    // Hook must restore the relationship ID so it is persisted to the DB
+    expect(result.appliedCoupon).toBe('coupon-1')
+    expect(result.discountAmount).toBe(25)
+    expect(result.total).toBe(75)
+  })
+
+  it('should skip recalculation and restore referral ID from context when SKIP flag is set', async () => {
+    const hook = recalculateCartHook(mockPluginConfig)
+    const originalDoc = {
+      items: [{ product: 'p1', quantity: 1 }],
+      appliedReferralCode: null,
+    }
+    const data: Record<string, unknown> = {
+      appliedReferralCode: null,
+      partnerCommission: 10,
+      customerDiscount: 5,
+      total: 85,
+    }
+
+    const skipCtx: SkipRecalculateContext = { referralId: 'ref-1' }
+    const mockReqWithCtx = {
+      payload: mockPayload,
+      context: { [SKIP_COUPON_RECALCULATE_CONTEXT_KEY]: skipCtx },
+    }
+
+    const result: any = await hook({ data, originalDoc, req: mockReqWithCtx } as any)
+
+    expect(mockPayload.find).not.toHaveBeenCalled()
+    expect(result.appliedReferralCode).toBe('ref-1')
+    expect(result.partnerCommission).toBe(10)
+    expect(result.customerDiscount).toBe(5)
+    expect(result.total).toBe(85)
+  })
+
+  it('should use original appliedCoupon when merged data has appliedCoupon: undefined (own key)', async () => {
+    const hook = recalculateCartHook(mockPluginConfig)
+    const originalDoc = {
+      items: [{ product: 'p1', quantity: 1 }],
+      appliedCoupon: 'coupon-1',
+    }
+    const data = {
+      items: [{ product: 'p1', quantity: 1 }],
+      appliedCoupon: undefined,
+    }
+
+    mockPayload.find.mockImplementation((args: any) => {
+      if (args.collection === 'products')
+        return Promise.resolve({ docs: [{ id: 'p1', price: 100 }] })
+      if (args.collection === 'coupons') {
+        return Promise.resolve({
+          docs: [{ id: 'coupon-1', type: 'fixed', value: 25 }],
+        })
+      }
+      return Promise.resolve({ docs: [] })
+    })
+
+    const result: any = await hook({ data, originalDoc, req: mockReq } as any)
 
     expect(result.discountAmount).toBe(25)
     expect(result.total).toBe(75)
@@ -399,5 +575,30 @@ describe('recalculateCartHook Integration', () => {
     expect(result.partnerCommission).toBe(0)
     expect(result.customerDiscount).toBe(0)
     expect(result.total).toBe(100)
+  })
+
+  it('stores fixed coupon discount in minor units when integration.cartAmountsInMinorUnits is true', async () => {
+    const hook = recalculateCartHook({
+      ...mockPluginConfig,
+      integration: { cartAmountsInMinorUnits: true },
+    })
+    const data = { items: [{ product: 'p1', quantity: 1 }], appliedCoupon: 'coupon-1' }
+
+    mockPayload.find.mockImplementation((args: any) => {
+      if (args.collection === 'products')
+        return Promise.resolve({ docs: [{ id: 'p1', price: 10000 }] })
+      if (args.collection === 'coupons') {
+        return Promise.resolve({
+          docs: [{ id: 'coupon-1', type: 'fixed', value: 20 }],
+        })
+      }
+      return Promise.resolve({ docs: [] })
+    })
+
+    const result: any = await hook({ data, req: mockReq } as any)
+
+    expect(result.subtotal).toBe(10000)
+    expect(result.discountAmount).toBe(2000)
+    expect(result.total).toBe(8000)
   })
 })

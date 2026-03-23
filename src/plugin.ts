@@ -230,21 +230,9 @@ export const payloadEcommerceCouponPlugin =
       }
 
       collectionsToAdd.push(referralProgramsCollection, referralCodesCollection)
+    }
 
-      if (pluginConfig.referralConfig.allowBothSystems) {
-        let couponsCollection = createCouponsCollection(pluginConfig) as GenericCollection
-        if (pluginOptions.collections?.couponsCollectionOverride) {
-          couponsCollection = await pluginOptions.collections.couponsCollectionOverride({
-            defaultCollection: couponsCollection,
-          })
-        }
-        couponsCollection = ensureCouponCollectionEndpoints({
-          collection: couponsCollection,
-          pluginConfig,
-        })
-        collectionsToAdd.push(couponsCollection)
-      }
-    } else {
+    {
       let couponsCollection = createCouponsCollection(pluginConfig) as GenericCollection
       if (pluginOptions.collections?.couponsCollectionOverride) {
         couponsCollection = await pluginOptions.collections.couponsCollectionOverride({
@@ -336,10 +324,7 @@ export const payloadEcommerceCouponPlugin =
           },
         ]
 
-        if (
-          pluginConfig.referralConfig.allowBothSystems &&
-          allSlugs.has(pluginConfig.collections.couponsSlug)
-        ) {
+        if (allSlugs.has(pluginConfig.collections.couponsSlug)) {
           cartReferralFields.push(
             {
               name: cartAppliedCouponField,
@@ -385,10 +370,7 @@ export const payloadEcommerceCouponPlugin =
           },
         ]
 
-        if (
-          pluginConfig.referralConfig.allowBothSystems &&
-          allSlugs.has(pluginConfig.collections.couponsSlug)
-        ) {
+        if (allSlugs.has(pluginConfig.collections.couponsSlug)) {
           orderReferralFields.push(
             {
               name: orderAppliedCouponField,
