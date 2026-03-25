@@ -17,10 +17,12 @@ export type SkipRecalculateContext = {
  * `recalculateCart` to skip its own recalculation and pass the data through unchanged,
  * while also restoring the relationship IDs that Payload strips during its merge.
  */
-export const SKIP_COUPON_RECALCULATE_CONTEXT_KEY = '__payloadEcommerceCouponSkipRecalculate' as const
+export const SKIP_COUPON_RECALCULATE_CONTEXT_KEY =
+  '__payloadEcommerceCouponSkipRecalculate' as const
 
 /**
  * @deprecated Use SKIP_COUPON_RECALCULATE_CONTEXT_KEY instead.
  * Kept for any external consumers; will be removed in a future major version.
  */
-export const PENDING_APPLIED_COUPON_ID_CONTEXT_KEY = '__payloadEcommerceCouponPendingAppliedCouponId' as const
+export const PENDING_APPLIED_COUPON_ID_CONTEXT_KEY =
+  '__payloadEcommerceCouponPendingAppliedCouponId' as const

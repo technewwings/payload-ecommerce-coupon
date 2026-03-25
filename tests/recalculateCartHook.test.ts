@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it, jest } from 'bun:test'
 import { recalculateCartHook } from '../src/hooks/recalculateCart'
-import { type SkipRecalculateContext, SKIP_COUPON_RECALCULATE_CONTEXT_KEY } from '../src/utilities/applyCouponContext'
+import {
+  type SkipRecalculateContext,
+  SKIP_COUPON_RECALCULATE_CONTEXT_KEY,
+} from '../src/utilities/applyCouponContext'
 
 describe('recalculateCartHook', () => {
   const mockPluginConfig: any = {

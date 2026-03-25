@@ -611,9 +611,7 @@ describe('calculateCommissionAndDiscount', () => {
   })
 
   it('stores partner/customer rewards in minor units when cartAmountsInMinorUnits is true', () => {
-    const cartItems = [
-      { id: '1', price: 10000, quantity: 1, product: { id: 'p1', price: 10000 } },
-    ]
+    const cartItems = [{ id: '1', price: 10000, quantity: 1, product: { id: 'p1', price: 10000 } }]
     const program = {
       commissionRules: [
         {

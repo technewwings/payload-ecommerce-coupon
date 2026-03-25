@@ -8,7 +8,10 @@ import {
 import { logCouponCartDebug, logRecalculateCartCouponSnapshot } from '../utilities/couponDebug'
 import { majorToMinor2dp, minorToMajor2dp } from '../utilities/ecommerceMoney'
 import { roundTo2 } from '../utilities/roundTo2'
-import { type SkipRecalculateContext, SKIP_COUPON_RECALCULATE_CONTEXT_KEY } from '../utilities/applyCouponContext'
+import {
+  type SkipRecalculateContext,
+  SKIP_COUPON_RECALCULATE_CONTEXT_KEY,
+} from '../utilities/applyCouponContext'
 import { type RelationValue, relationId } from '../utilities/relationId'
 
 function readField<T = unknown>(doc: unknown, field: string): T | undefined {
@@ -189,7 +192,7 @@ export const recalculateCartHook =
       fields.cartAppliedReferralCodeField,
     )
 
-    let effectiveAppliedCoupon = effectiveRelationField(
+    const effectiveAppliedCoupon = effectiveRelationField(
       mutableData,
       original,
       fields.cartAppliedCouponField,
@@ -420,11 +423,7 @@ export const recalculateCartHook =
           writeField(mutableData, fields.cartCustomerDiscountField, 0)
           writeField(mutableData, fields.cartPartnerCommissionField, 0)
           const st = Number(resolvers.getCartSubtotal(mutableData)) || calculatedSubtotal
-          writeField(
-            mutableData,
-            fields.cartTotalField,
-            cartMinor ? Math.round(st) : roundTo2(st),
-          )
+          writeField(mutableData, fields.cartTotalField, cartMinor ? Math.round(st) : roundTo2(st))
           logCouponCartDebug(
             'recalculateCart: no applied coupon field (early exit)',
             {
@@ -451,7 +450,9 @@ export const recalculateCartHook =
     const nextTotal = cartMinor
       ? Math.max(
           0,
-          Math.round(calculatedSubtotal) - Math.round(customerDiscount) - Math.round(couponDiscount),
+          Math.round(calculatedSubtotal) -
+            Math.round(customerDiscount) -
+            Math.round(couponDiscount),
         )
       : roundTo2(Math.max(0, calculatedSubtotal - customerDiscount - couponDiscount))
     writeField(mutableData, fields.cartTotalField, nextTotal)
