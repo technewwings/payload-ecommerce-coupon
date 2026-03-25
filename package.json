@@ -1,6 +1,6 @@
 {
   "name": "@wtree/payload-ecommerce-coupon",
-  "version": "3.79.4",
+  "version": "3.79.5",
   "description": "Production-ready coupon and referral system plugin for Payload CMS Ecommerce Plugin",
   "keywords": [
     "coupon",
