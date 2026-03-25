@@ -55,6 +55,7 @@
     "dist/styles.css"
   ],
   "scripts": {
+    "prepare": "bun run build",
     "build": "bun run clean && rolldown -c && tsc --declaration --emitDeclarationOnly --outDir dist && bun scripts/copy-styles.mjs",
     "clean": "rm -rf dist",
     "dev": "rolldown -c --watch",
