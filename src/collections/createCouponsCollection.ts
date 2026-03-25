@@ -66,7 +66,7 @@ export const createCouponsCollection = (
         type: 'number',
         required: true,
         admin: {
-          description: `If percentage, 10 means 10% (must be 0–100). If fixed, amount in ${defaultCurrency} with up to 2 decimal places (e.g. 10.99).`,
+          description: `Percentage: use 10 for 10%, or a decimal between 0 and 1 for a fraction of the cart (0.1 = 10%, 0.01 = 1%). Values from 1 upward are percent points (1 = 1%, 100 = 100%). Fixed: amount in ${defaultCurrency} (e.g. 10.99).`,
           step: 0.01,
         },
       },

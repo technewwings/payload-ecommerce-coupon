@@ -23,15 +23,13 @@ function toNumber(value: unknown): number | null {
 }
 
 /**
- * Scaling policy:
- *   - Admin inputs normal currency values (e.g. 100 means $100).
- *   - Internally, maxPartnerCommissionPerOrder, maxCustomerDiscountPerOrder, and
- *     minOrderAmount are stored in x100 (integer cents) form to avoid floating-point
- *     drift on monetary cap fields.
- *   - beforeChange  →  multiply by 100 before persisting.
- *   - afterRead     →  divide by 100 before returning to admin / calculation code.
- *   - partnerAmount / customerAmount per-rule fixed amounts are NOT scaled here;
- *     they represent per-item fixed currency amounts and are stored as-is.
+ * Monetary policy:
+ *   - Admin enters normal currency (e.g. 100 means AED 100).
+ *   - Top-level caps and min order (maxPartnerCommissionPerOrder,
+ *     maxCustomerDiscountPerOrder, minOrderAmount) are persisted as normal currency;
+ *     calculateValues converts to integer cents internally via toCents().
+ *   - Per-rule fixed amounts (partnerAmount / customerAmount) map to partnerSplit /
+ *     customerSplit and are stored as-is in major units.
  */
 
 export const createReferralProgramsCollection = (

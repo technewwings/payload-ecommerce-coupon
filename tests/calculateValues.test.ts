@@ -15,6 +15,16 @@ describe('calculateCouponDiscount', () => {
     expect(discount).toBe(10)
   })
 
+  it('treats percentage values in (0, 1) as decimal fractions (0.1 = 10%)', () => {
+    const coupon = { type: 'percentage', value: 0.1 }
+    expect(calculateCouponDiscount({ coupon, cartTotal: 1400 })).toBe(140)
+  })
+
+  it('uses 0–100 percent points when value is 1 or greater (1 = 1%)', () => {
+    const coupon = { type: 'percentage', value: 1 }
+    expect(calculateCouponDiscount({ coupon, cartTotal: 1400 })).toBe(14)
+  })
+
   it('should cap percentage discount at maxDiscountAmount', () => {
     const coupon = { type: 'percentage', value: 50, maxDiscountAmount: 20 }
     const discount = calculateCouponDiscount({ coupon, cartTotal: 100 })

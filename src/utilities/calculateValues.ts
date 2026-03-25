@@ -47,8 +47,13 @@ export function calculateCouponDiscount({
   let discountCents = 0
 
   if (coupon.type === 'percentage') {
-    // percentage value is 0-100, no scaling needed
-    discountCents = Math.floor((cartCents * coupon.value) / 100)
+    const v = coupon.value
+    if (typeof v === 'number' && v > 0 && v < 1) {
+      // Decimal fraction (0.1 = 10%, 0.01 = 1%). Values >= 1 use 0–100 scale (10 = 10%, 1 = 1%).
+      discountCents = Math.floor(cartCents * v)
+    } else {
+      discountCents = Math.floor((cartCents * v) / 100)
+    }
     if (coupon.maxDiscountAmount != null) {
       const maxCents = toCents(coupon.maxDiscountAmount)
       if (discountCents > maxCents) discountCents = maxCents
